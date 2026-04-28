@@ -94,71 +94,50 @@ export default function Login() {
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_25%_20%,rgba(73,123,255,0.55),transparent_26%),radial-gradient(circle_at_75%_78%,rgba(17,53,143,0.78),transparent_34%)]" />
           <div className="absolute inset-0 opacity-[0.12] [background-image:linear-gradient(rgba(255,255,255,.65)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.65)_1px,transparent_1px)] [background-size:38px_38px]" />
 
-          <svg
-            className="absolute inset-0 h-full w-full"
-            viewBox="0 0 460 600"
-            fill="none"
-            aria-hidden="true"
-          >
-            <path
-              d="M70 486H392"
-              stroke="rgba(255,255,255,.2)"
-              strokeWidth="2"
-              strokeLinecap="round"
-            />
-            <path
-              d="M132 486V392L214 324L301 245"
-              stroke="rgba(255,255,255,.78)"
-              strokeWidth="10"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            <path
-              d="M214 324L274 371"
-              stroke="rgba(151,180,255,.72)"
-              strokeWidth="8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            <circle cx="132" cy="392" r="28" fill="rgba(255,255,255,.08)" stroke="rgba(255,255,255,.65)" strokeWidth="7" />
-            <circle cx="214" cy="324" r="24" fill="rgba(255,255,255,.08)" stroke="rgba(255,255,255,.62)" strokeWidth="7" />
-            <circle cx="301" cy="245" r="23" fill="rgba(255,255,255,.08)" stroke="rgba(255,255,255,.62)" strokeWidth="7" />
-            <path
-              d="M315 226L362 188"
-              stroke="rgba(255,255,255,.82)"
-              strokeWidth="8"
-              strokeLinecap="round"
-            />
-            <path
-              d="M372 180L397 159M372 180L391 208"
-              stroke="rgba(151,180,255,.85)"
-              strokeWidth="6"
-              strokeLinecap="round"
-            />
-            <path
-              d="M98 486H166"
-              stroke="rgba(151,180,255,.8)"
-              strokeWidth="18"
-              strokeLinecap="round"
-            />
-            <circle cx="374" cy="155" r="4" fill="white" />
-            <circle cx="386" cy="220" r="3" fill="rgba(151,180,255,.9)" />
-            <circle cx="82" cy="336" r="3" fill="rgba(151,180,255,.9)" />
-            <path
-              d="M67 338C118 280 176 248 241 242"
-              stroke="rgba(151,180,255,.18)"
-              strokeWidth="2"
-              strokeDasharray="8 10"
-              strokeLinecap="round"
-            />
-          </svg>
-
-          <div className="pointer-events-none absolute inset-x-0 top-16 z-10 px-10 text-center">
+          <div className="pointer-events-none relative z-10 flex h-full w-full flex-col items-center justify-center px-10 text-center">
+            <div className="mb-8 grid h-36 w-36 place-items-center rounded-[2.25rem] border border-white/20 bg-white/10 shadow-[0_26px_72px_rgba(0,0,0,0.24)] backdrop-blur-sm">
+              <svg
+                className="h-24 w-24"
+                viewBox="-96 -96 192 192"
+                fill="none"
+                aria-hidden="true"
+              >
+                <g fill="rgba(255,255,255,0.82)">
+                  <rect x="-6" y="-92" width="12" height="34" rx="6" />
+                  <rect x="-6" y="-92" width="12" height="34" rx="6" transform="rotate(30)" />
+                  <rect x="-6" y="-92" width="12" height="34" rx="6" transform="rotate(60)" />
+                  <rect x="-6" y="-92" width="12" height="34" rx="6" transform="rotate(90)" />
+                  <rect x="-6" y="-92" width="12" height="34" rx="6" transform="rotate(120)" />
+                  <rect x="-6" y="-92" width="12" height="34" rx="6" transform="rotate(150)" />
+                  <rect x="-6" y="-92" width="12" height="34" rx="6" transform="rotate(180)" />
+                  <rect x="-6" y="-92" width="12" height="34" rx="6" transform="rotate(210)" />
+                  <rect x="-6" y="-92" width="12" height="34" rx="6" transform="rotate(240)" />
+                  <rect x="-6" y="-92" width="12" height="34" rx="6" transform="rotate(270)" />
+                  <rect x="-6" y="-92" width="12" height="34" rx="6" transform="rotate(300)" />
+                  <rect x="-6" y="-92" width="12" height="34" rx="6" transform="rotate(330)" />
+                </g>
+                <circle
+                  r="61"
+                  fill="rgba(255,255,255,0.08)"
+                  stroke="rgba(255,255,255,0.78)"
+                  strokeWidth="13"
+                />
+                <circle
+                  r="24"
+                  fill="rgba(255,255,255,0.18)"
+                  stroke="rgba(151,180,255,0.78)"
+                  strokeWidth="8"
+                />
+              </svg>
+            </div>
             <div className="text-[clamp(4.75rem,8vw,7rem)] font-black leading-none tracking-[-0.08em] text-white drop-shadow-[0_18px_34px_rgba(2,12,35,0.32)]">
               KOBOT
             </div>
             <p className="mt-5 text-[0.68rem] font-semibold uppercase tracking-[0.48em] text-white/62">
-              KMU ROBOTICS
+              KMU ROBOTICS CLUB
+            </p>
+            <p className="absolute bottom-10 left-0 right-0 text-[0.72rem] font-medium tracking-[0.12em] text-white/38">
+              국민대학교 계정으로만 로그인 가능
             </p>
           </div>
         </section>
@@ -259,8 +238,8 @@ export default function Login() {
               </form>
             </div>
 
-            <p className="text-center text-xs leading-5 text-gray-500">
-              접근이 제한되면 운영진에게 문의하세요.
+            <p className="text-center text-xs leading-5 text-gray-400">
+              국민대학교 계정으로만 로그인 가능합니다.
             </p>
           </div>
         </section>
