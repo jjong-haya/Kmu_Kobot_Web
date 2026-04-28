@@ -4,7 +4,6 @@ import {
   KeyRound,
   LogIn,
   Mail,
-  ShieldCheck,
   Sparkles,
 } from "lucide-react";
 import type { FormEvent } from "react";
@@ -14,6 +13,7 @@ import { Alert, AlertDescription, AlertTitle } from "../../components/ui/alert";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { useAuth } from "../../auth/useAuth";
+import wordLogo from "@/assets/wordLogo.png";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -90,9 +90,9 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f6f8fc] px-4 py-4 sm:px-6 lg:px-8">
-      <div className="mx-auto grid w-full max-w-5xl overflow-hidden rounded-[1.75rem] border border-[#103078]/10 bg-white shadow-xl shadow-[#103078]/10 lg:min-h-[680px] lg:grid-cols-[0.92fr_1.08fr]">
-        <section className="relative hidden overflow-hidden bg-[#2563ff] p-10 text-white lg:flex lg:flex-col lg:justify-between">
+    <div className="flex min-h-screen items-center justify-center bg-[#f6f8fc] px-4 py-6 sm:px-6 lg:px-8">
+      <div className="grid w-full max-w-4xl overflow-hidden rounded-[1.75rem] border border-[#103078]/10 bg-white shadow-xl shadow-[#103078]/10 lg:min-h-[620px] lg:grid-cols-[0.95fr_1.05fr]">
+        <section className="relative hidden overflow-hidden bg-[#2563ff] p-10 text-white lg:flex lg:items-center lg:justify-center">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.24),transparent_28%),linear-gradient(135deg,rgba(255,255,255,0.18),transparent_45%)]" />
           <div className="absolute -right-24 -top-24 h-72 w-72 rounded-full bg-white/20 blur-2xl" />
           <div className="absolute bottom-0 left-0 right-0 h-56 bg-gradient-to-t from-[#0b2b90]/80 to-transparent" />
@@ -108,28 +108,13 @@ export default function Login() {
             </div>
           </div>
 
-          <div className="relative z-10 inline-flex w-fit items-center gap-2 rounded-full border border-white/25 bg-white/15 px-4 py-2 text-sm font-medium backdrop-blur">
-            <ShieldCheck className="h-4 w-4" />
-            KOBOT Member Workspace
-          </div>
-
-          <div className="relative z-10 max-w-lg">
-            <p className="mb-4 text-xs font-semibold uppercase tracking-[0.3em] text-white/70">
-              Kookmin University Robotics Club
+          <div className="relative z-10 flex flex-col items-center text-center">
+            <div className="rounded-[2rem] border border-white/35 bg-white/95 px-10 py-8 shadow-2xl shadow-[#082058]/20 backdrop-blur">
+              <img src={wordLogo} alt="KOBOT" className="h-14 w-auto" />
+            </div>
+            <p className="mt-6 text-xs font-semibold uppercase tracking-[0.28em] text-white/72">
+              Member Workspace
             </p>
-            <h1 className="text-4xl font-semibold leading-tight tracking-tight">
-              동아리 활동을
-              <br />
-              한 곳에서 관리합니다.
-            </h1>
-            <p className="mt-5 max-w-md text-sm leading-7 text-white/82">
-              공지, 자료, 장비 대여, 프로젝트 팀과 투표를 위한 KOBOT 내부 공간입니다.
-            </p>
-          </div>
-
-          <div className="relative z-10 rounded-2xl border border-white/20 bg-white/12 p-4 text-sm leading-6 text-white/82 backdrop-blur">
-            최초 로그인은 국민대 Google 계정으로 진행하고, 이후 프로필에서 아이디
-            로그인을 추가할 수 있습니다.
           </div>
         </section>
 
@@ -199,7 +184,7 @@ export default function Login() {
                       id="login-id"
                       autoComplete="username"
                       className="h-11 pl-10"
-                      placeholder="프로필에서 만든 login_id"
+                      placeholder="ID"
                       value={loginId}
                       onChange={(event) => setLoginId(event.target.value)}
                     />
