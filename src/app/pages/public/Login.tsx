@@ -153,11 +153,11 @@ export default function Login() {
             />
           </svg>
 
-          <div className="absolute left-10 top-10 z-10">
-            <div className="text-4xl font-black leading-none tracking-[-0.08em] text-white">
+          <div className="pointer-events-none absolute inset-x-0 top-16 z-10 px-10 text-center">
+            <div className="text-[clamp(4.75rem,8vw,7rem)] font-black leading-none tracking-[-0.08em] text-white drop-shadow-[0_18px_34px_rgba(2,12,35,0.32)]">
               KOBOT
             </div>
-            <p className="mt-3 text-[0.64rem] font-semibold uppercase tracking-[0.38em] text-white/58">
+            <p className="mt-5 text-[0.68rem] font-semibold uppercase tracking-[0.48em] text-white/62">
               KMU ROBOTICS
             </p>
           </div>
