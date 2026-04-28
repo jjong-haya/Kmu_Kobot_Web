@@ -149,8 +149,7 @@ export default function Login() {
                 로그인
               </h2>
               <p className="mt-3 text-sm leading-6 text-gray-600">
-                국민대 Google 계정으로 접속해 주세요. 링크로 들어온 경우 로그인
-                후 원래 페이지로 돌아갑니다.
+                국민대 Google 계정으로 접속해 주세요.
               </p>
             </div>
 
@@ -166,13 +165,6 @@ export default function Login() {
                     : submitError ?? authError}
                 </AlertDescription>
               </Alert>
-            )}
-
-            {nextPath && (
-              <div className="rounded-2xl border border-[#103078]/15 bg-[#103078]/5 px-4 py-3 text-sm text-gray-700">
-                로그인 후 <span className="font-semibold text-[#103078]">{nextPath}</span>로
-                이동합니다.
-              </div>
             )}
 
             <div className="space-y-4">
