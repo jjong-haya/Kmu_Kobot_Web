@@ -1,8 +1,11 @@
-import { Outlet, Link } from "react-router";
+import { Outlet, Link, useLocation } from "react-router";
 import logo from "@/assets/mainLogo.png";
 import { ScrollToTop } from "../components/ScrollToTop";
 
 export default function PublicLayout() {
+  const location = useLocation();
+  const hideFooter = location.pathname === "/login";
+
   return (
     <div className="min-h-screen bg-white">
       <ScrollToTop />
@@ -11,7 +14,7 @@ export default function PublicLayout() {
         <Outlet />
       </main>
 
-      {/* Footer */}
+      {!hideFooter && (
       <footer className="bg-gray-50 border-t border-gray-200 mt-24">
         <div className="mx-auto max-w-7xl px-6 lg:px-8 py-12">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
@@ -82,6 +85,7 @@ export default function PublicLayout() {
           </div>
         </div>
       </footer>
+      )}
     </div>
   );
 }
