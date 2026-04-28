@@ -90,18 +90,74 @@ export default function Login() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#eef3f8] px-4 py-6 sm:px-6 lg:px-8">
       <div className="grid w-full max-w-[920px] overflow-hidden rounded-[2rem] border border-[#dbe4f0] bg-[#f8fbff] shadow-[0_28px_80px_rgba(7,31,84,0.16)] lg:min-h-[600px] lg:grid-cols-[0.95fr_1.05fr]">
-        <section className="relative hidden overflow-hidden bg-[#0b2f7f] text-white lg:flex lg:items-center lg:justify-center">
-          <div className="absolute inset-0 opacity-[0.16] [background-image:linear-gradient(rgba(255,255,255,.7)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.7)_1px,transparent_1px)] [background-size:34px_34px]" />
-          <div className="absolute left-1/2 top-1/2 h-[25rem] w-[25rem] -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/15" />
-          <div className="absolute left-1/2 top-1/2 h-[15rem] w-[15rem] -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/15" />
-          <div className="absolute -left-20 -top-24 h-72 w-72 rounded-full bg-[#477bff]/50 blur-3xl" />
-          <div className="absolute -bottom-24 right-0 h-72 w-72 rounded-full bg-[#081d54]/80 blur-3xl" />
+        <section className="relative hidden overflow-hidden bg-[#061b4c] text-white lg:flex lg:items-center lg:justify-center">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_25%_20%,rgba(73,123,255,0.55),transparent_26%),radial-gradient(circle_at_75%_78%,rgba(17,53,143,0.78),transparent_34%)]" />
+          <div className="absolute inset-0 opacity-[0.12] [background-image:linear-gradient(rgba(255,255,255,.65)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.65)_1px,transparent_1px)] [background-size:38px_38px]" />
 
-          <div className="relative z-10 text-center">
-            <div className="text-[clamp(4.5rem,8vw,7rem)] font-black leading-none tracking-[-0.08em] text-white drop-shadow-[0_18px_32px_rgba(2,12,35,0.28)]">
+          <svg
+            className="absolute inset-0 h-full w-full"
+            viewBox="0 0 460 600"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M70 486H392"
+              stroke="rgba(255,255,255,.2)"
+              strokeWidth="2"
+              strokeLinecap="round"
+            />
+            <path
+              d="M132 486V392L214 324L301 245"
+              stroke="rgba(255,255,255,.78)"
+              strokeWidth="10"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <path
+              d="M214 324L274 371"
+              stroke="rgba(151,180,255,.72)"
+              strokeWidth="8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <circle cx="132" cy="392" r="28" fill="rgba(255,255,255,.08)" stroke="rgba(255,255,255,.65)" strokeWidth="7" />
+            <circle cx="214" cy="324" r="24" fill="rgba(255,255,255,.08)" stroke="rgba(255,255,255,.62)" strokeWidth="7" />
+            <circle cx="301" cy="245" r="23" fill="rgba(255,255,255,.08)" stroke="rgba(255,255,255,.62)" strokeWidth="7" />
+            <path
+              d="M315 226L362 188"
+              stroke="rgba(255,255,255,.82)"
+              strokeWidth="8"
+              strokeLinecap="round"
+            />
+            <path
+              d="M372 180L397 159M372 180L391 208"
+              stroke="rgba(151,180,255,.85)"
+              strokeWidth="6"
+              strokeLinecap="round"
+            />
+            <path
+              d="M98 486H166"
+              stroke="rgba(151,180,255,.8)"
+              strokeWidth="18"
+              strokeLinecap="round"
+            />
+            <circle cx="374" cy="155" r="4" fill="white" />
+            <circle cx="386" cy="220" r="3" fill="rgba(151,180,255,.9)" />
+            <circle cx="82" cy="336" r="3" fill="rgba(151,180,255,.9)" />
+            <path
+              d="M67 338C118 280 176 248 241 242"
+              stroke="rgba(151,180,255,.18)"
+              strokeWidth="2"
+              strokeDasharray="8 10"
+              strokeLinecap="round"
+            />
+          </svg>
+
+          <div className="absolute left-10 top-10 z-10">
+            <div className="text-4xl font-black leading-none tracking-[-0.08em] text-white">
               KOBOT
             </div>
-            <p className="mt-5 text-[0.7rem] font-semibold uppercase tracking-[0.48em] text-white/65">
+            <p className="mt-3 text-[0.64rem] font-semibold uppercase tracking-[0.38em] text-white/58">
               KMU ROBOTICS
             </p>
           </div>
