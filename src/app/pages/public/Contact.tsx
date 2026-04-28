@@ -25,8 +25,8 @@ export default function Contact() {
     {
       icon: Mail,
       label: "Email",
-      value: "contact@kmubot.com",
-      link: "mailto:contact@kmubot.com",
+      value: "kobot@kookmin.ac.kr",
+      link: "mailto:kobot@kookmin.ac.kr",
     },
     {
       icon: Phone,
@@ -52,8 +52,8 @@ export default function Contact() {
     {
       icon: Github,
       label: "GitHub",
-      value: "github.com/kmubot",
-      link: "https://github.com/kmubot",
+      value: "github.com/Kmu-Kobot",
+      link: "https://github.com/Kmu-Kobot",
     },
   ];
 
@@ -238,7 +238,7 @@ export default function Contact() {
                       멤버십 문의는 어디로 하나요?
                     </p>
                     <p className="text-sm text-gray-600">
-                      이메일(contact@kmubot.com)로 문의해주시면 빠르게
+                      이메일(kobot@kookmin.ac.kr)로 문의해주시면 빠르게
                       답변드리겠습니다.
                     </p>
                   </CardContent>

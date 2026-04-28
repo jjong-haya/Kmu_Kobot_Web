@@ -47,18 +47,37 @@ export default function PublicLayout() {
                     Recruit
                   </Link>
                 </li>
+                <li>
+                  <Link to="/login" className="text-sm text-gray-600 hover:text-[#2048A0]">
+                    Member Login
+                  </Link>
+                </li>
               </ul>
             </div>
             <div>
               <h3 className="font-semibold mb-4">Contact</h3>
               <ul className="space-y-2 text-sm text-gray-600">
-                <li>Email: contact@kmubot.com</li>
+                <li>Email: kobot@kookmin.ac.kr</li>
                 <li>Instagram: @kmubot</li>
-                <li>GitHub: kmubot</li>
+                <li>GitHub: Kmu-Kobot</li>
               </ul>
             </div>
           </div>
-          <div className="mt-8 pt-8 border-t border-gray-200 text-center text-sm text-gray-500">
+          <div className="mt-8 flex flex-wrap justify-center gap-4 border-t border-gray-200 pt-8 text-sm text-gray-500">
+            <Link to="/privacy" className="hover:text-[#2048A0]">
+              개인정보 처리방침
+            </Link>
+            <Link to="/terms" className="hover:text-[#2048A0]">
+              이용약관
+            </Link>
+            <a
+              href="mailto:kobot@kookmin.ac.kr"
+              className="hover:text-[#2048A0]"
+            >
+              문의
+            </a>
+          </div>
+          <div className="mt-6 text-center text-sm text-gray-500">
             © 2026 Kookmin Robot. All rights reserved.
           </div>
         </div>
