@@ -212,3 +212,440 @@
     line-height: 1.5;
   }
 }
+
+@media (min-width: 1024px) {
+  .login-shell {
+    isolation: isolate;
+  }
+
+  .login-form-panel {
+    opacity: 0;
+    animation: login-form-reveal 4.55s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  .login-intro-panel {
+    clip-path: inset(0 0 0 0);
+    animation: login-panel-open 4.55s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  .login-robot-arm {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    height: 100%;
+    width: 100%;
+    opacity: 0;
+    overflow: visible;
+    animation: login-robot-visibility 3.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  .login-robot-rig {
+    transform-origin: 512px 72px;
+    animation: login-robot-deliver 3.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    will-change: transform, opacity;
+  }
+
+  .login-arm-cable {
+    animation: login-cable-flow 1.2s linear 3;
+  }
+
+  .login-top-carriage {
+    transform-origin: center;
+    animation: login-carriage-hum 2.4s ease-in-out both;
+  }
+
+  .login-shoulder,
+  .login-elbow,
+  .login-wrist {
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+
+  .login-shoulder {
+    animation: login-joint-turn 3.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  .login-elbow {
+    animation: login-elbow-turn 3.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  .login-wrist {
+    animation: login-wrist-settle 3.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  .login-gripper-left,
+  .login-gripper-right {
+    transform-box: fill-box;
+    transform-origin: center top;
+    animation-duration: 3.8s;
+    animation-fill-mode: forwards;
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .login-gripper-left {
+    animation-name: login-claw-left;
+  }
+
+  .login-gripper-right {
+    animation-name: login-claw-right;
+  }
+
+  .login-kobot-lockup {
+    position: absolute;
+    left: 50%;
+    top: 52%;
+    z-index: 4;
+    text-align: center;
+    transform: translate(-50%, -44%);
+    animation: login-lockup-home 4.55s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    will-change: transform;
+  }
+
+  .login-kobot-word {
+    color: white;
+    font-size: clamp(5.2rem, 9vw, 7.8rem);
+    font-weight: 900;
+    letter-spacing: -0.09em;
+    line-height: 0.9;
+    text-shadow: 0 18px 34px rgba(2, 12, 35, 0.35);
+    white-space: nowrap;
+  }
+
+  .login-carried-k {
+    display: inline-block;
+    opacity: 0;
+    transform: translate(-118px, -248px) rotate(-8deg) scale(0.72);
+    animation: login-k-delivery 3.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    transform-origin: 50% 60%;
+    will-change: transform, opacity;
+  }
+
+  .login-word-rest {
+    display: inline-block;
+    opacity: 0;
+    transform: translateX(-0.2em);
+    animation: login-word-rest-reveal 3.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  .login-intro-caption {
+    margin-top: 1.4rem;
+    color: rgba(255, 255, 255, 0.62);
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.48em;
+    opacity: 0;
+    text-transform: uppercase;
+    animation: login-caption-reveal 3.65s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  .login-intro-note {
+    position: absolute;
+    bottom: 2.5rem;
+    left: 50%;
+    z-index: 4;
+    color: rgba(255, 255, 255, 0.38);
+    font-size: 0.72rem;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    opacity: 0;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    animation: login-note-home 4.55s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+}
+
+@keyframes login-panel-open {
+  0%,
+  72% {
+    clip-path: inset(0 0 0 0);
+  }
+
+  100% {
+    clip-path: inset(0 52.5% 0 0);
+  }
+}
+
+@keyframes login-form-reveal {
+  0%,
+  72% {
+    opacity: 0;
+    transform: translateX(22px);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes login-robot-visibility {
+  0% {
+    opacity: 0;
+  }
+
+  10%,
+  78% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes login-robot-deliver {
+  0% {
+    opacity: 0;
+    transform: translate(154px, -278px) rotate(-12deg) scale(0.96);
+  }
+
+  12% {
+    opacity: 1;
+    transform: translate(154px, -206px) rotate(-10deg) scale(0.98);
+  }
+
+  46% {
+    transform: translate(158px, -78px) rotate(1.5deg) scale(1);
+  }
+
+  63% {
+    transform: translate(156px, -44px) rotate(0deg) scale(1);
+  }
+
+  75% {
+    transform: translate(156px, -52px) rotate(-1.5deg) scale(1);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(184px, -192px) rotate(9deg) scale(0.98);
+  }
+}
+
+@keyframes login-k-delivery {
+  0% {
+    opacity: 0;
+    transform: translate(-118px, -248px) rotate(-8deg) scale(0.72);
+  }
+
+  13% {
+    opacity: 1;
+    transform: translate(-116px, -198px) rotate(-7deg) scale(0.78);
+  }
+
+  46% {
+    transform: translate(-58px, -80px) rotate(2deg) scale(0.94);
+  }
+
+  63% {
+    transform: translate(0, -4px) rotate(0deg) scale(1);
+  }
+
+  73% {
+    transform: translate(0, 0) rotate(0deg) scale(1);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translate(0, 0) rotate(0deg) scale(1);
+  }
+}
+
+@keyframes login-word-rest-reveal {
+  0%,
+  58% {
+    opacity: 0;
+    transform: translateX(-0.2em);
+  }
+
+  76%,
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes login-caption-reveal {
+  0%,
+  66% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  84%,
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes login-lockup-home {
+  0%,
+  72% {
+    transform: translate(-50%, -44%) scale(1);
+  }
+
+  100% {
+    transform: translate(calc(-50% - 242px), -44%) scale(0.78);
+  }
+}
+
+@keyframes login-note-home {
+  0%,
+  72% {
+    opacity: 0;
+    transform: translateX(-50%);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateX(calc(-50% - 242px));
+  }
+}
+
+@keyframes login-cable-flow {
+  to {
+    stroke-dashoffset: -42;
+  }
+}
+
+@keyframes login-carriage-hum {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  42% {
+    transform: translateY(3px);
+  }
+}
+
+@keyframes login-joint-turn {
+  0% {
+    transform: rotate(-10deg);
+  }
+
+  62% {
+    transform: rotate(12deg);
+  }
+
+  100% {
+    transform: rotate(24deg);
+  }
+}
+
+@keyframes login-elbow-turn {
+  0% {
+    transform: rotate(14deg);
+  }
+
+  62% {
+    transform: rotate(-10deg);
+  }
+
+  100% {
+    transform: rotate(18deg);
+  }
+}
+
+@keyframes login-wrist-settle {
+  0%,
+  48% {
+    transform: rotate(-8deg);
+  }
+
+  64% {
+    transform: rotate(2deg);
+  }
+
+  100% {
+    transform: rotate(12deg);
+  }
+}
+
+@keyframes login-claw-left {
+  0%,
+  55% {
+    transform: rotate(7deg);
+  }
+
+  66% {
+    transform: rotate(0deg);
+  }
+
+  82%,
+  100% {
+    transform: rotate(-16deg);
+  }
+}
+
+@keyframes login-claw-right {
+  0%,
+  55% {
+    transform: rotate(-7deg);
+  }
+
+  66% {
+    transform: rotate(0deg);
+  }
+
+  82%,
+  100% {
+    transform: rotate(16deg);
+  }
+}
+
+@media (min-width: 1024px) and (prefers-reduced-motion: reduce) {
+  .login-form-panel,
+  .login-intro-panel,
+  .login-robot-arm,
+  .login-robot-rig,
+  .login-arm-cable,
+  .login-top-carriage,
+  .login-shoulder,
+  .login-elbow,
+  .login-wrist,
+  .login-gripper-left,
+  .login-gripper-right,
+  .login-kobot-lockup,
+  .login-carried-k,
+  .login-word-rest,
+  .login-intro-caption,
+  .login-intro-note {
+    animation: none !important;
+  }
+
+  .login-form-panel {
+    opacity: 1;
+    transform: none;
+  }
+
+  .login-intro-panel {
+    clip-path: inset(0 52.5% 0 0);
+  }
+
+  .login-robot-arm {
+    display: none;
+  }
+
+  .login-kobot-lockup {
+    transform: translate(calc(-50% - 242px), -44%) scale(0.78);
+  }
+
+  .login-carried-k,
+  .login-word-rest,
+  .login-intro-caption,
+  .login-intro-note {
+    opacity: 1;
+  }
+
+  .login-carried-k,
+  .login-word-rest,
+  .login-intro-caption {
+    transform: none;
+  }
+
+  .login-intro-note {
+    transform: translateX(calc(-50% - 242px));
+  }
+}
