@@ -213,6 +213,115 @@
   }
 }
 
+.auth-callback-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: clamp(1.25rem, 4vw, 3rem);
+  background:
+    radial-gradient(circle at 18% 18%, rgba(40, 80, 176, 0.12), transparent 28%),
+    radial-gradient(circle at 82% 72%, rgba(16, 48, 120, 0.10), transparent 30%),
+    #f3f7fb;
+}
+
+.auth-callback-card {
+  width: min(100%, 620px);
+  border-radius: 1.75rem;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 28px 80px rgba(7, 31, 84, 0.14);
+}
+
+.auth-robot-stage {
+  position: relative;
+  height: 13.5rem;
+  overflow: hidden;
+  border: 1px solid rgba(16, 48, 120, 0.12);
+  border-radius: 1.5rem;
+  background:
+    linear-gradient(rgba(16, 48, 120, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(16, 48, 120, 0.055) 1px, transparent 1px),
+    radial-gradient(circle at 22% 18%, rgba(73, 123, 255, 0.20), transparent 30%),
+    linear-gradient(180deg, #f8fbff 0%, #eef5ff 100%);
+  background-size: 2rem 2rem, 2rem 2rem, auto, auto;
+}
+
+.auth-robot-path {
+  position: absolute;
+  left: 2rem;
+  right: 2rem;
+  bottom: 2.45rem;
+  height: 0.32rem;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(16, 48, 120, 0.12), rgba(16, 48, 120, 0.34), rgba(16, 48, 120, 0.12));
+}
+
+.auth-robot-runner {
+  position: absolute;
+  bottom: 1.2rem;
+  left: 0;
+  z-index: 2;
+  width: clamp(7rem, 22vw, 9.2rem);
+  height: auto;
+  filter: drop-shadow(0 1rem 0.7rem rgba(7, 31, 84, 0.17));
+  pointer-events: none;
+  user-select: none;
+  animation: auth-robot-run 2.7s linear infinite;
+  will-change: transform;
+}
+
+.auth-checkpoint {
+  position: absolute;
+  bottom: 2.05rem;
+  height: 1.1rem;
+  width: 1.1rem;
+  border: 3px solid #f8fbff;
+  border-radius: 999px;
+  background: #103078;
+  box-shadow: 0 0 0 1px rgba(16, 48, 120, 0.15), 0 0.6rem 1rem rgba(7, 31, 84, 0.12);
+}
+
+.auth-checkpoint-1 {
+  left: 22%;
+}
+
+.auth-checkpoint-2 {
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.auth-checkpoint-3 {
+  right: 22%;
+}
+
+@keyframes auth-robot-run {
+  0% {
+    transform: translateX(-35%) translateY(0) scale(0.98);
+  }
+
+  22% {
+    transform: translateX(35%) translateY(-0.18rem) scale(1);
+  }
+
+  48% {
+    transform: translateX(130%) translateY(0) scale(1);
+  }
+
+  74% {
+    transform: translateX(225%) translateY(-0.16rem) scale(1);
+  }
+
+  100% {
+    transform: translateX(340%) translateY(0) scale(0.98);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-robot-runner {
+    animation: none;
+    transform: translateX(120%);
+  }
+}
+
 @media (min-width: 1024px) {
   .login-shell {
     isolation: isolate;
