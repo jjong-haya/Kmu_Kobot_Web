@@ -220,74 +220,52 @@
 
   .login-form-panel {
     opacity: 0;
-    animation: login-form-reveal 4.55s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation: login-form-reveal 4.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
 
   .login-intro-panel {
     clip-path: inset(0 0 0 0);
-    animation: login-panel-open 4.55s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation: login-panel-open 4.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
 
-  .login-robot-arm {
+  .login-delivery-rig {
     position: absolute;
-    inset: 0;
-    z-index: 5;
-    height: 100%;
-    width: 100%;
+    left: 50%;
+    top: 50%;
+    z-index: 6;
+    width: min(620px, 70vw);
+    aspect-ratio: 760 / 520;
     opacity: 0;
-    overflow: visible;
-    animation: login-robot-visibility 3.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  }
-
-  .login-robot-rig {
-    transform-origin: 512px 72px;
-    animation: login-robot-deliver 3.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    transform: translate(-50%, -50%) translate(120px, -330px) rotate(-7deg) scale(0.94);
+    transform-origin: 35% 84%;
+    animation: login-rig-delivery 4.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
     will-change: transform, opacity;
   }
 
-  .login-arm-cable {
-    animation: login-cable-flow 1.2s linear 3;
+  .login-arm-image {
+    position: absolute;
+    inset: 0;
+    height: 100%;
+    width: 100%;
+    object-fit: contain;
+    user-select: none;
+    -webkit-user-drag: none;
   }
 
-  .login-top-carriage {
-    transform-origin: center;
-    animation: login-carriage-hum 2.4s ease-in-out both;
-  }
-
-  .login-shoulder,
-  .login-elbow,
-  .login-wrist {
-    transform-box: fill-box;
-    transform-origin: center;
-  }
-
-  .login-shoulder {
-    animation: login-joint-turn 3.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  }
-
-  .login-elbow {
-    animation: login-elbow-turn 3.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  }
-
-  .login-wrist {
-    animation: login-wrist-settle 3.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  }
-
-  .login-gripper-left,
-  .login-gripper-right {
-    transform-box: fill-box;
-    transform-origin: center top;
-    animation-duration: 3.8s;
-    animation-fill-mode: forwards;
-    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
-  }
-
-  .login-gripper-left {
-    animation-name: login-claw-left;
-  }
-
-  .login-gripper-right {
-    animation-name: login-claw-right;
+  .login-gripped-k {
+    position: absolute;
+    left: 35.2%;
+    top: 87.5%;
+    display: inline-block;
+    color: white;
+    font-size: clamp(4.2rem, 6.4vw, 5.7rem);
+    font-weight: 900;
+    letter-spacing: -0.09em;
+    line-height: 0.86;
+    text-shadow: 0 18px 30px rgba(2, 12, 35, 0.38);
+    transform: translate(-50%, -50%);
+    animation: login-gripped-k-release 4.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    will-change: opacity, transform;
   }
 
   .login-kobot-lockup {
@@ -297,7 +275,7 @@
     z-index: 4;
     text-align: center;
     transform: translate(-50%, -44%);
-    animation: login-lockup-home 4.55s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation: login-lockup-home 4.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
     will-change: transform;
   }
 
@@ -311,20 +289,17 @@
     white-space: nowrap;
   }
 
-  .login-carried-k {
+  .login-final-k {
     display: inline-block;
     opacity: 0;
-    transform: translate(-118px, -248px) rotate(-8deg) scale(0.72);
-    animation: login-k-delivery 3.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-    transform-origin: 50% 60%;
-    will-change: transform, opacity;
+    animation: login-final-k-reveal 4.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
 
   .login-word-rest {
     display: inline-block;
     opacity: 0;
-    transform: translateX(-0.2em);
-    animation: login-word-rest-reveal 3.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    transform: translateX(-0.16em);
+    animation: login-word-rest-reveal 4.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
 
   .login-intro-caption {
@@ -335,7 +310,7 @@
     letter-spacing: 0.48em;
     opacity: 0;
     text-transform: uppercase;
-    animation: login-caption-reveal 3.65s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation: login-caption-reveal 4.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
 
   .login-intro-note {
@@ -350,7 +325,7 @@
     opacity: 0;
     transform: translateX(-50%);
     white-space: nowrap;
-    animation: login-note-home 4.55s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation: login-note-home 4.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
 }
 
@@ -378,87 +353,82 @@
   }
 }
 
-@keyframes login-robot-visibility {
+@keyframes login-rig-delivery {
   0% {
-    opacity: 0.96;
+    opacity: 0;
+    transform: translate(-50%, -50%) translate(138px, -350px) rotate(-8deg) scale(0.94);
   }
 
-  10%,
+  8% {
+    opacity: 1;
+    transform: translate(-50%, -50%) translate(116px, -292px) rotate(-7deg) scale(0.96);
+  }
+
+  34% {
+    opacity: 1;
+    transform: translate(-50%, -50%) translate(42px, -188px) rotate(-3deg) scale(0.99);
+  }
+
+  58% {
+    opacity: 1;
+    transform: translate(-50%, -50%) translate(-102px, -96px) rotate(0deg) scale(1);
+  }
+
+  69% {
+    opacity: 1;
+    transform: translate(-50%, -50%) translate(-102px, -96px) rotate(0deg) scale(1);
+  }
+
   84% {
-    opacity: 1;
+    opacity: 0.96;
+    transform: translate(-50%, -50%) translate(-52px, -202px) rotate(8deg) scale(0.96);
   }
 
   100% {
     opacity: 0;
+    transform: translate(-50%, -50%) translate(78px, -330px) rotate(14deg) scale(0.9);
   }
 }
 
-@keyframes login-robot-deliver {
-  0% {
+@keyframes login-gripped-k-release {
+  0%,
+  60% {
     opacity: 1;
-    transform: translate(154px, -238px) rotate(-12deg) scale(1.08);
+    transform: translate(-50%, -50%) rotate(-1.5deg) scale(1);
   }
 
-  12% {
+  69% {
     opacity: 1;
-    transform: translate(154px, -178px) rotate(-10deg) scale(1.08);
+    transform: translate(-50%, -50%) rotate(0deg) scale(1);
   }
 
-  46% {
-    transform: translate(158px, -54px) rotate(1.5deg) scale(1.08);
-  }
-
-  63% {
-    transform: translate(156px, -24px) rotate(0deg) scale(1.08);
-  }
-
-  75% {
-    transform: translate(156px, -34px) rotate(-1.5deg) scale(1.08);
-  }
-
+  74%,
   100% {
     opacity: 0;
-    transform: translate(184px, -168px) rotate(9deg) scale(1.04);
+    transform: translate(-50%, -50%) rotate(0deg) scale(0.98);
   }
 }
 
-@keyframes login-k-delivery {
-  0% {
+@keyframes login-final-k-reveal {
+  0%,
+  65% {
     opacity: 0;
-    transform: translate(-118px, -248px) rotate(-8deg) scale(0.72);
   }
 
-  13% {
-    opacity: 1;
-    transform: translate(-116px, -198px) rotate(-7deg) scale(0.78);
-  }
-
-  46% {
-    transform: translate(-58px, -80px) rotate(2deg) scale(0.94);
-  }
-
-  63% {
-    transform: translate(0, -4px) rotate(0deg) scale(1);
-  }
-
-  73% {
-    transform: translate(0, 0) rotate(0deg) scale(1);
-  }
-
+  72%,
   100% {
     opacity: 1;
-    transform: translate(0, 0) rotate(0deg) scale(1);
   }
 }
 
 @keyframes login-word-rest-reveal {
   0%,
-  58% {
+  67% {
     opacity: 0;
-    transform: translateX(-0.2em);
+    transform: translateX(-0.16em);
   }
 
-  76%,
+  82%,
   100% {
     opacity: 1;
     transform: translateX(0);
@@ -467,12 +437,12 @@
 
 @keyframes login-caption-reveal {
   0%,
-  66% {
+  70% {
     opacity: 0;
     transform: translateY(8px);
   }
 
-  84%,
+  86%,
   100% {
     opacity: 1;
     transform: translateY(0);
@@ -503,112 +473,13 @@
   }
 }
 
-@keyframes login-cable-flow {
-  to {
-    stroke-dashoffset: -42;
-  }
-}
-
-@keyframes login-carriage-hum {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-
-  42% {
-    transform: translateY(3px);
-  }
-}
-
-@keyframes login-joint-turn {
-  0% {
-    transform: rotate(-10deg);
-  }
-
-  62% {
-    transform: rotate(12deg);
-  }
-
-  100% {
-    transform: rotate(24deg);
-  }
-}
-
-@keyframes login-elbow-turn {
-  0% {
-    transform: rotate(14deg);
-  }
-
-  62% {
-    transform: rotate(-10deg);
-  }
-
-  100% {
-    transform: rotate(18deg);
-  }
-}
-
-@keyframes login-wrist-settle {
-  0%,
-  48% {
-    transform: rotate(-8deg);
-  }
-
-  64% {
-    transform: rotate(2deg);
-  }
-
-  100% {
-    transform: rotate(12deg);
-  }
-}
-
-@keyframes login-claw-left {
-  0%,
-  55% {
-    transform: rotate(7deg);
-  }
-
-  66% {
-    transform: rotate(0deg);
-  }
-
-  82%,
-  100% {
-    transform: rotate(-16deg);
-  }
-}
-
-@keyframes login-claw-right {
-  0%,
-  55% {
-    transform: rotate(-7deg);
-  }
-
-  66% {
-    transform: rotate(0deg);
-  }
-
-  82%,
-  100% {
-    transform: rotate(16deg);
-  }
-}
-
 @media (min-width: 1024px) and (prefers-reduced-motion: reduce) {
   .login-form-panel,
   .login-intro-panel,
-  .login-robot-arm,
-  .login-robot-rig,
-  .login-arm-cable,
-  .login-top-carriage,
-  .login-shoulder,
-  .login-elbow,
-  .login-wrist,
-  .login-gripper-left,
-  .login-gripper-right,
+  .login-delivery-rig,
+  .login-gripped-k,
   .login-kobot-lockup,
-  .login-carried-k,
+  .login-final-k,
   .login-word-rest,
   .login-intro-caption,
   .login-intro-note {
@@ -624,7 +495,8 @@
     clip-path: inset(0 52.5% 0 0);
   }
 
-  .login-robot-arm {
+  .login-delivery-rig,
+  .login-gripped-k {
     display: none;
   }
 
@@ -632,14 +504,13 @@
     transform: translate(calc(-50% - 242px), -44%) scale(0.78);
   }
 
-  .login-carried-k,
+  .login-final-k,
   .login-word-rest,
   .login-intro-caption,
   .login-intro-note {
     opacity: 1;
   }
 
-  .login-carried-k,
   .login-word-rest,
   .login-intro-caption {
     transform: none;

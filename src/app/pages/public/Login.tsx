@@ -212,10 +212,13 @@ export default function Login() {
         <div className="login-intro-panel pointer-events-none absolute inset-0 z-30 hidden overflow-hidden bg-[#061b4c] text-white lg:block" aria-hidden="true">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_22%_22%,rgba(73,123,255,0.62),transparent_28%),radial-gradient(circle_at_72%_76%,rgba(17,53,143,0.82),transparent_34%)]" />
           <div className="absolute inset-0 opacity-[0.12] [background-image:linear-gradient(rgba(255,255,255,.65)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.65)_1px,transparent_1px)] [background-size:38px_38px]" />
-          <IntroRobotArm />
+          <div className="login-delivery-rig" aria-hidden="true">
+            <img className="login-arm-image" src={loginRobotArm} alt="" draggable={false} />
+            <span className="login-gripped-k">K</span>
+          </div>
           <div className="login-kobot-lockup">
             <div className="login-kobot-word">
-              <span className="login-carried-k">K</span>
+              <span className="login-final-k">K</span>
               <span className="login-word-rest">OBOT</span>
             </div>
             <p className="login-intro-caption">KMU ROBOTICS CLUB</p>
@@ -224,145 +227,5 @@ export default function Login() {
         </div>
       </div>
     </div>
-  );
-}
-
-function IntroRobotArm() {
-  return (
-    <svg
-      className="login-robot-arm"
-      viewBox="0 0 920 600"
-      fill="none"
-      aria-hidden="true"
-    >
-      <defs>
-        <linearGradient id="armSteel" x1="204" y1="48" x2="488" y2="370" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#F7FAFF" />
-          <stop offset="0.45" stopColor="#AFC4F4" />
-          <stop offset="1" stopColor="#DDE7FF" />
-        </linearGradient>
-        <linearGradient id="armBlue" x1="320" y1="80" x2="318" y2="356" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#8FB1FF" />
-          <stop offset="1" stopColor="#315FDB" />
-        </linearGradient>
-        <filter
-          id="armShadow"
-          x="40"
-          y="-260"
-          width="760"
-          height="900"
-          filterUnits="userSpaceOnUse"
-          colorInterpolationFilters="sRGB"
-        >
-          <feDropShadow dx="0" dy="18" stdDeviation="18" floodColor="#00133F" floodOpacity="0.34" />
-        </filter>
-      </defs>
-
-      <g className="login-robot-rig" filter="url(#armShadow)">
-        <path
-          className="login-arm-cable"
-          d="M553 36C516 87 492 111 436 138C390 161 366 200 346 262C337 290 330 316 316 344"
-          stroke="rgba(222,232,255,0.42)"
-          strokeWidth="4"
-          strokeLinecap="round"
-          strokeDasharray="9 12"
-        />
-
-        <g className="login-top-carriage">
-          <rect x="432" y="20" width="218" height="34" rx="17" fill="rgba(255,255,255,0.14)" stroke="rgba(255,255,255,0.34)" />
-          <rect x="462" y="32" width="156" height="9" rx="4.5" fill="rgba(151,180,255,0.58)" />
-          <circle cx="485" cy="37" r="4" fill="rgba(255,255,255,0.78)" />
-          <circle cx="541" cy="37" r="4" fill="rgba(255,255,255,0.78)" />
-          <circle cx="597" cy="37" r="4" fill="rgba(255,255,255,0.78)" />
-        </g>
-
-        <g className="login-shoulder" transform="translate(512 72)">
-          <circle r="47" fill="rgba(255,255,255,0.1)" stroke="rgba(255,255,255,0.72)" strokeWidth="10" />
-          <circle r="23" fill="rgba(49,95,219,0.52)" stroke="rgba(255,255,255,0.62)" strokeWidth="6" />
-          <circle cx="-18" cy="-18" r="4" fill="rgba(255,255,255,0.78)" />
-          <circle cx="18" cy="-18" r="4" fill="rgba(255,255,255,0.78)" />
-          <circle cx="-18" cy="18" r="4" fill="rgba(255,255,255,0.78)" />
-          <circle cx="18" cy="18" r="4" fill="rgba(255,255,255,0.78)" />
-        </g>
-
-        <path
-          d="M480 104C446 127 421 150 391 179"
-          stroke="url(#armSteel)"
-          strokeWidth="36"
-          strokeLinecap="round"
-        />
-        <path
-          d="M480 104C446 127 421 150 391 179"
-          stroke="rgba(255,255,255,0.36)"
-          strokeWidth="8"
-          strokeLinecap="round"
-        />
-        <path
-          d="M464 123C438 142 420 161 399 184"
-          stroke="url(#armBlue)"
-          strokeWidth="7"
-          strokeLinecap="round"
-        />
-
-        <g className="login-hydraulic">
-          <path d="M462 143C430 169 405 203 388 241" stroke="rgba(238,244,255,0.76)" strokeWidth="8" strokeLinecap="round" />
-          <path d="M440 163C416 187 399 211 386 241" stroke="rgba(56,101,220,0.9)" strokeWidth="4" strokeLinecap="round" />
-          <circle cx="462" cy="143" r="9" fill="#DDE7FF" stroke="rgba(255,255,255,0.72)" strokeWidth="3" />
-          <circle cx="388" cy="241" r="9" fill="#DDE7FF" stroke="rgba(255,255,255,0.72)" strokeWidth="3" />
-        </g>
-
-        <g className="login-elbow" transform="translate(382 188)">
-          <circle r="40" fill="rgba(255,255,255,0.11)" stroke="rgba(255,255,255,0.72)" strokeWidth="9" />
-          <circle r="18" fill="rgba(17,48,120,0.64)" stroke="rgba(151,180,255,0.76)" strokeWidth="6" />
-          <path d="M-30 0H30M0 -30V30" stroke="rgba(255,255,255,0.18)" strokeWidth="3" strokeLinecap="round" />
-        </g>
-
-        <path
-          d="M360 216C334 246 318 284 306 326"
-          stroke="url(#armSteel)"
-          strokeWidth="32"
-          strokeLinecap="round"
-        />
-        <path
-          d="M360 216C334 246 318 284 306 326"
-          stroke="rgba(255,255,255,0.34)"
-          strokeWidth="7"
-          strokeLinecap="round"
-        />
-        <path
-          d="M341 232C325 260 314 291 307 319"
-          stroke="url(#armBlue)"
-          strokeWidth="7"
-          strokeLinecap="round"
-        />
-
-        <g className="login-wrist" transform="translate(304 334)">
-          <circle r="28" fill="rgba(255,255,255,0.12)" stroke="rgba(255,255,255,0.68)" strokeWidth="8" />
-          <circle r="11" fill="rgba(49,95,219,0.72)" />
-          <path d="M-18 22H18" stroke="rgba(255,255,255,0.66)" strokeWidth="7" strokeLinecap="round" />
-        </g>
-
-        <g className="login-gripper" transform="translate(304 366)">
-          <rect x="-26" y="-17" width="52" height="28" rx="11" fill="rgba(221,231,255,0.92)" stroke="rgba(255,255,255,0.76)" strokeWidth="4" />
-          <path
-            className="login-gripper-left"
-            d="M-21 7C-48 21 -58 46 -47 68C-35 59 -28 47 -24 31"
-            stroke="rgba(246,249,255,0.94)"
-            strokeWidth="9"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          <path
-            className="login-gripper-right"
-            d="M21 7C48 21 58 46 47 68C35 59 28 47 24 31"
-            stroke="rgba(246,249,255,0.94)"
-            strokeWidth="9"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          <path d="M-16 31H16" stroke="rgba(151,180,255,0.72)" strokeWidth="5" strokeLinecap="round" />
-        </g>
-      </g>
-    </svg>
   );
 }
