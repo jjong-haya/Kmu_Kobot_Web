@@ -108,9 +108,6 @@ export default function Login() {
         <section className="login-form-panel flex items-center justify-center bg-white px-5 py-9 sm:px-10 lg:px-14">
           <div className="w-full max-w-[350px] space-y-5">
             <div>
-              <p className="mb-2 text-lg font-black tracking-[-0.04em] text-[#103078]">
-                KOBOT
-              </p>
               <h2 className="text-[2rem] font-black tracking-[-0.05em] text-slate-950">
                 로그인
               </h2>
