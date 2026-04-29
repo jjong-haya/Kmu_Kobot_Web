@@ -212,35 +212,6 @@ export default function Login() {
         <div className="login-intro-panel pointer-events-none absolute inset-0 z-30 hidden overflow-hidden bg-[#061b4c] text-white lg:block" aria-hidden="true">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_22%_22%,rgba(73,123,255,0.62),transparent_28%),radial-gradient(circle_at_72%_76%,rgba(17,53,143,0.82),transparent_34%)]" />
           <div className="absolute inset-0 opacity-[0.12] [background-image:linear-gradient(rgba(255,255,255,.65)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.65)_1px,transparent_1px)] [background-size:38px_38px]" />
-          <div className="login-robot-runners" aria-hidden="true">
-            {["K", "O", "B", "O", "T"].map((letter, index) => (
-              <div className={`login-letter-runner login-letter-runner-${index + 1}`} key={`${letter}-${index}`}>
-                <div className="login-mini-bot">
-                  <div className="login-bot-head">
-                    <span className="login-bot-eye login-bot-eye-left" />
-                    <span className="login-bot-eye login-bot-eye-right" />
-                    <span className="login-bot-mouth" />
-                  </div>
-                  <div className="login-bot-body">
-                    <span className="login-bot-arm login-bot-arm-left" />
-                    <span className="login-bot-arm login-bot-arm-right" />
-                    <span className="login-bot-core" />
-                    <span className="login-runner-placard">
-                      <span className="login-runner-letter">{letter}</span>
-                    </span>
-                  </div>
-                  <span className="login-bot-leg login-bot-leg-left" />
-                  <span className="login-bot-leg login-bot-leg-right" />
-                </div>
-                {index === 4 && (
-                  <>
-                    <span className="login-laser-beam" />
-                    <span className="login-laser-spark" />
-                  </>
-                )}
-              </div>
-            ))}
-          </div>
           <div className="login-kobot-lockup">
             <div className="login-kobot-word">
               {["K", "O", "B", "O", "T"].map((letter, index) => (
