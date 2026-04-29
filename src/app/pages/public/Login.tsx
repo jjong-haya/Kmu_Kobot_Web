@@ -12,7 +12,6 @@ import { Alert, AlertDescription, AlertTitle } from "../../components/ui/alert";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { useAuth } from "../../auth/useAuth";
-import loginRobotRunner from "../../../assets/loginRobotRunner.png";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -216,8 +215,29 @@ export default function Login() {
           <div className="login-robot-runners" aria-hidden="true">
             {["K", "O", "B", "O", "T"].map((letter, index) => (
               <div className={`login-letter-runner login-letter-runner-${index + 1}`} key={`${letter}-${index}`}>
-                <img className="login-runner-image" src={loginRobotRunner} alt="" draggable={false} />
-                <span className="login-runner-letter">{letter}</span>
+                <div className="login-mini-bot">
+                  <div className="login-bot-head">
+                    <span className="login-bot-eye login-bot-eye-left" />
+                    <span className="login-bot-eye login-bot-eye-right" />
+                    <span className="login-bot-mouth" />
+                  </div>
+                  <div className="login-bot-body">
+                    <span className="login-bot-arm login-bot-arm-left" />
+                    <span className="login-bot-arm login-bot-arm-right" />
+                    <span className="login-bot-core" />
+                    <span className="login-runner-placard">
+                      <span className="login-runner-letter">{letter}</span>
+                    </span>
+                  </div>
+                  <span className="login-bot-leg login-bot-leg-left" />
+                  <span className="login-bot-leg login-bot-leg-right" />
+                </div>
+                {index === 4 && (
+                  <>
+                    <span className="login-laser-beam" />
+                    <span className="login-laser-spark" />
+                  </>
+                )}
               </div>
             ))}
           </div>
