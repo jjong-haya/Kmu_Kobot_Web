@@ -12,7 +12,7 @@ import { Alert, AlertDescription, AlertTitle } from "../../components/ui/alert";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { useAuth } from "../../auth/useAuth";
-import loginRobotArm from "../../../assets/loginRobotArm.svg";
+import loginRobotRunner from "../../../assets/loginRobotRunner.png";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -213,14 +213,21 @@ export default function Login() {
         <div className="login-intro-panel pointer-events-none absolute inset-0 z-30 hidden overflow-hidden bg-[#061b4c] text-white lg:block" aria-hidden="true">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_22%_22%,rgba(73,123,255,0.62),transparent_28%),radial-gradient(circle_at_72%_76%,rgba(17,53,143,0.82),transparent_34%)]" />
           <div className="absolute inset-0 opacity-[0.12] [background-image:linear-gradient(rgba(255,255,255,.65)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.65)_1px,transparent_1px)] [background-size:38px_38px]" />
-          <div className="login-delivery-rig" aria-hidden="true">
-            <img className="login-arm-image" src={loginRobotArm} alt="" draggable={false} />
-            <span className="login-gripped-k">K</span>
+          <div className="login-robot-runners" aria-hidden="true">
+            {["K", "O", "B", "O", "T"].map((letter, index) => (
+              <div className={`login-letter-runner login-letter-runner-${index + 1}`} key={`${letter}-${index}`}>
+                <img className="login-runner-image" src={loginRobotRunner} alt="" draggable={false} />
+                <span className="login-runner-letter">{letter}</span>
+              </div>
+            ))}
           </div>
           <div className="login-kobot-lockup">
             <div className="login-kobot-word">
-              <span className="login-final-k">K</span>
-              <span className="login-word-rest">OBOT</span>
+              {["K", "O", "B", "O", "T"].map((letter, index) => (
+                <span className={`login-final-letter login-final-letter-${index + 1}`} key={`final-${letter}-${index}`}>
+                  {letter}
+                </span>
+              ))}
             </div>
             <p className="login-intro-caption">KMU ROBOTICS CLUB</p>
           </div>
