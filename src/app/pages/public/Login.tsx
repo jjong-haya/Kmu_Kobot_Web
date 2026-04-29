@@ -12,6 +12,7 @@ import { Alert, AlertDescription, AlertTitle } from "../../components/ui/alert";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { useAuth } from "../../auth/useAuth";
+import loginRobotArm from "../../../assets/loginRobotArm.svg";
 
 export default function Login() {
   const navigate = useNavigate();
