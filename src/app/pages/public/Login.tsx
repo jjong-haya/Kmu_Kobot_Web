@@ -245,7 +245,15 @@ function IntroRobotArm() {
           <stop stopColor="#8FB1FF" />
           <stop offset="1" stopColor="#315FDB" />
         </linearGradient>
-        <filter id="armShadow" x="120" y="-120" width="520" height="640" colorInterpolationFilters="sRGB">
+        <filter
+          id="armShadow"
+          x="40"
+          y="-260"
+          width="760"
+          height="900"
+          filterUnits="userSpaceOnUse"
+          colorInterpolationFilters="sRGB"
+        >
           <feDropShadow dx="0" dy="18" stdDeviation="18" floodColor="#00133F" floodOpacity="0.34" />
         </filter>
       </defs>

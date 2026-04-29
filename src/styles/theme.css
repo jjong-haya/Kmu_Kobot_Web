@@ -231,7 +231,7 @@
   .login-robot-arm {
     position: absolute;
     inset: 0;
-    z-index: 3;
+    z-index: 5;
     height: 100%;
     width: 100%;
     opacity: 0;
@@ -380,11 +380,11 @@
 
 @keyframes login-robot-visibility {
   0% {
-    opacity: 0;
+    opacity: 0.96;
   }
 
   10%,
-  78% {
+  84% {
     opacity: 1;
   }
 
@@ -395,30 +395,30 @@
 
 @keyframes login-robot-deliver {
   0% {
-    opacity: 0;
-    transform: translate(154px, -278px) rotate(-12deg) scale(0.96);
+    opacity: 1;
+    transform: translate(154px, -238px) rotate(-12deg) scale(1.08);
   }
 
   12% {
     opacity: 1;
-    transform: translate(154px, -206px) rotate(-10deg) scale(0.98);
+    transform: translate(154px, -178px) rotate(-10deg) scale(1.08);
   }
 
   46% {
-    transform: translate(158px, -78px) rotate(1.5deg) scale(1);
+    transform: translate(158px, -54px) rotate(1.5deg) scale(1.08);
   }
 
   63% {
-    transform: translate(156px, -44px) rotate(0deg) scale(1);
+    transform: translate(156px, -24px) rotate(0deg) scale(1.08);
   }
 
   75% {
-    transform: translate(156px, -52px) rotate(-1.5deg) scale(1);
+    transform: translate(156px, -34px) rotate(-1.5deg) scale(1.08);
   }
 
   100% {
     opacity: 0;
-    transform: translate(184px, -192px) rotate(9deg) scale(0.98);
+    transform: translate(184px, -168px) rotate(9deg) scale(1.04);
   }
 }
 
