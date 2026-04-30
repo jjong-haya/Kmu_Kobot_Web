@@ -1,5 +1,4 @@
 ﻿import {
-  AlertCircle,
   BadgeCheck,
   Check,
   ChevronsUpDown,
@@ -37,6 +36,31 @@ const NICKNAME_DISPLAY_PATTERN = /^[\uAC00-\uD7A3A-Za-z0-9 ]{2,12}$/u;
 const NICKNAME_SPECIAL_CHARACTER_PATTERN = /[^\uAC00-\uD7A3A-Za-z0-9 ]/u;
 const LOGIN_ID_ALLOWED_PATTERN = /^[a-z0-9]*$/;
 const LOGIN_ID_PATTERN = /^[a-z0-9]{4,20}$/;
+
+type FieldKey =
+  | "nicknameDisplay"
+  | "fullName"
+  | "studentId"
+  | "phone"
+  | "college"
+  | "department"
+  | "clubAffiliation"
+  | "loginId"
+  | "password"
+  | "passwordConfirm";
+
+const FIELD_ELEMENT_IDS: Record<FieldKey, string> = {
+  nicknameDisplay: "nickname-display",
+  fullName: "full-name",
+  studentId: "student-id",
+  phone: "phone",
+  college: "college",
+  department: "department",
+  clubAffiliation: "club-affiliation",
+  loginId: "login-id",
+  password: "new-password",
+  passwordConfirm: "confirm-password",
+};
 
 interface CollegeOption {
   label: string;
@@ -319,6 +343,8 @@ function SearchableProfileSelect({
   disabled,
   emptyMessage,
   id,
+  invalid,
+  isShaking,
   options,
   placeholder,
   searchPlaceholder,
@@ -328,6 +354,8 @@ function SearchableProfileSelect({
   disabled?: boolean;
   emptyMessage: string;
   id: string;
+  invalid?: boolean;
+  isShaking?: boolean;
   options: Array<{
     label: string;
     aliases?: string[];
@@ -355,6 +383,8 @@ function SearchableProfileSelect({
             "h-11 w-full justify-between rounded-xl border-slate-300 bg-white px-3 text-left text-sm font-medium shadow-none hover:bg-slate-50",
             !value && "text-slate-400",
             disabled && "cursor-not-allowed bg-slate-100 text-slate-400",
+            invalid && "border-red-300 text-red-700 ring-1 ring-red-100 hover:bg-red-50/30",
+            isShaking && "input-denied-shake",
           )}
         >
           <span className="min-w-0 truncate">{selectedOption?.label ?? placeholder}</span>
@@ -425,9 +455,8 @@ export default function ProfileSettings() {
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [isSaving, setIsSaving] = useState(false);
-  const [shouldShakeNickname, setShouldShakeNickname] = useState(false);
-  const [shouldShakeLoginId, setShouldShakeLoginId] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [shakingField, setShakingField] = useState<FieldKey | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<FieldKey, string>>>({});
 
   const normalizedNickname = useMemo(
     () => normalizeNicknameDisplay(nicknameDisplay),
@@ -449,6 +478,15 @@ export default function ProfileSettings() {
   const selectedCollege = findCollege(college);
   const departmentOptions =
     selectedCollege?.departments.map((department) => ({ label: department })) ?? [];
+  const nicknameError =
+    fieldErrors.nicknameDisplay ??
+    (hasNicknameSpecialCharacter ? "특수문자는 불가합니다" : null);
+  const loginIdError =
+    fieldErrors.loginId ??
+    (hasLoginIdInvalidCharacter ? "영어 소문자와 숫자만 사용할 수 있습니다." : null);
+  const passwordConfirmError =
+    fieldErrors.passwordConfirm ??
+    (isPasswordConfirmMismatched ? "비밀번호가 일치하지 않습니다." : null);
 
   useEffect(() => {
     setNicknameDisplay(authData.profile.nicknameDisplay ?? "");
@@ -475,100 +513,138 @@ export default function ProfileSettings() {
   ]);
 
   useEffect(() => {
-    if (!shouldShakeNickname) {
+    if (!shakingField) {
       return;
     }
 
-    const timer = window.setTimeout(() => setShouldShakeNickname(false), 220);
+    const timer = window.setTimeout(() => setShakingField(null), 220);
 
     return () => window.clearTimeout(timer);
-  }, [shouldShakeNickname]);
+  }, [shakingField]);
 
-  useEffect(() => {
-    if (!shouldShakeLoginId) {
-      return;
-    }
+  function clearFieldError(field: FieldKey) {
+    setFieldErrors((current) => {
+      if (!current[field]) {
+        return current;
+      }
 
-    const timer = window.setTimeout(() => setShouldShakeLoginId(false), 220);
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+  }
 
-    return () => window.clearTimeout(timer);
-  }, [shouldShakeLoginId]);
+  function showFieldError(field: FieldKey, message: string) {
+    setFieldErrors({ [field]: message });
+    setShakingField(null);
+
+    window.requestAnimationFrame(() => {
+      const element = document.getElementById(FIELD_ELEMENT_IDS[field]);
+
+      element?.scrollIntoView({ behavior: "smooth", block: "center" });
+
+      if (element instanceof HTMLElement) {
+        window.setTimeout(() => element.focus({ preventScroll: true }), 120);
+      }
+
+      setShakingField(field);
+    });
+  }
 
   function handleNicknameChange(value: string) {
     setNicknameDisplay(value);
+    clearFieldError("nicknameDisplay");
 
     if (NICKNAME_SPECIAL_CHARACTER_PATTERN.test(value.normalize("NFKC"))) {
-      setShouldShakeNickname(false);
-      window.requestAnimationFrame(() => setShouldShakeNickname(true));
+      setShakingField(null);
+      window.requestAnimationFrame(() => setShakingField("nicknameDisplay"));
     }
   }
 
   function handleLoginIdChange(value: string) {
     const nextValue = normalizeLoginIdInput(value);
     setLoginId(nextValue);
+    clearFieldError("loginId");
 
     if (!LOGIN_ID_ALLOWED_PATTERN.test(nextValue)) {
-      setShouldShakeLoginId(false);
-      window.requestAnimationFrame(() => setShouldShakeLoginId(true));
+      setShakingField(null);
+      window.requestAnimationFrame(() => setShakingField("loginId"));
     }
   }
 
   function handleCollegeChange(value: string) {
     setCollege(value);
     setDepartment("");
+    clearFieldError("college");
+    clearFieldError("department");
+  }
+
+  function inputStateClass(field: FieldKey, invalid: boolean) {
+    return cn(
+      invalid && "border-red-300 text-red-700 ring-1 ring-red-100 focus-visible:ring-red-500",
+      shakingField === field && "input-denied-shake",
+    );
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setSubmitError(null);
+    setFieldErrors({});
 
-    const requiredFields = [
-      [normalizedNickname, "닉네임"],
-      [fullName.trim(), "이름"],
-      [studentId.trim(), "학번"],
-      [phone.trim(), "전화번호"],
-      [college.trim(), "단과대"],
-      [department.trim(), "학과"],
-      [clubAffiliation.trim(), "동아리"],
+    const requiredFields: Array<[FieldKey, string, string]> = [
+      ["nicknameDisplay", normalizedNickname, "닉네임을 입력해 주세요."],
+      ["fullName", fullName.trim(), "이름을 입력해 주세요."],
+      ["studentId", studentId.trim(), "학번을 입력해 주세요."],
+      ["phone", phone.trim(), "전화번호를 입력해 주세요."],
+      ["college", college.trim(), "단과대를 선택해 주세요."],
+      ["department", department.trim(), "학과를 선택해 주세요."],
+      ["clubAffiliation", clubAffiliation.trim(), "동아리를 입력해 주세요."],
     ];
-    const missingField = requiredFields.find(([value]) => !value)?.[1];
+    const missingField = requiredFields.find(([, value]) => !value);
 
     if (missingField) {
-      setSubmitError(`${missingField}을(를) 입력해 주세요.`);
+      showFieldError(missingField[0], missingField[2]);
+      return;
+    }
+
+    if (phone.replace(/\D/g, "").length < 8) {
+      showFieldError("phone", "전화번호는 숫자 8자리 이상 입력해 주세요.");
       return;
     }
 
     if (!isNicknameValid) {
-      setSubmitError(
-        "닉네임은 2~12자의 한글, 영문, 숫자, 공백만 사용할 수 있으며 밑줄(_)은 입력할 수 없습니다.",
-      );
+      showFieldError("nicknameDisplay", "닉네임은 2~12자의 한글, 영문, 숫자, 공백만 사용할 수 있습니다.");
       return;
     }
 
     const wantsIdLogin = Boolean(loginId.trim() || password.trim() || passwordConfirm.trim());
 
     if (hasLoginIdInvalidCharacter) {
-      setSubmitError("ID는 영어 소문자와 숫자만 사용할 수 있습니다.");
+      showFieldError("loginId", "ID는 영어 소문자와 숫자만 사용할 수 있습니다.");
       return;
     }
 
     if (wantsIdLogin && !loginId.trim()) {
-      setSubmitError("ID 로그인을 사용하려면 아이디를 입력해 주세요.");
+      showFieldError("loginId", "ID 로그인을 사용하려면 아이디를 입력해 주세요.");
       return;
     }
 
     if (wantsIdLogin && !LOGIN_ID_PATTERN.test(loginId.trim())) {
-      setSubmitError("ID는 4~20자의 영어 소문자와 숫자로 입력해 주세요.");
+      showFieldError("loginId", "ID는 4~20자의 영어 소문자와 숫자로 입력해 주세요.");
       return;
     }
 
     if (wantsIdLogin && !password.trim()) {
-      setSubmitError("ID 로그인을 사용하려면 비밀번호를 입력해 주세요.");
+      showFieldError("password", "ID 로그인을 사용하려면 비밀번호를 입력해 주세요.");
+      return;
+    }
+
+    if (password && password.length < 8) {
+      showFieldError("password", "비밀번호는 8자 이상으로 입력해 주세요.");
       return;
     }
 
     if (password !== passwordConfirm) {
-      setSubmitError("비밀번호 확인이 일치하지 않습니다.");
+      showFieldError("passwordConfirm", "비밀번호가 일치하지 않습니다.");
       return;
     }
 
@@ -602,7 +678,7 @@ export default function ProfileSettings() {
 
       toast.success("프로필 설정을 저장했습니다.");
     } catch (error) {
-      setSubmitError(getSafeProfileError(error));
+      toast.error(getSafeProfileError(error));
     } finally {
       setIsSaving(false);
     }
@@ -640,15 +716,12 @@ export default function ProfileSettings() {
         </section>
       )}
 
-      {(submitError || (!authData.account.hasLoginPassword && authData.profile.loginId)) && (
-        <Alert variant={submitError ? "destructive" : "default"}>
-          {submitError ? <AlertCircle className="h-4 w-4" /> : <BadgeCheck className="h-4 w-4" />}
-          <AlertTitle>
-            {submitError ? "저장 전에 확인이 필요합니다" : "아이디는 있지만 비밀번호가 아직 없습니다"}
-          </AlertTitle>
+      {!authData.account.hasLoginPassword && authData.profile.loginId && (
+        <Alert>
+          <BadgeCheck className="h-4 w-4" />
+          <AlertTitle>아이디는 있지만 비밀번호가 아직 없습니다</AlertTitle>
           <AlertDescription>
-            {submitError ??
-              "현재 ID는 저장되어 있지만 비밀번호가 없어 아이디 로그인이 아직 동작하지 않습니다. 비밀번호를 함께 등록해 주세요."}
+            현재 ID는 저장되어 있지만 비밀번호가 없어 아이디 로그인이 아직 동작하지 않습니다. 비밀번호를 함께 등록해 주세요.
           </AlertDescription>
         </Alert>
       )}
@@ -668,29 +741,33 @@ export default function ProfileSettings() {
                 <UserRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <Input
                   id="nickname-display"
-                  aria-invalid={hasNicknameSpecialCharacter || !isNicknameValid}
-                  className={`pl-10 ${
-                    hasNicknameSpecialCharacter
-                      ? "border-red-300 text-red-700 focus-visible:ring-red-500"
-                      : ""
-                  } ${shouldShakeNickname && hasNicknameSpecialCharacter ? "nickname-denied-shake" : ""}`}
+                  aria-invalid={Boolean(nicknameError)}
+                  className={cn("pl-10", inputStateClass("nicknameDisplay", Boolean(nicknameError)))}
                   placeholder="예: 코봇 메이커"
                   value={nicknameDisplay}
                   onChange={(event) => handleNicknameChange(event.target.value)}
                 />
               </div>
-              {hasNicknameSpecialCharacter ? (
-                <p className="text-xs font-medium text-red-600">특수문자는 불가합니다</p>
+              {nicknameError ? (
+                <p className="text-xs font-medium text-red-600">{nicknameError}</p>
               ) : null}
             </FieldShell>
 
             <FieldShell htmlFor="full-name" label="이름" required>
               <Input
                 id="full-name"
+                aria-invalid={Boolean(fieldErrors.fullName)}
+                className={inputStateClass("fullName", Boolean(fieldErrors.fullName))}
                 placeholder="예: 홍길동"
                 value={fullName}
-                onChange={(event) => setFullName(event.target.value)}
+                onChange={(event) => {
+                  setFullName(event.target.value);
+                  clearFieldError("fullName");
+                }}
               />
+              {fieldErrors.fullName ? (
+                <p className="text-xs font-medium text-red-600">{fieldErrors.fullName}</p>
+              ) : null}
             </FieldShell>
 
             <FieldShell htmlFor="student-id" label="학번" required>
@@ -698,13 +775,20 @@ export default function ProfileSettings() {
                 <GraduationCap className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <Input
                   id="student-id"
-                  className="pl-10"
+                  aria-invalid={Boolean(fieldErrors.studentId)}
+                  className={cn("pl-10", inputStateClass("studentId", Boolean(fieldErrors.studentId)))}
                   inputMode="numeric"
                   placeholder="예: 20260000"
                   value={studentId}
-                  onChange={(event) => setStudentId(event.target.value)}
+                  onChange={(event) => {
+                    setStudentId(event.target.value);
+                    clearFieldError("studentId");
+                  }}
                 />
               </div>
+              {fieldErrors.studentId ? (
+                <p className="text-xs font-medium text-red-600">{fieldErrors.studentId}</p>
+              ) : null}
             </FieldShell>
 
             <FieldShell htmlFor="phone" label="전화번호" required>
@@ -712,13 +796,20 @@ export default function ProfileSettings() {
                 <Phone className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <Input
                   id="phone"
-                  className="pl-10"
+                  aria-invalid={Boolean(fieldErrors.phone)}
+                  className={cn("pl-10", inputStateClass("phone", Boolean(fieldErrors.phone)))}
                   inputMode="tel"
                   placeholder="예: 010-1234-5678"
                   value={phone}
-                  onChange={(event) => setPhone(formatPhoneNumber(event.target.value))}
+                  onChange={(event) => {
+                    setPhone(formatPhoneNumber(event.target.value));
+                    clearFieldError("phone");
+                  }}
                 />
               </div>
+              {fieldErrors.phone ? (
+                <p className="text-xs font-medium text-red-600">{fieldErrors.phone}</p>
+              ) : null}
             </FieldShell>
 
             <FieldShell htmlFor="college" label="단과대" required>
@@ -735,8 +826,13 @@ export default function ProfileSettings() {
                 placeholder="단과대를 선택해 주세요"
                 searchPlaceholder="단과대 또는 약칭 검색"
                 emptyMessage="일치하는 단과대가 없습니다."
+                invalid={Boolean(fieldErrors.college)}
+                isShaking={shakingField === "college"}
                 onChange={handleCollegeChange}
               />
+              {fieldErrors.college ? (
+                <p className="text-xs font-medium text-red-600">{fieldErrors.college}</p>
+              ) : null}
             </FieldShell>
 
             <FieldShell htmlFor="department" label="학과" required>
@@ -750,8 +846,16 @@ export default function ProfileSettings() {
                 }
                 searchPlaceholder="학과 검색"
                 emptyMessage="일치하는 학과가 없습니다."
-                onChange={setDepartment}
+                invalid={Boolean(fieldErrors.department)}
+                isShaking={shakingField === "department"}
+                onChange={(value) => {
+                  setDepartment(value);
+                  clearFieldError("department");
+                }}
               />
+              {fieldErrors.department ? (
+                <p className="text-xs font-medium text-red-600">{fieldErrors.department}</p>
+              ) : null}
             </FieldShell>
 
             <FieldShell htmlFor="club-affiliation" label="동아리" required>
@@ -759,12 +863,22 @@ export default function ProfileSettings() {
                 <ShieldCheck className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <Input
                   id="club-affiliation"
-                  className="pl-10"
+                  aria-invalid={Boolean(fieldErrors.clubAffiliation)}
+                  className={cn(
+                    "pl-10",
+                    inputStateClass("clubAffiliation", Boolean(fieldErrors.clubAffiliation)),
+                  )}
                   placeholder="예: KOBOT"
                   value={clubAffiliation}
-                  onChange={(event) => setClubAffiliation(event.target.value)}
+                  onChange={(event) => {
+                    setClubAffiliation(event.target.value);
+                    clearFieldError("clubAffiliation");
+                  }}
                 />
               </div>
+              {fieldErrors.clubAffiliation ? (
+                <p className="text-xs font-medium text-red-600">{fieldErrors.clubAffiliation}</p>
+              ) : null}
             </FieldShell>
           </div>
         </FormSection>
@@ -792,22 +906,16 @@ export default function ProfileSettings() {
                 <IdCard className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <Input
                   id="login-id"
-                  aria-invalid={hasLoginIdInvalidCharacter}
-                  className={`pl-10 ${
-                    hasLoginIdInvalidCharacter
-                      ? "border-red-300 text-red-700 focus-visible:ring-red-500"
-                      : ""
-                  } ${shouldShakeLoginId && hasLoginIdInvalidCharacter ? "input-denied-shake" : ""}`}
+                  aria-invalid={Boolean(loginIdError)}
+                  className={cn("pl-10", inputStateClass("loginId", Boolean(loginIdError)))}
                   disabled={isLoginIdLocked}
                   placeholder="예: honggildong"
                   value={loginId}
                   onChange={(event) => handleLoginIdChange(event.target.value)}
                 />
               </div>
-              {hasLoginIdInvalidCharacter ? (
-                <p className="text-xs font-medium text-red-600">
-                  영어 소문자와 숫자만 사용할 수 있습니다.
-                </p>
+              {loginIdError ? (
+                <p className="text-xs font-medium text-red-600">{loginIdError}</p>
               ) : null}
             </FieldShell>
 
@@ -816,10 +924,19 @@ export default function ProfileSettings() {
                 id="new-password"
                 type="password"
                 autoComplete="new-password"
+                aria-invalid={Boolean(fieldErrors.password)}
+                className={inputStateClass("password", Boolean(fieldErrors.password))}
                 placeholder="8자 이상"
                 value={password}
-                onChange={(event) => setPassword(event.target.value)}
+                onChange={(event) => {
+                  setPassword(event.target.value);
+                  clearFieldError("password");
+                  clearFieldError("passwordConfirm");
+                }}
               />
+              {fieldErrors.password ? (
+                <p className="text-xs font-medium text-red-600">{fieldErrors.password}</p>
+              ) : null}
             </FieldShell>
 
             <FieldShell htmlFor="confirm-password" label="비밀번호 확인">
@@ -828,21 +945,25 @@ export default function ProfileSettings() {
                   id="confirm-password"
                   type="password"
                   autoComplete="new-password"
-                  aria-invalid={isPasswordConfirmMismatched}
-                  className={
-                    isPasswordConfirmMismatched
-                      ? "border-red-300 text-red-700 focus-visible:ring-red-500"
+                  aria-invalid={Boolean(passwordConfirmError)}
+                  className={cn(
+                    passwordConfirmError
+                      ? "border-red-300 text-red-700 ring-1 ring-red-100 focus-visible:ring-red-500"
                       : passwordConfirm
                         ? "border-emerald-300 focus-visible:ring-emerald-500"
-                        : ""
-                  }
+                        : "",
+                    shakingField === "passwordConfirm" && "input-denied-shake",
+                  )}
                   placeholder="한 번 더 입력"
                   value={passwordConfirm}
-                  onChange={(event) => setPasswordConfirm(event.target.value)}
+                  onChange={(event) => {
+                    setPasswordConfirm(event.target.value);
+                    clearFieldError("passwordConfirm");
+                  }}
                 />
-                {isPasswordConfirmMismatched ? (
+                {passwordConfirmError ? (
                   <p className="text-xs font-medium text-red-600">
-                    비밀번호가 일치하지 않습니다.
+                    {passwordConfirmError}
                   </p>
                 ) : passwordConfirm ? (
                   <p className="flex items-center gap-1.5 text-xs font-medium text-emerald-600">
