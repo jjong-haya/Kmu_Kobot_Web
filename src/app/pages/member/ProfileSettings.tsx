@@ -2,15 +2,12 @@
   AlertCircle,
   BadgeCheck,
   Building2,
-  Eye,
   GraduationCap,
   IdCard,
-  KeyRound,
   Mail,
   Phone,
   Save,
   ShieldCheck,
-  Tag,
   UserRound,
 } from "lucide-react";
 import type { FormEvent, ReactNode } from "react";
@@ -20,7 +17,6 @@ import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "../../components/ui/alert";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import {
@@ -121,6 +117,33 @@ function FieldShell({
       {children}
       {description ? <p className="text-xs leading-5 text-slate-500">{description}</p> : null}
     </div>
+  );
+}
+
+function FormSection({
+  children,
+  description,
+  number,
+  title,
+}: {
+  children: ReactNode;
+  description: string;
+  number: string;
+  title: string;
+}) {
+  return (
+    <section className="grid gap-6 border-t border-slate-300 bg-white p-5 first:border-t-0 sm:p-7 lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-8 lg:p-8">
+      <div className="lg:border-r lg:border-slate-200 lg:pr-8">
+        <p className="inline-flex h-8 min-w-12 items-center justify-center rounded-full border border-[#103078]/20 bg-[#103078]/5 px-3 text-xs font-semibold tracking-[0.16em] text-[#103078]">
+          {number}
+        </p>
+        <h2 className="mt-3 text-lg font-semibold tracking-[-0.025em] text-slate-950">
+          {title}
+        </h2>
+        <p className="mt-3 text-sm leading-6 text-slate-500">{description}</p>
+      </div>
+      <div className="min-w-0 space-y-6 lg:pl-1">{children}</div>
+    </section>
   );
 }
 
@@ -273,34 +296,30 @@ export default function ProfileSettings() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 px-1 pb-10 sm:px-0">
-      <div className="overflow-hidden rounded-[2rem] border border-[#103078]/10 bg-[radial-gradient(circle_at_top_left,_rgba(16,48,120,0.18),_transparent_34%),linear-gradient(135deg,_#F7FAFF_0%,_#EEF4E7_100%)] p-5 shadow-sm sm:p-7">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-2xl space-y-3">
-            <Badge className="border-[#103078]/20 bg-white/70 text-[#103078]" variant="outline">
-              {isJoinRequest ? "KOBOT 가입 요청" : "KOBOT 멤버 프로필"}
-            </Badge>
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">
-                {isJoinRequest ? "가입 요청 정보 입력" : "프로필/가입 설정"}
-              </h1>
-              <p className="mt-2 text-sm leading-6 text-slate-600 sm:text-base">
-                {isJoinRequest
-                  ? "국민대학교 Google 계정으로 확인된 이름과 메일을 바탕으로 가입 요청서를 작성합니다. 요청 후 운영진 승인을 기다리게 됩니다."
-                  : "필수 가입 정보를 정리하고, 아이디 로그인과 공개 페이지 이름 표시 방식을 한곳에서 관리합니다."}
-              </p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
-            <Badge className="justify-center border-[#103078]/15 bg-white/80 px-3 py-1.5 text-slate-700" variant="outline">
-              상태: {getMemberStatusLabel(memberStatus)}
-            </Badge>
-            <Badge className="justify-center border-[#103078]/15 bg-white/80 px-3 py-1.5 text-slate-700" variant="outline">
-              아이디 로그인: {authData.account.hasLoginPassword ? "사용 가능" : "설정 필요"}
-            </Badge>
-          </div>
+      <section className="flex flex-col gap-5 border-b border-slate-200 pb-7 lg:flex-row lg:items-end lg:justify-between">
+        <div className="max-w-2xl">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#103078]">
+            {isJoinRequest ? "KOBOT Join Request" : "KOBOT Member Profile"}
+          </p>
+          <h1 className="mt-4 text-3xl font-semibold tracking-[-0.045em] text-slate-950 sm:text-4xl">
+            {isJoinRequest ? "가입 요청 정보 입력" : "프로필/가입 설정"}
+          </h1>
+          <p className="mt-4 text-sm leading-7 text-slate-500 sm:text-base">
+            {isJoinRequest
+              ? "승인에 필요한 정보만 먼저 입력합니다. 공개 표시와 기술태그는 기본값으로 두고 나중에 바꿀 수 있습니다."
+              : "내부 확인 정보, 로그인 ID, 공개 표시 방식을 한 곳에서 정리합니다."}
+          </p>
         </div>
-      </div>
+
+        <div className="flex flex-wrap gap-2">
+          <Badge className="border-slate-200 bg-white px-3 py-1.5 text-slate-700" variant="outline">
+            상태: {getMemberStatusLabel(memberStatus)}
+          </Badge>
+          <Badge className="border-slate-200 bg-white px-3 py-1.5 text-slate-700" variant="outline">
+            ID 로그인: {authData.account.hasLoginPassword ? "사용 가능" : "설정 필요"}
+          </Badge>
+        </div>
+      </section>
 
       {isJoinRequest && (
         <Alert className="border-[#103078]/20 bg-[#103078]/5">
@@ -326,169 +345,154 @@ export default function ProfileSettings() {
         </Alert>
       )}
 
-      <form className="space-y-6" onSubmit={handleSubmit}>
-        <Card className="border-[#103078]/10 shadow-sm">
-          <CardHeader className="space-y-2">
-            <div className="flex items-start gap-3">
-              <div className="rounded-2xl bg-[#103078]/10 p-2 text-[#103078]">
-                <UserRound className="h-5 w-5" />
-              </div>
-              <div>
-                <CardTitle>{isJoinRequest ? "가입 필수항목" : "프로필 필수항목"}</CardTitle>
-                <CardDescription className="mt-1 leading-6">
-                  {isJoinRequest
-                    ? "운영진이 가입자를 확인할 때 보는 정보입니다. 내부 프로젝트에서는 실명이 우선 표시되고, 공개 페이지 표시는 별도로 선택합니다."
-                    : "회원 확인과 공개 활동에 쓰이는 기본 정보입니다. 닉네임은 중복되지 않도록 확인됩니다."}
-                </CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="grid gap-5 md:grid-cols-2">
-              <FieldShell htmlFor="email" label="이메일">
-                <div className="relative">
-                  <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                  <Input
-                    id="email"
-                    className="bg-slate-50 pl-10 text-slate-600"
-                    value={authData.profile.email ?? ""}
-                    readOnly
-                  />
-                </div>
-              </FieldShell>
-
-              <FieldShell
-                description="2~12자, 한글/영문/숫자/공백만 허용됩니다. 밑줄(_)은 직접 입력할 수 없습니다."
-                htmlFor="nickname-display"
-                label="닉네임"
-                required
-              >
-                <div className="relative">
-                  <UserRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                  <Input
-                    id="nickname-display"
-                    aria-invalid={!isNicknameValid}
-                    className="pl-10"
-                    placeholder="예: 코봇 메이커"
-                    value={nicknameDisplay}
-                    onChange={(event) => setNicknameDisplay(event.target.value)}
-                  />
-                </div>
-              </FieldShell>
-            </div>
-
-            <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4 text-sm leading-6 text-amber-950">
-              <p className="font-semibold">닉네임 규칙</p>
-              <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                <p>한글, 영문, 숫자, 공백만 사용할 수 있고 `_`는 입력할 수 없습니다.</p>
-                <p>중복 확인은 대소문자를 구분하지 않으며, 변경은 7일에 1회만 가능합니다.</p>
-              </div>
-              <p className="mt-2 text-xs text-amber-800">
-                닉네임 미리보기: {normalizedNickname || "닉네임을 입력하면 표시됩니다"}
-              </p>
-            </div>
-
-            <div className="grid gap-5 md:grid-cols-2">
-              <FieldShell htmlFor="full-name" label="실명" required>
+      <form
+        className="overflow-hidden rounded-[2rem] border border-slate-300 bg-white shadow-[0_1px_0_rgba(15,23,42,0.04)]"
+        onSubmit={handleSubmit}
+      >
+        <FormSection
+          number="01"
+          title="계정 확인"
+          description="학교 계정과 내부에서 사용할 닉네임을 확인합니다."
+        >
+          <div className="grid gap-5 md:grid-cols-2">
+            <FieldShell htmlFor="email" label="이메일">
+              <div className="relative">
+                <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <Input
-                  id="full-name"
-                  placeholder="예: 홍길동"
-                  value={fullName}
-                  onChange={(event) => setFullName(event.target.value)}
+                  id="email"
+                  className="bg-slate-50 pl-10 text-slate-600"
+                  value={authData.profile.email ?? ""}
+                  readOnly
                 />
-              </FieldShell>
+              </div>
+            </FieldShell>
 
-              <FieldShell htmlFor="student-id" label="학번" required>
-                <div className="relative">
-                  <GraduationCap className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                  <Input
-                    id="student-id"
-                    className="pl-10"
-                    inputMode="numeric"
-                    placeholder="예: 20260000"
-                    value={studentId}
-                    onChange={(event) => setStudentId(event.target.value)}
-                  />
-                </div>
-              </FieldShell>
-            </div>
-
-            <div className="grid gap-5 md:grid-cols-2">
-              <FieldShell htmlFor="phone" label="전화번호" required>
-                <div className="relative">
-                  <Phone className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                  <Input
-                    id="phone"
-                    className="pl-10"
-                    inputMode="tel"
-                    placeholder="예: 010-1234-5678"
-                    value={phone}
-                    onChange={(event) => setPhone(event.target.value)}
-                  />
-                </div>
-              </FieldShell>
-
-              <FieldShell htmlFor="club-affiliation" label="동아리 소속">
-                <div className="relative">
-                  <ShieldCheck className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                  <Input
-                    id="club-affiliation"
-                    className="pl-10"
-                    placeholder="예: 운영진, 일반회원, 수료회원"
-                    value={clubAffiliation}
-                    onChange={(event) => setClubAffiliation(event.target.value)}
-                  />
-                </div>
-              </FieldShell>
-            </div>
-
-            <div className="grid gap-5 md:grid-cols-2">
-              <FieldShell htmlFor="college" label="단과대" required>
-                <div className="relative">
-                  <Building2 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                  <Input
-                    id="college"
-                    className="pl-10"
-                    placeholder="예: 소프트웨어융합대학"
-                    value={college}
-                    onChange={(event) => setCollege(event.target.value)}
-                  />
-                </div>
-              </FieldShell>
-
-              <FieldShell htmlFor="department" label="학과" required>
+            <FieldShell
+              description="2~12자, 한글/영문/숫자/공백만 허용됩니다."
+              htmlFor="nickname-display"
+              label="닉네임"
+              required
+            >
+              <div className="relative">
+                <UserRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <Input
-                  id="department"
-                  placeholder="예: 인공지능학부"
-                  value={department}
-                  onChange={(event) => setDepartment(event.target.value)}
+                  id="nickname-display"
+                  aria-invalid={!isNicknameValid}
+                  className="pl-10"
+                  placeholder="예: 코봇 메이커"
+                  value={nicknameDisplay}
+                  onChange={(event) => setNicknameDisplay(event.target.value)}
                 />
-              </FieldShell>
-            </div>
-          </CardContent>
-        </Card>
+              </div>
+            </FieldShell>
+          </div>
 
-        <Card className="border-[#103078]/10 shadow-sm">
-          <CardHeader className="space-y-2">
-            <div className="flex items-start gap-3">
-              <div className="rounded-2xl bg-[#103078]/10 p-2 text-[#103078]">
-                <KeyRound className="h-5 w-5" />
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-600">
+            <p className="font-semibold text-slate-900">닉네임 규칙</p>
+            <p className="mt-2">
+              공백은 사용할 수 있지만 밑줄(_)은 입력할 수 없습니다. 중복 확인은 대소문자를
+              구분하지 않으며, 변경은 7일에 1회만 가능합니다.
+            </p>
+            <p className="mt-2 text-xs font-medium text-[#103078]">
+              미리보기: {normalizedNickname || "닉네임을 입력하면 표시됩니다"}
+            </p>
+          </div>
+        </FormSection>
+
+        <FormSection
+          number="02"
+          title="실명과 소속"
+          description="운영진 승인과 프로젝트 참여자 목록에서 확인할 기본 정보입니다."
+        >
+          <div className="grid gap-5 md:grid-cols-2">
+            <FieldShell htmlFor="full-name" label="실명" required>
+              <Input
+                id="full-name"
+                placeholder="예: 홍길동"
+                value={fullName}
+                onChange={(event) => setFullName(event.target.value)}
+              />
+            </FieldShell>
+
+            <FieldShell htmlFor="student-id" label="학번" required>
+              <div className="relative">
+                <GraduationCap className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <Input
+                  id="student-id"
+                  className="pl-10"
+                  inputMode="numeric"
+                  placeholder="예: 20260000"
+                  value={studentId}
+                  onChange={(event) => setStudentId(event.target.value)}
+                />
               </div>
-              <div>
-                <CardTitle>{isJoinRequest ? "아이디 로그인 설정" : "아이디 로그인"}</CardTitle>
-                <CardDescription className="mt-1 leading-6">
-                  {isJoinRequest
-                    ? "최초 가입 요청 때 아이디와 비밀번호를 함께 설정합니다. 이후에는 Google 계정 또는 아이디로 로그인할 수 있습니다."
-                    : "Google 로그인은 유지하면서, 필요할 때 사용할 별도 아이디와 비밀번호를 설정합니다."}
-                </CardDescription>
+            </FieldShell>
+
+            <FieldShell htmlFor="phone" label="전화번호" required>
+              <div className="relative">
+                <Phone className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <Input
+                  id="phone"
+                  className="pl-10"
+                  inputMode="tel"
+                  placeholder="예: 010-1234-5678"
+                  value={phone}
+                  onChange={(event) => setPhone(event.target.value)}
+                />
               </div>
-            </div>
-          </CardHeader>
-          <CardContent className="grid gap-5 md:grid-cols-3">
+            </FieldShell>
+
+            <FieldShell htmlFor="club-affiliation" label="동아리 소속">
+              <div className="relative">
+                <ShieldCheck className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <Input
+                  id="club-affiliation"
+                  className="pl-10"
+                  placeholder="예: 운영진, 일반회원, 수료회원"
+                  value={clubAffiliation}
+                  onChange={(event) => setClubAffiliation(event.target.value)}
+                />
+              </div>
+            </FieldShell>
+
+            <FieldShell htmlFor="college" label="단과대" required>
+              <div className="relative">
+                <Building2 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <Input
+                  id="college"
+                  className="pl-10"
+                  placeholder="예: 소프트웨어융합대학"
+                  value={college}
+                  onChange={(event) => setCollege(event.target.value)}
+                />
+              </div>
+            </FieldShell>
+
+            <FieldShell htmlFor="department" label="학과" required>
+              <Input
+                id="department"
+                placeholder="예: 인공지능학부"
+                value={department}
+                onChange={(event) => setDepartment(event.target.value)}
+              />
+            </FieldShell>
+          </div>
+        </FormSection>
+
+        <FormSection
+          number="03"
+          title="ID 로그인"
+          description={
+            isJoinRequest
+              ? "첫 가입 요청 때 ID와 비밀번호를 같이 설정합니다."
+              : "Google 로그인과 함께 사용할 별도 ID 로그인 정보입니다."
+          }
+        >
+          <div className="grid gap-5 md:grid-cols-3">
             <FieldShell
               description={
                 isLoginIdLocked
-                  ? "이미 만든 ID는 직접 변경할 수 없습니다. 변경이 필요하면 운영진에게 요청해 주세요."
+                  ? "이미 만든 ID는 직접 변경할 수 없습니다."
                   : "영문 소문자, 숫자, 점(.), 밑줄(_), 하이픈(-), 4~20자"
               }
               htmlFor="login-id"
@@ -529,25 +533,16 @@ export default function ProfileSettings() {
                 onChange={(event) => setPasswordConfirm(event.target.value)}
               />
             </FieldShell>
-          </CardContent>
-        </Card>
+          </div>
+        </FormSection>
 
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-          <Card className="border-[#103078]/10 shadow-sm">
-            <CardHeader className="space-y-2">
-              <div className="flex items-start gap-3">
-                <div className="rounded-2xl bg-[#103078]/10 p-2 text-[#103078]">
-                  <Eye className="h-5 w-5" />
-                </div>
-                <div>
-                  <CardTitle>공개 페이지 표시 설정</CardTitle>
-                  <CardDescription className="mt-1 leading-6">
-                    프로젝트 크레딧이나 공개 페이지에서 이름을 어떻게 보여줄지 선택합니다. 기본값은 익명입니다.
-                  </CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
+        <FormSection
+          number="04"
+          title="공개 표시"
+          description="공개 프로젝트 페이지에 보일 이름과 기술태그입니다. 기본값은 익명입니다."
+        >
+          <div className="grid gap-5 lg:grid-cols-[0.8fr_1.2fr]">
+            <div className="space-y-5">
               <FieldShell htmlFor="public-credit-name-mode" label="표시 방식">
                 <Select
                   value={publicCreditNameMode}
@@ -565,8 +560,10 @@ export default function ProfileSettings() {
               </FieldShell>
 
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Preview</p>
-                <p className="mt-2 text-lg font-bold text-slate-950">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                  공개 표시 미리보기
+                </p>
+                <p className="mt-2 text-lg font-semibold text-slate-950">
                   {publicCreditNameMode === "anonymous"
                     ? "익명 멤버"
                     : publicCreditNameMode === "nickname"
@@ -577,24 +574,9 @@ export default function ProfileSettings() {
                   현재 선택: {creditNameModeLabels[publicCreditNameMode]}
                 </p>
               </div>
-            </CardContent>
-          </Card>
+            </div>
 
-          <Card className="border-[#103078]/10 shadow-sm">
-            <CardHeader className="space-y-2">
-              <div className="flex items-start gap-3">
-                <div className="rounded-2xl bg-[#103078]/10 p-2 text-[#103078]">
-                  <Tag className="h-5 w-5" />
-                </div>
-                <div>
-                  <CardTitle>기술태그</CardTitle>
-                  <CardDescription className="mt-1 leading-6">
-                    관심 기술이나 주력 스택을 입력하면 프로필에 태그로 표시됩니다.
-                  </CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
+            <div className="space-y-4">
               <FieldShell
                 description="예: ROS, Python, 임베디드, AI"
                 htmlFor="tech-tags"
@@ -619,14 +601,14 @@ export default function ProfileSettings() {
                     ))}
                   </div>
                 ) : (
-                  <p className="text-sm text-slate-500">저장될 태그 미리보기가 여기에 표시됩니다.</p>
+                  <p className="text-sm text-slate-500">태그 미리보기가 여기에 표시됩니다.</p>
                 )}
               </div>
-            </CardContent>
-          </Card>
-        </div>
+            </div>
+          </div>
+        </FormSection>
 
-        <div className="sticky bottom-3 z-10 rounded-2xl border border-slate-200 bg-white/90 p-3 shadow-lg backdrop-blur sm:static sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none sm:backdrop-blur-0">
+        <div className="sticky bottom-3 z-10 border-t border-slate-200 bg-white/95 p-4 backdrop-blur sm:static sm:flex sm:justify-end sm:bg-slate-50">
           <Button
             type="submit"
             className="h-11 w-full bg-[#103078] text-white hover:bg-[#2048A0] sm:w-auto"
