@@ -4,6 +4,7 @@ import {
   EMPTY_AUTH_CONTEXT,
   type AuthContextValue,
   type AuthorizationContextData,
+  type MemberStatus,
   type PublicCreditNameMode,
   type SaveProfileSettingsInput,
 } from "./types";
@@ -19,6 +20,15 @@ const PUBLIC_CREDIT_NAME_MODES: PublicCreditNameMode[] = [
   "anonymous",
   "nickname",
   "real_name",
+];
+const MEMBER_STATUSES: Exclude<MemberStatus, null>[] = [
+  "pending",
+  "active",
+  "suspended",
+  "rejected",
+  "alumni",
+  "project_only",
+  "withdrawn",
 ];
 
 export const AuthContext = createContext<AuthContextValue | null>(null);
@@ -89,6 +99,12 @@ function normalizePublicCreditNameMode(value: unknown): PublicCreditNameMode {
   return PUBLIC_CREDIT_NAME_MODES.includes(value as PublicCreditNameMode)
     ? (value as PublicCreditNameMode)
     : "nickname";
+}
+
+function normalizeMemberStatus(value: unknown): MemberStatus {
+  return MEMBER_STATUSES.includes(value as Exclude<MemberStatus, null>)
+    ? (value as Exclude<MemberStatus, null>)
+    : null;
 }
 
 function normalizeNicknameDisplay(value: string) {
@@ -259,6 +275,143 @@ function normalizeAuthorizationContext(data: unknown): AuthorizationContextData 
   };
 }
 
+function readUserMetadataString(
+  user: NonNullable<AuthContextValue["user"]>,
+  ...keys: string[]
+) {
+  const metadata = user.user_metadata as Record<string, unknown>;
+
+  for (const key of keys) {
+    const value = metadata[key];
+
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+
+  return null;
+}
+
+async function fetchProfileFallback(
+  supabase: ReturnType<typeof getSupabaseBrowserClient>,
+  userId: string,
+) {
+  const fullProfileQuery = await supabase
+    .from("profiles")
+    .select(
+      [
+        "id",
+        "email",
+        "display_name",
+        "nickname_display",
+        "nickname_slug",
+        "full_name",
+        "student_id",
+        "phone",
+        "college",
+        "department",
+        "club_affiliation",
+        "public_credit_name_mode",
+        "tech_tags",
+        "avatar_url",
+        "login_id",
+      ].join(","),
+    )
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (!fullProfileQuery.error) {
+    return fullProfileQuery.data as Record<string, unknown> | null;
+  }
+
+  const minimalProfileQuery = await supabase
+    .from("profiles")
+    .select("id,email,display_name,full_name,student_id,avatar_url,login_id")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (minimalProfileQuery.error) {
+    return null;
+  }
+
+  return minimalProfileQuery.data as Record<string, unknown> | null;
+}
+
+async function buildNonActiveAuthorizationFallback(
+  supabase: ReturnType<typeof getSupabaseBrowserClient>,
+) {
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError || !user) {
+    return null;
+  }
+
+  const { data: accountData, error: accountError } = await supabase
+    .from("member_accounts")
+    .select("status,has_login_password,is_bootstrap_admin,organization_id")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (accountError) {
+    return null;
+  }
+
+  const accountRecord = (accountData ?? {}) as Record<string, unknown>;
+  const status = normalizeMemberStatus(accountRecord.status);
+
+  if (status === "active") {
+    return null;
+  }
+
+  const profileRecord = (await fetchProfileFallback(supabase, user.id)) ?? {};
+  const displayName =
+    normalizeString(profileRecord.nickname_display) ??
+    normalizeString(profileRecord.display_name) ??
+    readUserMetadataString(user, "display_name", "full_name", "name") ??
+    user.email?.split("@")[0] ??
+    null;
+
+  return normalizeAuthorizationContext({
+    profile: {
+      id: normalizeString(profileRecord.id) ?? user.id,
+      email: normalizeString(profileRecord.email) ?? user.email ?? null,
+      displayName,
+      nicknameDisplay: normalizeString(profileRecord.nickname_display),
+      nicknameSlug: normalizeString(profileRecord.nickname_slug),
+      fullName:
+        normalizeString(profileRecord.full_name) ??
+        readUserMetadataString(user, "full_name", "name"),
+      studentId: normalizeString(profileRecord.student_id),
+      phone: normalizeString(profileRecord.phone),
+      college: normalizeString(profileRecord.college),
+      department: normalizeString(profileRecord.department),
+      clubAffiliation: normalizeString(profileRecord.club_affiliation),
+      publicCreditNameMode: profileRecord.public_credit_name_mode ?? "nickname",
+      techTags: profileRecord.tech_tags ?? [],
+      avatarUrl:
+        normalizeString(profileRecord.avatar_url) ??
+        readUserMetadataString(user, "avatar_url", "picture"),
+      loginId: normalizeString(profileRecord.login_id),
+    },
+    account: {
+      status,
+      hasLoginPassword: accountRecord.has_login_password === true,
+      isBootstrapAdmin: accountRecord.is_bootstrap_admin === true,
+    },
+    organization: {
+      id: normalizeString(accountRecord.organization_id),
+      slug: null,
+      name: null,
+    },
+    orgPositions: [],
+    teamMemberships: [],
+    permissions: [],
+  });
+}
+
 export function AuthProvider({ children }: PropsWithChildren) {
   const [session, setSession] = useState<AuthContextValue["session"]>(null);
   const [user, setUser] = useState<AuthContextValue["user"]>(null);
@@ -278,6 +431,14 @@ export function AuthProvider({ children }: PropsWithChildren) {
     const { data, error } = await supabase.rpc("get_my_authorization_context");
 
     if (error) {
+      const fallbackAuthData = await buildNonActiveAuthorizationFallback(supabase);
+
+      if (fallbackAuthData) {
+        setAuthData(fallbackAuthData);
+        setAuthError(null);
+        return fallbackAuthData;
+      }
+
       const message = toErrorMessage(error, "권한 정보를 불러오지 못했습니다.");
       setAuthError(message);
       throw new Error(message);

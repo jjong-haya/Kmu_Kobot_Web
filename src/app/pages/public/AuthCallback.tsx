@@ -24,6 +24,13 @@ const LOADING_STEPS = [
   "KOBOT 멤버 상태 확인 중",
   "KOBOT 멤버 공간 준비 중",
 ];
+const MIN_CALLBACK_LOADING_MS = 1000;
+
+function wait(ms: number) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
 
 export default function AuthCallback() {
   const navigate = useNavigate();
@@ -111,9 +118,20 @@ export default function AuthCallback() {
 
   useEffect(() => {
     let disposed = false;
+    const loadingStartedAt = performance.now();
+
+    async function waitForMinimumLoading() {
+      const remaining = MIN_CALLBACK_LOADING_MS - (performance.now() - loadingStartedAt);
+
+      if (remaining > 0) {
+        await wait(remaining);
+      }
+    }
 
     async function completeCallback() {
       if (!isSupabaseConfigured()) {
+        await waitForMinimumLoading();
+
         if (!disposed) {
           setStatus("error");
           setMessage(
@@ -131,6 +149,8 @@ export default function AuthCallback() {
         .join(" ");
 
       if (combinedOAuthError) {
+        await waitForMinimumLoading();
+
         if (disposed) {
           return;
         }
@@ -161,6 +181,8 @@ export default function AuthCallback() {
       const code = searchParams.get("code");
 
       if (!code) {
+        await waitForMinimumLoading();
+
         if (!disposed) {
           setStatus("cancelled");
           setMessage("로그인 정보가 전달되지 않았습니다. 다시 로그인해 주세요.");
@@ -173,6 +195,8 @@ export default function AuthCallback() {
         const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
 
         if (exchangeError) {
+          await waitForMinimumLoading();
+
           if (!disposed) {
             setStatus("retry");
             setMessage(
@@ -192,6 +216,8 @@ export default function AuthCallback() {
         }
 
         if (!user) {
+          await waitForMinimumLoading();
+
           if (!disposed) {
             setStatus("retry");
             setMessage("로그인 세션을 찾을 수 없습니다. 다시 로그인해 주세요.");
@@ -203,6 +229,7 @@ export default function AuthCallback() {
 
         if (!email.endsWith("@kookmin.ac.kr")) {
           await supabase.auth.signOut();
+          await waitForMinimumLoading();
 
           if (!disposed) {
             setStatus("restricted");
@@ -213,6 +240,7 @@ export default function AuthCallback() {
 
         setLoadingStepIndex(2);
         const authData = await refreshAuthData();
+        await waitForMinimumLoading();
 
         if (disposed) {
           return;
@@ -231,6 +259,8 @@ export default function AuthCallback() {
           { replace: true },
         );
       } catch (error) {
+        await waitForMinimumLoading();
+
         if (disposed) {
           return;
         }
