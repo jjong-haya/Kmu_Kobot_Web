@@ -1,4 +1,4 @@
-﻿# 02. 이벤트 스토밍 보드
+# 02. 이벤트 스토밍 보드
 
 ## 1. 표기 규칙
 
@@ -75,7 +75,7 @@ flowchart LR
 | active 사용자 | OpenProfileSettings | Profile | ProfileSettingsViewed | ActiveMemberOnlyPolicy | ProfileSettingsView | active 이후 프로필 관리 화면. |
 | active 사용자 | SetNickname | Profile | NicknameChanged | NicknamePolicy | NicknameHistoryView | 작성 당시 닉네임 snapshot 유지. |
 | active 사용자 | HidePreviousNickname | Profile | PreviousNicknameHiddenFromMembers | NicknamePrivacyPolicy | PublicAuthorProfileView | 회장/부회장은 확인 가능. |
-| active 사용자 | SetPublicCreditNameMode | Profile | PublicCreditNameModeChanged | PublicCreditPolicy | PublicCreditPreview | 기본값 anonymous. |
+| active 사용자 | SetPublicCreditNameMode | Profile | PublicCreditNameModeChanged | PublicCreditPolicy | PublicCreditPreview | 기본값 nickname. |
 | active 사용자 | CreateLoginId | LoginCredential | LoginIdCreated | LoginIdPolicy | LoginMethodView | active 사용자가 아직 ID가 없을 때 추가 생성 가능. |
 | active 사용자 | SetLoginPassword | LoginCredential | LoginPasswordEnabled | PasswordLoginPolicy | LoginMethodView | Google 계정에 보조 로그인 수단을 붙이는 구조. |
 
@@ -340,7 +340,7 @@ stateDiagram-v2
 
 | Actor | Command | Aggregate | Domain Event | Policy/Saga | Read Model | 질문/위험 |
 | --- | --- | --- | --- | --- | --- | --- |
-| 프로젝트 팀장 | PublishProjectShowcase | PublicShowcase | ProjectShowcasePublished | PublicCreditPolicy | PublicProjectPage | 공개 이름 기본값 anonymous. |
+| 프로젝트 팀장 | PublishProjectShowcase | PublicShowcase | ProjectShowcasePublished | PublicCreditPolicy | PublicProjectPage | 공개 이름 기본값 nickname. |
 | 프로젝트 참여자 | ChangePublicCreditMode | Profile | PublicCreditNameModeChanged | PublicCreditPropagationPolicy | PublicProjectPage | 공개 페이지만 익명 가능. |
 | 탈퇴자 | ChooseWithdrawalCreditMode | MemberExitRequest | WithdrawalCreditModeSelected | RetainContributionPolicy | PublicProjectPage | 탈퇴 시 다시 묻기. |
 | 시스템 | RenderPublicContributors | PublicShowcase | PublicContributorsRendered | PublicCreditPolicy | PublicProjectPage | 내부 페이지는 실명 우선, 공개는 선택. |

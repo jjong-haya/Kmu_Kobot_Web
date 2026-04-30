@@ -88,7 +88,7 @@ function readProfileString(
 function normalizePublicCreditNameMode(value: unknown): PublicCreditNameMode {
   return PUBLIC_CREDIT_NAME_MODES.includes(value as PublicCreditNameMode)
     ? (value as PublicCreditNameMode)
-    : "anonymous";
+    : "nickname";
 }
 
 function normalizeNicknameDisplay(value: string) {

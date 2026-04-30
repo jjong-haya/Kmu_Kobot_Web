@@ -4,7 +4,6 @@
   Building2,
   GraduationCap,
   IdCard,
-  Mail,
   Phone,
   Save,
   ShieldCheck,
@@ -15,64 +14,17 @@ import { useEffect, useMemo, useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router";
 import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "../../components/ui/alert";
-import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "../../components/ui/select";
-import { Textarea } from "../../components/ui/textarea";
 import { useAuth } from "../../auth/useAuth";
-import type { MemberStatus, PublicCreditNameMode } from "../../auth/types";
+import type { MemberStatus } from "../../auth/types";
 import { getSafeInternalPath, withNextPath } from "../../auth/redirects";
 
 const NICKNAME_DISPLAY_PATTERN = /^[\uAC00-\uD7A3A-Za-z0-9 ]{2,12}$/u;
 
-const creditNameModeLabels: Record<PublicCreditNameMode, string> = {
-  anonymous: "익명",
-  nickname: "닉네임",
-  real_name: "실명",
-};
-
-const memberStatusLabels: Record<Exclude<MemberStatus, null>, string> = {
-  active: "승인 완료",
-  pending: "가입 요청 전",
-  suspended: "일시 제한",
-  rejected: "승인 거절",
-  alumni: "졸업/비활동",
-  project_only: "프로젝트 참여",
-  withdrawn: "탈퇴 처리",
-};
-
 function normalizeNicknameDisplay(value: string) {
   return value.normalize("NFKC").trim().replace(/\s+/g, " ");
-}
-
-function parseTechTags(value: string) {
-  const seen = new Set<string>();
-
-  return value
-    .split(/[\s,]+/)
-    .map((tag) => tag.trim().replace(/^#+/, ""))
-    .filter((tag) => {
-      const key = tag.toLocaleLowerCase("ko-KR");
-
-      if (!tag || seen.has(key)) {
-        return false;
-      }
-
-      seen.add(key);
-      return true;
-    });
-}
-
-function getMemberStatusLabel(status: MemberStatus) {
-  return status ? memberStatusLabels[status] : "가입 요청 전";
 }
 
 function getSafeProfileError(error: unknown) {
@@ -158,9 +110,6 @@ export default function ProfileSettings() {
   const [college, setCollege] = useState("");
   const [department, setDepartment] = useState("");
   const [clubAffiliation, setClubAffiliation] = useState("");
-  const [publicCreditNameMode, setPublicCreditNameMode] =
-    useState<PublicCreditNameMode>("anonymous");
-  const [techTagsInput, setTechTagsInput] = useState("");
   const [loginId, setLoginId] = useState("");
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
@@ -171,7 +120,6 @@ export default function ProfileSettings() {
     () => normalizeNicknameDisplay(nicknameDisplay),
     [nicknameDisplay],
   );
-  const techTags = useMemo(() => parseTechTags(techTagsInput), [techTagsInput]);
   const isNicknameValid =
     !normalizedNickname ||
     (NICKNAME_DISPLAY_PATTERN.test(normalizedNickname) && !normalizedNickname.includes("_"));
@@ -188,8 +136,6 @@ export default function ProfileSettings() {
     setCollege(authData.profile.college ?? "");
     setDepartment(authData.profile.department ?? "");
     setClubAffiliation(authData.profile.clubAffiliation ?? "");
-    setPublicCreditNameMode(authData.profile.publicCreditNameMode ?? "anonymous");
-    setTechTagsInput(authData.profile.techTags.join(", "));
     setLoginId(authData.profile.loginId ?? "");
   }, [
     authData.profile.clubAffiliation,
@@ -200,9 +146,7 @@ export default function ProfileSettings() {
     authData.profile.loginId,
     authData.profile.nicknameDisplay,
     authData.profile.phone,
-    authData.profile.publicCreditNameMode,
     authData.profile.studentId,
-    authData.profile.techTags,
   ]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -211,11 +155,12 @@ export default function ProfileSettings() {
 
     const requiredFields = [
       [normalizedNickname, "닉네임"],
-      [fullName.trim(), "실명"],
+      [fullName.trim(), "이름"],
       [studentId.trim(), "학번"],
       [phone.trim(), "전화번호"],
       [college.trim(), "단과대"],
       [department.trim(), "학과"],
+      [clubAffiliation.trim(), "동아리"],
     ];
     const missingField = requiredFields.find(([value]) => !value)?.[1];
 
@@ -256,9 +201,11 @@ export default function ProfileSettings() {
         phone,
         college,
         department,
-        clubAffiliation: clubAffiliation.trim() ? clubAffiliation : null,
-        publicCreditNameMode,
-        techTags,
+        clubAffiliation: clubAffiliation.trim(),
+        publicCreditNameMode: isJoinRequest
+          ? "nickname"
+          : (authData.profile.publicCreditNameMode ?? "nickname"),
+        techTags: authData.profile.techTags,
         loginId: loginId.trim() ? loginId : null,
         password: password.trim() ? password : undefined,
       });
@@ -296,7 +243,7 @@ export default function ProfileSettings() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 px-1 pb-10 sm:px-0">
-      <section className="flex flex-col gap-5 border-b border-slate-200 pb-7 lg:flex-row lg:items-end lg:justify-between">
+      <section className="border-b border-slate-200 pb-7">
         <div className="max-w-2xl">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#103078]">
             {isJoinRequest ? "KOBOT Join Request" : "KOBOT Member Profile"}
@@ -306,18 +253,9 @@ export default function ProfileSettings() {
           </h1>
           <p className="mt-4 text-sm leading-7 text-slate-500 sm:text-base">
             {isJoinRequest
-              ? "승인에 필요한 정보만 먼저 입력합니다. 공개 표시와 기술태그는 기본값으로 두고 나중에 바꿀 수 있습니다."
-              : "내부 확인 정보, 로그인 ID, 공개 표시 방식을 한 곳에서 정리합니다."}
+              ? "승인에 필요한 기본 정보만 입력합니다."
+              : "기본 회원 정보와 ID 로그인 정보를 관리합니다."}
           </p>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          <Badge className="border-slate-200 bg-white px-3 py-1.5 text-slate-700" variant="outline">
-            상태: {getMemberStatusLabel(memberStatus)}
-          </Badge>
-          <Badge className="border-slate-200 bg-white px-3 py-1.5 text-slate-700" variant="outline">
-            ID 로그인: {authData.account.hasLoginPassword ? "사용 가능" : "설정 필요"}
-          </Badge>
         </div>
       </section>
 
@@ -326,8 +264,8 @@ export default function ProfileSettings() {
           <BadgeCheck className="h-4 w-4 text-[#103078]" />
           <AlertTitle>먼저 가입 정보를 설정합니다</AlertTitle>
           <AlertDescription className="leading-6">
-            Google 계정 이름을 참고해 실명칸을 채워 두었습니다. 실제 이름과 다르면 수정하고,
-            닉네임, 학번, 연락처, 아이디 로그인을 설정한 뒤 회원가입 요청을 보내 주세요.
+            Google 계정 이름을 참고해 이름칸을 채워 두었습니다. 이름, 학번, 연락처,
+            소속, ID 로그인을 확인한 뒤 회원가입 요청을 보내 주세요.
           </AlertDescription>
         </Alert>
       )}
@@ -351,24 +289,12 @@ export default function ProfileSettings() {
       >
         <FormSection
           number="01"
-          title="계정 확인"
-          description="학교 계정과 내부에서 사용할 닉네임을 확인합니다."
+          title="가입 정보"
+          description="운영진 승인과 내부 프로젝트 참여자 목록에 필요한 정보입니다."
         >
           <div className="grid gap-5 md:grid-cols-2">
-            <FieldShell htmlFor="email" label="이메일">
-              <div className="relative">
-                <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <Input
-                  id="email"
-                  className="bg-slate-50 pl-10 text-slate-600"
-                  value={authData.profile.email ?? ""}
-                  readOnly
-                />
-              </div>
-            </FieldShell>
-
             <FieldShell
-              description="2~12자, 한글/영문/숫자/공백만 허용됩니다."
+              description="내부 활동명입니다. 공백은 가능하지만 밑줄(_)은 사용할 수 없습니다."
               htmlFor="nickname-display"
               label="닉네임"
               required
@@ -385,27 +311,8 @@ export default function ProfileSettings() {
                 />
               </div>
             </FieldShell>
-          </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-600">
-            <p className="font-semibold text-slate-900">닉네임 규칙</p>
-            <p className="mt-2">
-              공백은 사용할 수 있지만 밑줄(_)은 입력할 수 없습니다. 중복 확인은 대소문자를
-              구분하지 않으며, 변경은 7일에 1회만 가능합니다.
-            </p>
-            <p className="mt-2 text-xs font-medium text-[#103078]">
-              미리보기: {normalizedNickname || "닉네임을 입력하면 표시됩니다"}
-            </p>
-          </div>
-        </FormSection>
-
-        <FormSection
-          number="02"
-          title="실명과 소속"
-          description="운영진 승인과 프로젝트 참여자 목록에서 확인할 기본 정보입니다."
-        >
-          <div className="grid gap-5 md:grid-cols-2">
-            <FieldShell htmlFor="full-name" label="실명" required>
+            <FieldShell htmlFor="full-name" label="이름" required>
               <Input
                 id="full-name"
                 placeholder="예: 홍길동"
@@ -442,19 +349,6 @@ export default function ProfileSettings() {
               </div>
             </FieldShell>
 
-            <FieldShell htmlFor="club-affiliation" label="동아리 소속">
-              <div className="relative">
-                <ShieldCheck className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <Input
-                  id="club-affiliation"
-                  className="pl-10"
-                  placeholder="예: 운영진, 일반회원, 수료회원"
-                  value={clubAffiliation}
-                  onChange={(event) => setClubAffiliation(event.target.value)}
-                />
-              </div>
-            </FieldShell>
-
             <FieldShell htmlFor="college" label="단과대" required>
               <div className="relative">
                 <Building2 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -476,11 +370,24 @@ export default function ProfileSettings() {
                 onChange={(event) => setDepartment(event.target.value)}
               />
             </FieldShell>
+
+            <FieldShell htmlFor="club-affiliation" label="동아리" required>
+              <div className="relative">
+                <ShieldCheck className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <Input
+                  id="club-affiliation"
+                  className="pl-10"
+                  placeholder="예: KOBOT"
+                  value={clubAffiliation}
+                  onChange={(event) => setClubAffiliation(event.target.value)}
+                />
+              </div>
+            </FieldShell>
           </div>
         </FormSection>
 
         <FormSection
-          number="03"
+          number="02"
           title="ID 로그인"
           description={
             isJoinRequest
@@ -533,78 +440,6 @@ export default function ProfileSettings() {
                 onChange={(event) => setPasswordConfirm(event.target.value)}
               />
             </FieldShell>
-          </div>
-        </FormSection>
-
-        <FormSection
-          number="04"
-          title="공개 표시"
-          description="공개 프로젝트 페이지에 보일 이름과 기술태그입니다. 기본값은 익명입니다."
-        >
-          <div className="grid gap-5 lg:grid-cols-[0.8fr_1.2fr]">
-            <div className="space-y-5">
-              <FieldShell htmlFor="public-credit-name-mode" label="표시 방식">
-                <Select
-                  value={publicCreditNameMode}
-                  onValueChange={(value) => setPublicCreditNameMode(value as PublicCreditNameMode)}
-                >
-                  <SelectTrigger id="public-credit-name-mode">
-                    <SelectValue placeholder="표시 방식 선택" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="anonymous">익명</SelectItem>
-                    <SelectItem value="nickname">닉네임</SelectItem>
-                    <SelectItem value="real_name">실명</SelectItem>
-                  </SelectContent>
-                </Select>
-              </FieldShell>
-
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  공개 표시 미리보기
-                </p>
-                <p className="mt-2 text-lg font-semibold text-slate-950">
-                  {publicCreditNameMode === "anonymous"
-                    ? "익명 멤버"
-                    : publicCreditNameMode === "nickname"
-                      ? normalizedNickname || "닉네임"
-                      : fullName.trim() || "실명"}
-                </p>
-                <p className="mt-1 text-sm text-slate-500">
-                  현재 선택: {creditNameModeLabels[publicCreditNameMode]}
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <FieldShell
-                description="예: ROS, Python, 임베디드, AI"
-                htmlFor="tech-tags"
-                label="기술태그 입력"
-              >
-                <Textarea
-                  id="tech-tags"
-                  className="min-h-28"
-                  placeholder="ROS, Python, 임베디드, AI"
-                  value={techTagsInput}
-                  onChange={(event) => setTechTagsInput(event.target.value)}
-                />
-              </FieldShell>
-
-              <div className="min-h-12 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-3">
-                {techTags.length > 0 ? (
-                  <div className="flex flex-wrap gap-2">
-                    {techTags.map((tag) => (
-                      <Badge key={tag} className="bg-[#103078] text-white">
-                        {tag}
-                      </Badge>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-slate-500">태그 미리보기가 여기에 표시됩니다.</p>
-                )}
-              </div>
-            </div>
           </div>
         </FormSection>
 
