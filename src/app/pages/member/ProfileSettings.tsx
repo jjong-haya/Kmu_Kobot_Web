@@ -243,31 +243,20 @@ export default function ProfileSettings() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 px-1 pb-10 sm:px-0">
-      <section className="border-b border-slate-200 pb-7">
-        <div className="max-w-2xl">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#103078]">
-            {isJoinRequest ? "KOBOT Join Request" : "KOBOT Member Profile"}
-          </p>
-          <h1 className="mt-4 text-3xl font-semibold tracking-[-0.045em] text-slate-950 sm:text-4xl">
-            {isJoinRequest ? "가입 요청 정보 입력" : "프로필/가입 설정"}
-          </h1>
-          <p className="mt-4 text-sm leading-7 text-slate-500 sm:text-base">
-            {isJoinRequest
-              ? "승인에 필요한 기본 정보만 입력합니다."
-              : "기본 회원 정보와 ID 로그인 정보를 관리합니다."}
-          </p>
-        </div>
-      </section>
-
-      {isJoinRequest && (
-        <Alert className="border-[#103078]/20 bg-[#103078]/5">
-          <BadgeCheck className="h-4 w-4 text-[#103078]" />
-          <AlertTitle>먼저 가입 정보를 설정합니다</AlertTitle>
-          <AlertDescription className="leading-6">
-            Google 계정 이름을 참고해 이름칸을 채워 두었습니다. 이름, 학번, 연락처,
-            소속, ID 로그인을 확인한 뒤 회원가입 요청을 보내 주세요.
-          </AlertDescription>
-        </Alert>
+      {!isJoinRequest && (
+        <section className="border-b border-slate-200 pb-7">
+          <div className="max-w-2xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#103078]">
+              KOBOT Member Profile
+            </p>
+            <h1 className="mt-4 text-3xl font-semibold tracking-[-0.045em] text-slate-950 sm:text-4xl">
+              프로필/가입 설정
+            </h1>
+            <p className="mt-4 text-sm leading-7 text-slate-500 sm:text-base">
+              기본 회원 정보와 ID 로그인 정보를 관리합니다.
+            </p>
+          </div>
+        </section>
       )}
 
       {(submitError || (!authData.account.hasLoginPassword && authData.profile.loginId)) && (
@@ -391,7 +380,7 @@ export default function ProfileSettings() {
           title="ID 로그인"
           description={
             isJoinRequest
-              ? "첫 가입 요청 때 ID와 비밀번호를 같이 설정합니다."
+              ? "이후 ID로 로그인 가능합니다."
               : "Google 로그인과 함께 사용할 별도 ID 로그인 정보입니다."
           }
         >
