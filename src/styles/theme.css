@@ -213,6 +213,38 @@
   }
 }
 
+.nickname-denied-shake {
+  animation: nickname-denied-shake 180ms ease-in-out;
+}
+
+@keyframes nickname-denied-shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+
+  20% {
+    transform: translateX(-0.35rem);
+  }
+
+  40% {
+    transform: translateX(0.35rem);
+  }
+
+  60% {
+    transform: translateX(-0.22rem);
+  }
+
+  80% {
+    transform: translateX(0.22rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nickname-denied-shake {
+    animation: none;
+  }
+}
+
 .auth-callback-page {
   min-height: 100vh;
   display: grid;

@@ -599,7 +599,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     const phone = requireTrimmed(input.phone, "전화번호");
     const college = requireTrimmed(input.college, "단과대");
     const department = requireTrimmed(input.department, "학과");
-    const clubAffiliation = input.clubAffiliation?.trim() || null;
+    const clubAffiliation = requireTrimmed(input.clubAffiliation ?? "", "동아리");
     const publicCreditNameMode = normalizePublicCreditNameMode(input.publicCreditNameMode);
     const techTags = normalizeTechTags(input.techTags);
     const normalizedLoginId = input.loginId?.trim().toLowerCase() || null;
@@ -618,6 +618,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
     if (currentLoginId && normalizedLoginId !== currentLoginId) {
       throw new Error("이미 설정한 아이디는 프로필 화면에서 직접 변경할 수 없습니다. 운영진에게 변경 요청해 주세요.");
+    }
+
+    if (!normalizedLoginId && password) {
+      throw new Error("ID 로그인을 사용하려면 아이디를 먼저 입력해 주세요.");
     }
 
     if (normalizedLoginId && !LOGIN_ID_PATTERN.test(normalizedLoginId)) {

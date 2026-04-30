@@ -14,8 +14,7 @@ export function isJoinRequestComplete(authData: AuthorizationContextData) {
     hasText(profile.phone) &&
     hasText(profile.college) &&
     hasText(profile.department) &&
-    hasText(profile.loginId) &&
-    account.hasLoginPassword
+    hasText(profile.clubAffiliation)
   );
 }
 

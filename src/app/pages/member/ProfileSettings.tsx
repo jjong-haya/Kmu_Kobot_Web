@@ -22,6 +22,7 @@ import type { MemberStatus } from "../../auth/types";
 import { getSafeInternalPath, withNextPath } from "../../auth/redirects";
 
 const NICKNAME_DISPLAY_PATTERN = /^[\uAC00-\uD7A3A-Za-z0-9 ]{2,12}$/u;
+const NICKNAME_SPECIAL_CHARACTER_PATTERN = /[^\uAC00-\uD7A3A-Za-z0-9 ]/u;
 
 function normalizeNicknameDisplay(value: string) {
   return value.normalize("NFKC").trim().replace(/\s+/g, " ");
@@ -114,6 +115,7 @@ export default function ProfileSettings() {
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [shouldShakeNickname, setShouldShakeNickname] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const normalizedNickname = useMemo(
@@ -123,6 +125,9 @@ export default function ProfileSettings() {
   const isNicknameValid =
     !normalizedNickname ||
     (NICKNAME_DISPLAY_PATTERN.test(normalizedNickname) && !normalizedNickname.includes("_"));
+  const hasNicknameSpecialCharacter = NICKNAME_SPECIAL_CHARACTER_PATTERN.test(
+    nicknameDisplay.normalize("NFKC"),
+  );
   const isJoinRequest = memberStatus === "pending" || memberStatus === null;
   const isJoinRoute = location.pathname === "/member/join";
   const safeNextPath = getSafeInternalPath(new URLSearchParams(location.search).get("next"));
@@ -148,6 +153,25 @@ export default function ProfileSettings() {
     authData.profile.phone,
     authData.profile.studentId,
   ]);
+
+  useEffect(() => {
+    if (!shouldShakeNickname) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => setShouldShakeNickname(false), 220);
+
+    return () => window.clearTimeout(timer);
+  }, [shouldShakeNickname]);
+
+  function handleNicknameChange(value: string) {
+    setNicknameDisplay(value);
+
+    if (NICKNAME_SPECIAL_CHARACTER_PATTERN.test(value.normalize("NFKC"))) {
+      setShouldShakeNickname(false);
+      window.requestAnimationFrame(() => setShouldShakeNickname(true));
+    }
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -176,13 +200,15 @@ export default function ProfileSettings() {
       return;
     }
 
-    if (isJoinRequest && !loginId.trim()) {
-      setSubmitError("가입 요청을 위해 로그인 아이디를 설정해 주세요.");
+    const wantsIdLogin = Boolean(loginId.trim() || password.trim() || passwordConfirm.trim());
+
+    if (wantsIdLogin && !loginId.trim()) {
+      setSubmitError("ID 로그인을 사용하려면 아이디를 입력해 주세요.");
       return;
     }
 
-    if (isJoinRequest && !password.trim()) {
-      setSubmitError("가입 요청을 위해 아이디 로그인 비밀번호를 설정해 주세요.");
+    if (wantsIdLogin && !password.trim()) {
+      setSubmitError("ID 로그인을 사용하려면 비밀번호를 입력해 주세요.");
       return;
     }
 
@@ -282,23 +308,25 @@ export default function ProfileSettings() {
           description="운영진 승인과 내부 프로젝트 참여자 목록에 필요한 정보입니다."
         >
           <div className="grid gap-5 md:grid-cols-2">
-            <FieldShell
-              description="내부 활동명입니다. 공백은 가능하지만 밑줄(_)은 사용할 수 없습니다."
-              htmlFor="nickname-display"
-              label="닉네임"
-              required
-            >
+            <FieldShell htmlFor="nickname-display" label="닉네임" required>
               <div className="relative">
                 <UserRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <Input
                   id="nickname-display"
-                  aria-invalid={!isNicknameValid}
-                  className="pl-10"
+                  aria-invalid={hasNicknameSpecialCharacter || !isNicknameValid}
+                  className={`pl-10 ${
+                    hasNicknameSpecialCharacter
+                      ? "border-red-300 text-red-700 focus-visible:ring-red-500"
+                      : ""
+                  } ${shouldShakeNickname && hasNicknameSpecialCharacter ? "nickname-denied-shake" : ""}`}
                   placeholder="예: 코봇 메이커"
                   value={nicknameDisplay}
-                  onChange={(event) => setNicknameDisplay(event.target.value)}
+                  onChange={(event) => handleNicknameChange(event.target.value)}
                 />
               </div>
+              {hasNicknameSpecialCharacter ? (
+                <p className="text-xs font-medium text-red-600">특수문자는 불가합니다</p>
+              ) : null}
             </FieldShell>
 
             <FieldShell htmlFor="full-name" label="이름" required>
@@ -393,7 +421,6 @@ export default function ProfileSettings() {
               }
               htmlFor="login-id"
               label="로그인 아이디"
-              required={isJoinRequest}
             >
               <div className="relative">
                 <IdCard className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -408,7 +435,7 @@ export default function ProfileSettings() {
               </div>
             </FieldShell>
 
-            <FieldShell htmlFor="new-password" label="새 비밀번호" required={isJoinRequest}>
+            <FieldShell htmlFor="new-password" label="새 비밀번호">
               <Input
                 id="new-password"
                 type="password"
@@ -419,7 +446,7 @@ export default function ProfileSettings() {
               />
             </FieldShell>
 
-            <FieldShell htmlFor="confirm-password" label="비밀번호 확인" required={isJoinRequest}>
+            <FieldShell htmlFor="confirm-password" label="비밀번호 확인">
               <Input
                 id="confirm-password"
                 type="password"
