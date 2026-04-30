@@ -1,7 +1,7 @@
 import {
   AlertCircle,
   KeyRound,
-  Mail,
+  LockKeyhole,
 } from "lucide-react";
 import type { FormEvent } from "react";
 import { useEffect, useState } from "react";
@@ -10,6 +10,38 @@ import { Alert, AlertDescription, AlertTitle } from "../../components/ui/alert";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { useAuth } from "../../auth/useAuth";
+import { getPostAuthMemberPath } from "../../auth/onboarding";
+import { getSafeInternalPath, withNextPath } from "../../auth/redirects";
+
+function getSafeLoginError(message: string | null) {
+  if (!message) {
+    return null;
+  }
+
+  const normalized = message.toLowerCase();
+
+  if (
+    normalized.includes("invalid login credentials") ||
+    normalized.includes("invalid_credentials")
+  ) {
+    return "ID 또는 비밀번호가 올바르지 않습니다.";
+  }
+
+  if (
+    normalized.includes("supabase") ||
+    normalized.includes("postgrest") ||
+    normalized.includes("schema cache") ||
+    normalized.includes("pkce") ||
+    normalized.includes("code verifier") ||
+    normalized.includes("vite_") ||
+    normalized.includes(".env") ||
+    message.length > 100
+  ) {
+    return "로그인을 완료하지 못했습니다. 다시 시도해 주세요.";
+  }
+
+  return message;
+}
 
 export default function Login() {
   const navigate = useNavigate();
@@ -18,6 +50,7 @@ export default function Login() {
     isConfigured,
     isInitializing,
     session,
+    authData,
     memberStatus,
     authError,
     signInWithGoogle,
@@ -31,22 +64,23 @@ export default function Login() {
 
   const nextPath = (() => {
     const params = new URLSearchParams(location.search);
-    const value = params.get("next");
-    return value && value.startsWith("/") ? value : null;
+    return getSafeInternalPath(params.get("next"));
   })();
+  const visibleLoginError = getSafeLoginError(submitError ?? authError);
 
   useEffect(() => {
     if (isInitializing || !session) {
       return;
     }
 
-    if (memberStatus === "active") {
-      navigate(nextPath ?? "/member", { replace: true });
-      return;
-    }
-
-    navigate("/member/pending", { replace: true });
-  }, [isInitializing, memberStatus, navigate, nextPath, session]);
+    navigate(
+      withNextPath(
+        getPostAuthMemberPath(authData, memberStatus, nextPath ?? "/member"),
+        nextPath,
+      ),
+      { replace: true },
+    );
+  }, [authData, isInitializing, memberStatus, navigate, nextPath, session]);
 
   async function handleGoogleLogin() {
     setSubmitError(null);
@@ -68,14 +102,24 @@ export default function Login() {
     setIsSubmittingIdLogin(true);
 
     try {
-      const authData = await signInWithLoginId(loginId, password);
+      const nextAuthData = await signInWithLoginId(loginId, password);
 
-      if (authData?.account.status === "active") {
-        navigate(nextPath ?? "/member", { replace: true });
+      if (!nextAuthData) {
+        navigate(withNextPath("/member/join", nextPath), { replace: true });
         return;
       }
 
-      navigate("/member/pending", { replace: true });
+      navigate(
+        withNextPath(
+          getPostAuthMemberPath(
+            nextAuthData,
+            nextAuthData.account.status,
+            nextPath ?? "/member",
+          ),
+          nextPath,
+        ),
+        { replace: true },
+      );
     } catch (error) {
       setSubmitError(
         error instanceof Error ? error.message : "아이디 로그인을 진행하지 못했습니다.",
@@ -116,16 +160,16 @@ export default function Login() {
               </p>
             </div>
 
-            {(submitError || authError || !isConfigured) && (
+            {(visibleLoginError || !isConfigured) && (
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
                 <AlertTitle>
-                  {!isConfigured ? "Supabase 설정이 필요합니다" : "로그인을 진행할 수 없습니다"}
+                  {!isConfigured ? "서비스 설정을 확인하지 못했습니다" : "로그인을 진행할 수 없습니다"}
                 </AlertTitle>
                 <AlertDescription>
                   {!isConfigured
-                    ? ".env 파일에 VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY 값을 입력해야 합니다."
-                    : submitError ?? authError}
+                    ? "잠시 후 다시 시도하거나 운영진에게 문의해 주세요."
+                    : visibleLoginError}
                 </AlertDescription>
               </Alert>
             )}
@@ -193,7 +237,7 @@ export default function Login() {
                     비밀번호
                   </label>
                   <div className="relative">
-                    <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <LockKeyhole className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                     <Input
                       id="password"
                       type="password"

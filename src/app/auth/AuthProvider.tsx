@@ -23,7 +23,29 @@ const PUBLIC_CREDIT_NAME_MODES: PublicCreditNameMode[] = [
 
 export const AuthContext = createContext<AuthContextValue | null>(null);
 
+function isTechnicalErrorMessage(message: string) {
+  const normalized = message.toLowerCase();
+
+  return (
+    normalized.includes("supabase") ||
+    normalized.includes("postgrest") ||
+    normalized.includes("schema cache") ||
+    normalized.includes("pkce") ||
+    normalized.includes("code verifier") ||
+    normalized.includes("vite_") ||
+    normalized.includes(".env") ||
+    normalized.includes("public.") ||
+    normalized.includes("function") ||
+    normalized.includes("relation") ||
+    normalized.includes("column") ||
+    normalized.includes("jwt") ||
+    message.length > 120
+  );
+}
+
 function toErrorMessage(error: unknown, fallback: string) {
+  let rawMessage: string | null = null;
+
   if (typeof error === "object" && error !== null) {
     const record = error as Record<string, unknown>;
 
@@ -32,16 +54,20 @@ function toErrorMessage(error: unknown, fallback: string) {
     }
 
     if (typeof record.message === "string" && record.message.trim()) {
-      return record.message;
+      rawMessage = record.message;
     }
 
-    if (typeof record.error_description === "string" && record.error_description.trim()) {
-      return record.error_description;
+    if (!rawMessage && typeof record.error_description === "string" && record.error_description.trim()) {
+      rawMessage = record.error_description;
     }
   }
 
-  if (error instanceof Error && error.message.trim()) {
-    return error.message;
+  if (!rawMessage && error instanceof Error && error.message.trim()) {
+    rawMessage = error.message;
+  }
+
+  if (rawMessage && !isTechnicalErrorMessage(rawMessage)) {
+    return rawMessage;
   }
 
   return fallback;
@@ -165,7 +191,9 @@ function normalizeAuthorizationContext(data: unknown): AuthorizationContextData 
         account.status === "active" ||
         account.status === "suspended" ||
         account.status === "rejected" ||
-        account.status === "alumni"
+        account.status === "alumni" ||
+        account.status === "project_only" ||
+        account.status === "withdrawn"
           ? account.status
           : null,
       hasLoginPassword: account.hasLoginPassword === true,
@@ -242,9 +270,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   async function refreshAuthData() {
     if (!configured) {
       setAuthData(EMPTY_AUTH_CONTEXT);
-      setAuthError(
-        "Supabase 설정이 비어 있습니다. .env 파일에 VITE_SUPABASE_URL과 VITE_SUPABASE_ANON_KEY를 입력해 주세요.",
-      );
+      setAuthError("서비스 설정을 확인하지 못했습니다. 운영진에게 문의해 주세요.");
       return null;
     }
 
@@ -279,9 +305,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     if (!configured) {
       setIsInitializing(false);
-      setAuthError(
-        "Supabase 설정이 비어 있습니다. .env 파일에 VITE_SUPABASE_URL과 VITE_SUPABASE_ANON_KEY를 입력해 주세요.",
-      );
+      setAuthError("서비스 설정을 확인하지 못했습니다. 운영진에게 문의해 주세요.");
       return;
     }
 
@@ -338,9 +362,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   async function signInWithGoogle(nextPath?: string) {
     if (!configured) {
-      throw new Error(
-        "Supabase 설정이 비어 있습니다. .env 파일에 VITE_SUPABASE_URL과 VITE_SUPABASE_ANON_KEY를 입력해 주세요.",
-      );
+      throw new Error("서비스 설정을 확인하지 못했습니다. 운영진에게 문의해 주세요.");
     }
 
     const supabase = getSupabaseBrowserClient();
@@ -363,9 +385,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   async function signInWithLoginId(loginId: string, password: string) {
     if (!configured) {
-      throw new Error(
-        "Supabase 설정이 비어 있습니다. .env 파일에 VITE_SUPABASE_URL과 VITE_SUPABASE_ANON_KEY를 입력해 주세요.",
-      );
+      throw new Error("서비스 설정을 확인하지 못했습니다. 운영진에게 문의해 주세요.");
     }
 
     const normalizedLoginId = loginId.trim().toLowerCase();
@@ -404,9 +424,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   async function saveProfileSettings(input: SaveProfileSettingsInput) {
     if (!configured) {
-      throw new Error(
-        "Supabase 설정이 비어 있습니다. .env 파일에 VITE_SUPABASE_URL과 VITE_SUPABASE_ANON_KEY를 입력해 주세요.",
-      );
+      throw new Error("서비스 설정을 확인하지 못했습니다. 운영진에게 문의해 주세요.");
     }
 
     if (!user) {
@@ -437,6 +455,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
       throw new Error("이미 설정한 아이디는 비워 둘 수 없습니다.");
     }
 
+    if (currentLoginId && normalizedLoginId !== currentLoginId) {
+      throw new Error("이미 설정한 아이디는 프로필 화면에서 직접 변경할 수 없습니다. 운영진에게 변경 요청해 주세요.");
+    }
+
     if (normalizedLoginId && !LOGIN_ID_PATTERN.test(normalizedLoginId)) {
       throw new Error(
         "아이디는 영문 소문자, 숫자, 점(.), 밑줄(_), 하이픈(-) 조합으로 4자 이상 20자 이하만 사용할 수 있습니다.",
@@ -465,6 +487,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       public_credit_name_mode: publicCreditNameMode,
       tech_tags: techTags,
       login_id: normalizedLoginId,
+      profile_completed_at: new Date().toISOString(),
     };
 
     const { error: profileError } = await supabase

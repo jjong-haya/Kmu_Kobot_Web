@@ -87,12 +87,13 @@ export const router = createBrowserRouter([
     path: "/member",
     element: (
       <RequireSession>
-        <MemberLayout />
+    <MemberLayout />
       </RequireSession>
     ),
     children: [
+      { path: "join", Component: ProfileSettings },
       { path: "pending", Component: ApprovalPending },
-      { path: "profile", Component: ProfileSettings },
+      { path: "profile", element: memberElement(ProfileSettings) },
       { index: true, element: memberElement(Dashboard, ["dashboard.read"]) },
       {
         path: "notifications",

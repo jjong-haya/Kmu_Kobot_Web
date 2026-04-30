@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { getSafeInternalPath } from "./redirects";
 
 let browserClient: SupabaseClient | null = null;
 
@@ -31,7 +32,7 @@ export function getSupabaseBrowserClient() {
     auth: {
       autoRefreshToken: true,
       persistSession: true,
-      detectSessionInUrl: true,
+      detectSessionInUrl: false,
       flowType: "pkce",
     },
   });
@@ -46,10 +47,11 @@ export function getSupabaseAuthCallbackUrl(nextPath?: string) {
 
   const callbackUrl = new URL("/auth/callback", window.location.origin);
 
-  if (nextPath && nextPath.startsWith("/")) {
-    callbackUrl.searchParams.set("next", nextPath);
+  const safeNextPath = getSafeInternalPath(nextPath);
+
+  if (safeNextPath) {
+    callbackUrl.searchParams.set("next", safeNextPath);
   }
 
   return callbackUrl.toString();
 }
-

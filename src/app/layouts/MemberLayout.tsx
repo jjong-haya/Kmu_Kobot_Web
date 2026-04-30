@@ -43,7 +43,7 @@ import {
 import { Input } from "../components/ui/input";
 import { ScrollToTop } from "../components/ScrollToTop";
 import { useAuth } from "../auth/useAuth";
-import logo from "@/assets/mainLogo.png";
+import wordLogo from "@/assets/wordLogo.png";
 
 type NavigationItem = {
   name: string;
@@ -59,16 +59,16 @@ type NavigationSection = {
 
 const NAVIGATION: NavigationSection[] = [
   {
-    name: "Overview",
+    name: "내 활동",
     items: [
       {
-        name: "Dashboard",
+        name: "대시보드",
         href: "/member",
         icon: LayoutDashboard,
         permissions: ["dashboard.read"],
       },
       {
-        name: "Notifications",
+        name: "알림",
         href: "/member/notifications",
         icon: Bell,
         permissions: ["notifications.read"],
@@ -81,10 +81,10 @@ const NAVIGATION: NavigationSection[] = [
     ],
   },
   {
-    name: "Communication",
+    name: "소통",
     items: [
       {
-        name: "Announcements",
+        name: "공지",
         href: "/member/announcements",
         icon: Megaphone,
         permissions: ["announcements.read", "announcements.manage"],
@@ -93,28 +93,28 @@ const NAVIGATION: NavigationSection[] = [
     ],
   },
   {
-    name: "Learning",
+    name: "학습",
     items: [
-      { name: "Study Log", href: "/member/study-log", icon: BookOpen },
+      { name: "스터디 기록", href: "/member/study-log", icon: BookOpen },
       {
-        name: "Study Playlist",
+        name: "스터디 플레이리스트",
         href: "/member/study-playlist",
         icon: ListChecks,
       },
-      { name: "Peer Review", href: "/member/peer-review", icon: MessageSquare },
+      { name: "동료 리뷰", href: "/member/peer-review", icon: MessageSquare },
     ],
   },
   {
-    name: "Projects",
+    name: "프로젝트",
     items: [
       {
-        name: "Projects",
+        name: "프로젝트",
         href: "/member/projects",
         icon: FolderKanban,
         permissions: ["projects.read", "projects.manage"],
       },
       {
-        name: "Showcase",
+        name: "쇼케이스",
         href: "/member/showcase",
         icon: Presentation,
         permissions: ["projects.read", "projects.manage"],
@@ -122,17 +122,17 @@ const NAVIGATION: NavigationSection[] = [
     ],
   },
   {
-    name: "Events & People",
+    name: "행사와 사람",
     items: [
       {
-        name: "Events",
+        name: "행사",
         href: "/member/events",
         icon: Calendar,
         permissions: ["events.read", "events.manage"],
       },
-      { name: "Office Hours", href: "/member/office-hours", icon: Clock },
+      { name: "오피스 아워", href: "/member/office-hours", icon: Clock },
       {
-        name: "Members",
+        name: "멤버",
         href: "/member/members",
         icon: Users,
         permissions: ["members.read", "members.manage"],
@@ -140,22 +140,22 @@ const NAVIGATION: NavigationSection[] = [
     ],
   },
   {
-    name: "Resources",
+    name: "자료",
     items: [
       {
-        name: "Resources",
+        name: "자료실",
         href: "/member/resources",
         icon: FileText,
         permissions: ["resources.read", "resources.manage"],
       },
       {
-        name: "Templates",
+        name: "템플릿",
         href: "/member/templates",
         icon: FolderOpen,
         permissions: ["resources.read", "resources.manage"],
       },
       {
-        name: "Equipment",
+        name: "장비 대여",
         href: "/member/equipment",
         icon: Package,
         permissions: ["resources.read", "resources.manage"],
@@ -163,31 +163,31 @@ const NAVIGATION: NavigationSection[] = [
     ],
   },
   {
-    name: "Management",
+    name: "운영",
     items: [
-      { name: "Roadmap", href: "/member/roadmap", icon: Target },
-      { name: "Retrospective", href: "/member/retro", icon: MessageSquare },
-      { name: "Changelog", href: "/member/changelog", icon: GitBranch },
+      { name: "로드맵", href: "/member/roadmap", icon: Target },
+      { name: "회고", href: "/member/retro", icon: MessageSquare },
+      { name: "변경 기록", href: "/member/changelog", icon: GitBranch },
       { name: "투표", href: "/member/votes", icon: Vote },
     ],
   },
   {
-    name: "Admin",
+    name: "전체 운영",
     items: [
       {
-        name: "Forms",
+        name: "신청/폼",
         href: "/member/forms",
         icon: ClipboardList,
         permissions: ["forms.manage"],
       },
       {
-        name: "Integrations",
+        name: "연동",
         href: "/member/integrations",
         icon: Link2,
         permissions: ["integrations.manage"],
       },
       {
-        name: "Permissions",
+        name: "권한",
         href: "/member/permissions",
         icon: Settings,
         permissions: ["permissions.manage"],
@@ -210,6 +210,28 @@ function getInitials(name: string) {
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase() ?? "")
     .join("");
+}
+
+function getMemberStatusLabel(status: string | null) {
+  switch (status) {
+    case "active":
+      return "승인 완료";
+    case "pending":
+    case null:
+      return "승인 대기";
+    case "suspended":
+      return "일시 제한";
+    case "rejected":
+      return "승인 거절";
+    case "alumni":
+      return "졸업/비활동";
+    case "project_only":
+      return "프로젝트 참여";
+    case "withdrawn":
+      return "탈퇴 처리";
+    default:
+      return "상태 확인 필요";
+  }
 }
 
 function NavigationLinks({
@@ -260,6 +282,16 @@ function NavigationLinks({
         </div>
       ))}
     </>
+  );
+}
+
+function KobotWordmark({ className = "" }: { className?: string }) {
+  return (
+    <img
+      src={wordLogo}
+      alt="Kookmin Robot"
+      className={`block h-auto w-[196px] max-w-full object-contain ${className}`}
+    />
   );
 }
 
@@ -316,7 +348,7 @@ export default function MemberLayout() {
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-64">
-          <DropdownMenuLabel>My Account</DropdownMenuLabel>
+          <DropdownMenuLabel>내 계정</DropdownMenuLabel>
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={() => navigate("/member/profile")}>
             <User className="mr-2 h-4 w-4" />
@@ -342,19 +374,11 @@ export default function MemberLayout() {
         <ScrollToTop />
         <header className="border-b border-gray-200 bg-white">
           <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
-            <Link to="/" className="flex items-center gap-3">
-              <img src={logo} alt="Kobot" className="h-8" />
-              <div>
-                <p className="text-sm font-semibold text-gray-900">Kobot member</p>
-                <p className="text-xs text-gray-500">승인 전용 셸</p>
-              </div>
+            <Link to="/" className="flex items-center">
+              <KobotWordmark />
             </Link>
             <div className="flex items-center gap-3">
-              <Badge variant="outline">{memberStatus ?? "pending"}</Badge>
-              <Button variant="outline" size="sm" onClick={() => navigate("/member/profile")}>
-                <User className="h-4 w-4" />
-                프로필
-              </Button>
+              <Badge variant="outline">{getMemberStatusLabel(memberStatus)}</Badge>
               <Button size="sm" className="bg-[#103078] hover:bg-[#2048A0]" onClick={() => void handleSignOut()}>
                 <LogOut className="h-4 w-4" />
                 로그아웃
@@ -374,12 +398,10 @@ export default function MemberLayout() {
     <div className="min-h-screen bg-gray-50">
       <aside className="hidden md:fixed md:inset-y-0 md:flex md:w-64 md:flex-col">
         <div className="flex min-h-full flex-1 flex-col border-r border-gray-200 bg-white">
-          <div className="flex h-16 items-center gap-2 border-b border-gray-200 px-6">
-            <img src={logo} alt="Kobot" className="h-8" />
-            <div>
-              <p className="text-sm font-semibold text-gray-900">Kobot</p>
-              <p className="text-xs text-gray-500">member workspace</p>
-            </div>
+          <div className="flex h-16 items-center border-b border-gray-200 px-6">
+            <Link to="/member" className="flex items-center">
+              <KobotWordmark />
+            </Link>
           </div>
 
           <nav className="flex-1 overflow-y-auto px-3 py-4">
@@ -399,10 +421,9 @@ export default function MemberLayout() {
           <div className="fixed inset-y-0 left-0 w-72 bg-white shadow-xl">
             <div className="flex h-full flex-col">
               <div className="flex h-16 items-center justify-between border-b border-gray-200 px-6">
-                <div className="flex items-center gap-3">
-                  <img src={logo} alt="Kobot" className="h-8" />
-                  <span className="text-sm font-semibold text-gray-900">Kobot</span>
-                </div>
+                <Link to="/member" className="flex items-center" onClick={() => setSidebarOpen(false)}>
+                  <KobotWordmark className="w-[188px]" />
+                </Link>
                 <button onClick={() => setSidebarOpen(false)}>
                   <X className="h-6 w-6" />
                 </button>
@@ -428,7 +449,7 @@ export default function MemberLayout() {
                 <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
                 <Input
                   type="search"
-                  placeholder="Search projects, members, resources, events..."
+                  placeholder="프로젝트, 멤버, 자료, 행사를 검색하세요"
                   className="pl-10 pr-4 py-3 text-base"
                   autoFocus
                 />
@@ -442,17 +463,17 @@ export default function MemberLayout() {
             <div className="flex items-center justify-between border-t bg-gray-50 p-3 text-xs text-gray-500">
               <div className="flex gap-4">
                 <span>
-                  <kbd className="rounded border bg-white px-2 py-1">↑↓</kbd> Navigate
+                  <kbd className="rounded border bg-white px-2 py-1">↑↓</kbd> 이동
                 </span>
                 <span>
-                  <kbd className="rounded border bg-white px-2 py-1">Enter</kbd> Select
+                  <kbd className="rounded border bg-white px-2 py-1">Enter</kbd> 선택
                 </span>
               </div>
               <button
                 onClick={() => setSearchOpen(false)}
                 className="text-gray-600 hover:text-gray-900"
               >
-                <kbd className="rounded border bg-white px-2 py-1">ESC</kbd> Close
+                <kbd className="rounded border bg-white px-2 py-1">ESC</kbd> 닫기
               </button>
             </div>
           </div>
@@ -472,7 +493,7 @@ export default function MemberLayout() {
                 className="flex w-full items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-4 py-2 text-sm text-gray-500 transition-colors hover:border-gray-300"
               >
                 <Search className="h-4 w-4" />
-                <span>Search everywhere...</span>
+                <span>전체 검색...</span>
                 <kbd className="ml-auto rounded border border-gray-200 bg-white px-2 py-0.5 text-xs">
                   /
                 </kbd>
@@ -511,7 +532,7 @@ export default function MemberLayout() {
               </Badge>
             ))}
             {authData.teamMemberships.length > 2 && (
-              <Badge variant="outline">+{authData.teamMemberships.length - 2} teams</Badge>
+              <Badge variant="outline">+{authData.teamMemberships.length - 2}팀</Badge>
             )}
             <div className="ml-auto hidden items-center gap-2 text-sm text-gray-500 lg:flex">
               <Sparkles className="h-4 w-4 text-[#103078]" />

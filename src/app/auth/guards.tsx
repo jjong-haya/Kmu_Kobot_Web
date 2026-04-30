@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Navigate, Outlet, useLocation } from "react-router";
 import { ShieldAlert } from "lucide-react";
 import { useAuth } from "./useAuth";
+import { getPostAuthMemberPath } from "./onboarding";
 
 function GuardScreen({
   title,
@@ -31,7 +32,7 @@ export function RequireSession({ children }: { children?: ReactNode }) {
     return (
       <GuardScreen
         title="로그인 상태를 확인하는 중입니다"
-        description="Supabase 세션을 복원하고 있습니다. 잠시만 기다려 주세요."
+        description="이전에 로그인한 정보를 확인하고 있습니다. 잠시만 기다려 주세요."
       />
     );
   }
@@ -45,13 +46,13 @@ export function RequireSession({ children }: { children?: ReactNode }) {
 }
 
 export function RequireActiveMember({ children }: { children?: ReactNode }) {
-  const { isInitializing, session, memberStatus } = useAuth();
+  const { authData, isInitializing, session, memberStatus } = useAuth();
 
   if (isInitializing) {
     return (
       <GuardScreen
         title="멤버 상태를 불러오는 중입니다"
-        description="가입 승인 여부와 권한 정보를 확인하고 있습니다."
+        description="가입 승인 여부와 이용 가능한 메뉴를 확인하고 있습니다."
       />
     );
   }
@@ -61,7 +62,7 @@ export function RequireActiveMember({ children }: { children?: ReactNode }) {
   }
 
   if (memberStatus !== "active") {
-    return <Navigate to="/member/pending" replace />;
+    return <Navigate to={getPostAuthMemberPath(authData, memberStatus)} replace />;
   }
 
   return children ?? <Outlet />;
@@ -82,7 +83,7 @@ export function RequirePermission({
     return (
       <GuardScreen
         title="권한을 확인하는 중입니다"
-        description="현재 계정이 이 페이지에 접근할 수 있는지 검사하고 있습니다."
+        description="현재 계정으로 이 페이지를 이용할 수 있는지 확인하고 있습니다."
       />
     );
   }

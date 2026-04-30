@@ -12,6 +12,8 @@ import {
 } from "../../components/ui/card";
 import { getSupabaseBrowserClient, isSupabaseConfigured } from "../../auth/supabase";
 import { useAuth } from "../../auth/useAuth";
+import { getPostAuthMemberPath } from "../../auth/onboarding";
+import { getSafeInternalPath, withNextPath } from "../../auth/redirects";
 import robotRun from "../../../assets/auth-callback/toy-robot-run.webp";
 
 type CallbackStatus = "loading" | "cancelled" | "restricted" | "retry" | "error";
@@ -20,7 +22,7 @@ const LOADING_STEPS = [
   "국민대학교 계정 확인 중",
   "학생 인증 정보를 확인하는 중",
   "KOBOT 멤버 상태 확인 중",
-  "워크스페이스 입장 준비 중",
+  "KOBOT 멤버 공간 준비 중",
 ];
 
 export default function AuthCallback() {
@@ -33,7 +35,7 @@ export default function AuthCallback() {
 
   const searchParams = new URLSearchParams(location.search);
   const nextPath = searchParams.get("next");
-  const safeNextPath = nextPath && nextPath.startsWith("/") ? nextPath : null;
+  const safeNextPath = getSafeInternalPath(nextPath);
   const loginPath = `/login${safeNextPath ? `?next=${encodeURIComponent(safeNextPath)}` : ""}`;
 
   function isRestrictedLoginMessage(value: string) {
@@ -71,6 +73,22 @@ export default function AuthCallback() {
     );
   }
 
+  function isTechnicalCallbackMessage(value: string) {
+    const normalized = value.toLowerCase();
+
+    return (
+      normalized.includes("supabase") ||
+      normalized.includes("postgrest") ||
+      normalized.includes("schema cache") ||
+      normalized.includes("public.") ||
+      normalized.includes("function") ||
+      normalized.includes("relation") ||
+      normalized.includes("column") ||
+      normalized.includes("vite_") ||
+      normalized.includes(".env")
+    );
+  }
+
   async function handleRetryWithDifferentAccount() {
     if (isSupabaseConfigured()) {
       await getSupabaseBrowserClient().auth.signOut();
@@ -99,7 +117,7 @@ export default function AuthCallback() {
         if (!disposed) {
           setStatus("error");
           setMessage(
-            "Supabase 설정이 비어 있습니다. .env 파일에 URL과 anon key를 먼저 입력해 주세요.",
+            "서비스 설정을 확인하지 못했습니다. 잠시 후 다시 시도하거나 운영진에게 문의해 주세요.",
           );
         }
         return;
@@ -134,7 +152,7 @@ export default function AuthCallback() {
         setStatus(isRestrictedLoginMessage(combinedOAuthError) ? "restricted" : "error");
         setMessage(
           isRestrictedLoginMessage(combinedOAuthError)
-            ? "KOBOT member workspace는 국민대학교 Google 계정으로만 가입할 수 있습니다."
+            ? "KOBOT 멤버 공간은 국민대학교 Google 계정으로만 가입할 수 있습니다."
             : errorDescription || oauthError || "Google 로그인 요청을 완료하지 못했습니다.",
         );
         return;
@@ -155,7 +173,13 @@ export default function AuthCallback() {
         const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
 
         if (exchangeError) {
-          throw exchangeError;
+          if (!disposed) {
+            setStatus("retry");
+            setMessage(
+              "로그인 세션이 만료되었거나 다른 브라우저에서 시작된 로그인입니다. 로그인 화면에서 다시 시도해 주세요.",
+            );
+          }
+          return;
         }
 
         const {
@@ -182,7 +206,7 @@ export default function AuthCallback() {
 
           if (!disposed) {
             setStatus("restricted");
-            setMessage("KOBOT member workspace는 국민대학교 Google 계정으로만 가입할 수 있습니다.");
+            setMessage("KOBOT 멤버 공간은 국민대학교 Google 계정으로만 가입할 수 있습니다.");
           }
           return;
         }
@@ -194,12 +218,18 @@ export default function AuthCallback() {
           return;
         }
 
-        if (authData?.account.status === "active") {
-          navigate(safeNextPath ?? "/member", { replace: true });
+        if (!authData) {
+          navigate(withNextPath("/member/join", safeNextPath), { replace: true });
           return;
         }
 
-        navigate("/member/pending", { replace: true });
+        navigate(
+          withNextPath(
+            getPostAuthMemberPath(authData, authData.account.status, safeNextPath ?? "/member"),
+            safeNextPath,
+          ),
+          { replace: true },
+        );
       } catch (error) {
         if (disposed) {
           return;
@@ -217,7 +247,11 @@ export default function AuthCallback() {
         }
 
         setStatus("error");
-        setMessage(errorMessage);
+        setMessage(
+          errorMessage.length > 90 || isTechnicalCallbackMessage(errorMessage)
+            ? "로그인을 완료하지 못했습니다. 다시 로그인해도 같은 문제가 생기면 운영진에게 문의해 주세요."
+            : errorMessage,
+        );
       }
     }
 
@@ -233,10 +267,10 @@ export default function AuthCallback() {
       <Card className="auth-callback-card border-[#103078]/15 shadow-sm">
         <CardHeader className="space-y-2 text-center">
           <CardTitle className="text-2xl font-black tracking-[-0.04em] text-slate-950">
-            Google 로그인 확인
+            로그인 확인
           </CardTitle>
           <CardDescription>
-            로그인 결과를 확인하고 KOBOT member workspace로 이동합니다.
+            계정 정보를 확인하고 KOBOT 멤버 공간으로 이동합니다.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
@@ -258,7 +292,7 @@ export default function AuthCallback() {
                   {LOADING_STEPS[loadingStepIndex]}
                 </p>
                 <p className="mt-2 text-sm leading-6 text-slate-500">
-                  국민대학교 계정인지, KOBOT 멤버 권한이 있는지 차례대로 확인하고 있습니다.
+                  국민대학교 계정과 KOBOT 멤버 상태를 차례대로 확인하고 있습니다.
                 </p>
               </div>
             </div>
@@ -288,7 +322,6 @@ export default function AuthCallback() {
                 <p className="font-medium text-gray-900">다시 시도 전에 확인할 것</p>
                 <ul className="mt-2 space-y-1">
                   <li>Google 계정 선택 창에서 국민대학교 메일을 선택해야 합니다.</li>
-                  <li>로그인 후에는 원래 열었던 링크로 돌아가도록 next 값을 유지합니다.</li>
                   <li>학교 계정이 아닌 사용자는 운영진에게 계정 발급을 요청해야 합니다.</li>
                 </ul>
               </div>
@@ -296,7 +329,7 @@ export default function AuthCallback() {
           ) : (
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
-              <AlertTitle>로그인 콜백 처리 실패</AlertTitle>
+              <AlertTitle>로그인을 완료하지 못했습니다</AlertTitle>
               <AlertDescription>{message}</AlertDescription>
             </Alert>
           )}

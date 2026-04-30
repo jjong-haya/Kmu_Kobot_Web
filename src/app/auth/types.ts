@@ -6,6 +6,8 @@ export type MemberStatus =
   | "suspended"
   | "rejected"
   | "alumni"
+  | "project_only"
+  | "withdrawn"
   | null;
 
 export type PublicCreditNameMode = "anonymous" | "nickname" | "real_name";

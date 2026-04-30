@@ -35,16 +35,35 @@ import {
   AccordionTrigger,
 } from "../../components/ui/accordion";
 import { ImageWithFallback } from "../../components/figma/ImageWithFallback";
-import logo from "@/assets/mainLogo.png";
 import newLogo from "@/assets/mainLogo.png";
-import navLogo from "@/assets/mainLogo.png";
+import navLogo from "@/assets/wordLogo.png";
 import { useState, useEffect } from "react";
 import { motion } from "motion/react";
+import { useAuth } from "../../auth/useAuth";
+import { getPostAuthMemberPath } from "../../auth/onboarding";
 
 export default function Landing() {
+  const { authData, isInitializing, memberStatus, session } = useAuth();
   const [scrolled, setScrolled] = useState(false);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [selectedTrack, setSelectedTrack] = useState<string | null>(null);
+  const memberEntryPath = getPostAuthMemberPath(authData, memberStatus);
+  const memberActionLabel = !session
+    ? "로그인"
+    : isInitializing
+      ? "로그인 확인 중"
+      : memberStatus === "active"
+        ? "멤버 공간으로 이동"
+        : memberEntryPath === "/member/join"
+          ? "가입 정보 입력"
+          : memberStatus === "pending"
+            ? "승인 대기 중"
+            : "계정 상태 확인";
+  const memberIndicatorClass = memberStatus === "active"
+    ? "bg-emerald-500"
+    : memberStatus === "pending" || memberStatus === null
+      ? "bg-amber-400"
+      : "bg-slate-400";
 
   useEffect(() => {
     const handleScroll = () => {
@@ -557,10 +576,15 @@ export default function Landing() {
           {/* Right Actions */}
           <div className="flex items-center gap-3">
             <Link
-              to="/member"
-              className="text-sm font-medium text-gray-700 hover:text-[#103078] transition-colors"
+              to={session ? memberEntryPath : "/login?next=%2Fmember"}
+              className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-semibold transition-colors ${
+                session
+                  ? "border border-[#103078]/15 bg-[#103078]/5 text-[#103078] hover:bg-[#103078]/10"
+                  : "text-gray-700 hover:text-[#103078]"
+              }`}
             >
-              로그인
+              {session ? <span className={`h-2 w-2 rounded-full ${memberIndicatorClass}`} /> : null}
+              {memberActionLabel}
             </Link>
           </div>
         </div>
