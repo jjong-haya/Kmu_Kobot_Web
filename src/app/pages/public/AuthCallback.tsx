@@ -372,10 +372,8 @@ export default function AuthCallback() {
               >
                 다시 로그인하기
               </Button>
-              <Button variant="outline" asChild>
-                <a href="mailto:kobot@kookmin.ac.kr?subject=KOBOT%20%EA%B3%84%EC%A0%95%20%EC%A0%95%EB%A6%AC%20%EB%B0%8F%20%EC%9E%AC%EA%B0%80%EC%9E%85%20%EC%9A%94%EC%B2%AD">
-                  계정 문의
-                </a>
+              <Button variant="outline" onClick={() => navigate("/", { replace: true })}>
+                홈으로 가기
               </Button>
             </div>
           )}
