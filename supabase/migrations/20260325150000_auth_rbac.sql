@@ -24,6 +24,36 @@ create table if not exists public.profiles (
   )
 );
 
+alter table public.profiles
+  add column if not exists display_name text,
+  add column if not exists full_name text,
+  add column if not exists avatar_url text,
+  add column if not exists student_id text,
+  add column if not exists login_id citext,
+  add column if not exists created_at timestamptz not null default now(),
+  add column if not exists updated_at timestamptz not null default now();
+
+create unique index if not exists profiles_login_id_unique_idx
+  on public.profiles (lower(login_id::text))
+  where login_id is not null;
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'profiles_login_id_format'
+      and conrelid = 'public.profiles'::regclass
+  ) then
+    alter table public.profiles
+      add constraint profiles_login_id_format check (
+        login_id is null
+        or login_id ~ '^[a-z0-9](?:[a-z0-9._-]{2,18}[a-z0-9])?$'
+      );
+  end if;
+end;
+$$;
+
 create table if not exists public.member_accounts (
   user_id uuid primary key references public.profiles (id) on delete cascade,
   organization_id uuid not null references public.organizations (id) on delete restrict,
