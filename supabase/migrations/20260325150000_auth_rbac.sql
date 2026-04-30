@@ -20,7 +20,7 @@ create table if not exists public.profiles (
   updated_at timestamptz not null default now(),
   constraint profiles_login_id_format check (
     login_id is null
-    or login_id ~ '^[a-z0-9](?:[a-z0-9._-]{2,18}[a-z0-9])?$'
+    or login_id ~ '^[a-z0-9]{4,20}$'
   )
 );
 
@@ -48,7 +48,7 @@ begin
     alter table public.profiles
       add constraint profiles_login_id_format check (
         login_id is null
-        or login_id ~ '^[a-z0-9](?:[a-z0-9._-]{2,18}[a-z0-9])?$'
+        or login_id ~ '^[a-z0-9]{4,20}$'
       );
   end if;
 end;

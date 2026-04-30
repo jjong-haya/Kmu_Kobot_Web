@@ -1,9 +1,11 @@
 ﻿import {
   AlertCircle,
   BadgeCheck,
-  Building2,
+  Check,
+  ChevronsUpDown,
   GraduationCap,
   IdCard,
+  Lock,
   Phone,
   Save,
   ShieldCheck,
@@ -15,17 +17,222 @@ import { Navigate, useLocation, useNavigate } from "react-router";
 import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "../../components/ui/alert";
 import { Button } from "../../components/ui/button";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "../../components/ui/command";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "../../components/ui/popover";
+import { cn } from "../../components/ui/utils";
 import { useAuth } from "../../auth/useAuth";
 import type { MemberStatus } from "../../auth/types";
 import { getSafeInternalPath, withNextPath } from "../../auth/redirects";
 
 const NICKNAME_DISPLAY_PATTERN = /^[\uAC00-\uD7A3A-Za-z0-9 ]{2,12}$/u;
 const NICKNAME_SPECIAL_CHARACTER_PATTERN = /[^\uAC00-\uD7A3A-Za-z0-9 ]/u;
+const LOGIN_ID_ALLOWED_PATTERN = /^[a-z0-9]*$/;
+const LOGIN_ID_PATTERN = /^[a-z0-9]{4,20}$/;
+
+interface CollegeOption {
+  label: string;
+  aliases: string[];
+  departments: string[];
+}
+
+const KOOKMIN_COLLEGES: CollegeOption[] = [
+  {
+    label: "글로벌인문·지역대학",
+    aliases: ["글인대", "인문대", "글로벌인문지역대학"],
+    departments: [
+      "한국어문학부",
+      "글로벌한국어전공",
+      "영어영문학부",
+      "영미어문전공",
+      "중국학부",
+      "중국어문전공",
+      "한국역사학과",
+    ],
+  },
+  {
+    label: "사회과학대학",
+    aliases: ["사과대", "사회대"],
+    departments: [
+      "행정학과",
+      "정치외교학과",
+      "사회학과",
+      "미디어·광고학부",
+      "미디어전공",
+      "광고홍보학전공",
+      "교육학과",
+    ],
+  },
+  {
+    label: "법과대학",
+    aliases: ["법대"],
+    departments: ["법학부", "법학전공"],
+  },
+  {
+    label: "경상대학",
+    aliases: ["경상대"],
+    departments: ["경제학과", "국제통상학과"],
+  },
+  {
+    label: "경영대학",
+    aliases: ["경영대"],
+    departments: ["경영학부", "경영학전공", "경영정보학부", "AI빅데이터융합경영학과"],
+  },
+  {
+    label: "창의공과대학",
+    aliases: ["공대", "창공대", "공과대학"],
+    departments: [
+      "신소재공학부",
+      "기계공학부",
+      "건설시스템공학부",
+      "전자공학부",
+      "지능전자공학전공",
+      "전자시스템공학전공",
+    ],
+  },
+  {
+    label: "자동차융합대학",
+    aliases: ["자융대", "자동차대"],
+    departments: ["자동차공학과", "자동차IT융합학과", "미래자동차학부"],
+  },
+  {
+    label: "소프트웨어융합대학",
+    aliases: ["소융대", "소프트웨어대학", "소프트웨어융합대", "SW융합대학"],
+    departments: ["소프트웨어학부", "소프트웨어전공", "인공지능학부", "인공지능전공"],
+  },
+  {
+    label: "과학기술대학",
+    aliases: ["과기대", "과학기술대"],
+    departments: [
+      "산림환경시스템학과",
+      "임산생명공학과",
+      "나노전자물리학과",
+      "응용화학부",
+      "나노소재전공",
+      "바이오의약전공",
+      "식품영양학과",
+      "정보보안암호수학과",
+      "바이오발효융합학과",
+      "융합바이오공학과",
+    ],
+  },
+  {
+    label: "건축대학",
+    aliases: ["건축대"],
+    departments: ["건축학부", "건축설계전공", "건축시스템전공"],
+  },
+  {
+    label: "조형대학",
+    aliases: ["조형대", "디자인대"],
+    departments: [
+      "공업디자인학과",
+      "시각디자인학과",
+      "금속공예학과",
+      "도자공예학과",
+      "의상디자인학과",
+      "공간디자인학과",
+      "영상디자인학과",
+      "자동차·운송디자인학과",
+      "AI디자인학과",
+    ],
+  },
+  {
+    label: "예술대학",
+    aliases: ["예대"],
+    departments: [
+      "음악학부",
+      "성악전공",
+      "피아노전공",
+      "관현악전공",
+      "작곡전공",
+      "미술학부",
+      "회화전공",
+      "입체미술전공",
+      "공연예술학부",
+      "연극전공",
+      "영화전공",
+      "무용전공",
+    ],
+  },
+  {
+    label: "체육대학",
+    aliases: ["체대"],
+    departments: ["스포츠교육학과", "스포츠산업레저학과", "스포츠건강재활학과"],
+  },
+  {
+    label: "미래융합대학",
+    aliases: ["미융대", "미래융합대"],
+    departments: ["인문기술융합학부", "자유전공", "미래융합전공"],
+  },
+];
 
 function normalizeNicknameDisplay(value: string) {
   return value.normalize("NFKC").trim().replace(/\s+/g, " ");
+}
+
+function normalizeLookupText(value: string) {
+  return value.normalize("NFKC").toLocaleLowerCase("ko-KR").replace(/\s+/g, "");
+}
+
+function formatPhoneNumber(value: string) {
+  const digits = value.replace(/\D/g, "").slice(0, 11);
+
+  if (digits.length <= 3) {
+    return digits;
+  }
+
+  if (digits.length <= 7) {
+    return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+  }
+
+  return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
+}
+
+function findCollege(value: string | null | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  const normalizedValue = normalizeLookupText(value);
+
+  return (
+    KOOKMIN_COLLEGES.find((college) => {
+      const searchableValues = [college.label, ...college.aliases];
+
+      return searchableValues.some((candidate) => normalizeLookupText(candidate) === normalizedValue);
+    }) ?? null
+  );
+}
+
+function normalizeCollegeName(value: string | null | undefined) {
+  return findCollege(value)?.label ?? "";
+}
+
+function normalizeDepartmentName(collegeLabel: string, departmentValue: string | null | undefined) {
+  if (!departmentValue) {
+    return "";
+  }
+
+  const college = findCollege(collegeLabel);
+  const normalizedDepartment = normalizeLookupText(departmentValue);
+
+  return (
+    college?.departments.find(
+      (department) => normalizeLookupText(department) === normalizedDepartment,
+    ) ?? ""
+  );
+}
+
+function normalizeLoginIdInput(value: string) {
+  return value.normalize("NFKC").replace(/[A-Z]/g, (character) => character.toLowerCase());
 }
 
 function extractKookminRealName(value: string | null | undefined) {
@@ -108,6 +315,101 @@ function FormSection({
   );
 }
 
+function SearchableProfileSelect({
+  disabled,
+  emptyMessage,
+  id,
+  options,
+  placeholder,
+  searchPlaceholder,
+  value,
+  onChange,
+}: {
+  disabled?: boolean;
+  emptyMessage: string;
+  id: string;
+  options: Array<{
+    label: string;
+    aliases?: string[];
+    description?: string;
+  }>;
+  placeholder: string;
+  searchPlaceholder: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const selectedOption = options.find((option) => option.label === value);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          id={id}
+          disabled={disabled}
+          className={cn(
+            "h-11 w-full justify-between rounded-xl border-slate-300 bg-white px-3 text-left text-sm font-medium shadow-none hover:bg-slate-50",
+            !value && "text-slate-400",
+            disabled && "cursor-not-allowed bg-slate-100 text-slate-400",
+          )}
+        >
+          <span className="min-w-0 truncate">{selectedOption?.label ?? placeholder}</span>
+          {disabled ? (
+            <Lock className="ml-2 h-4 w-4 shrink-0 text-slate-400" />
+          ) : (
+            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 text-slate-400" />
+          )}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        className="w-[--radix-popover-trigger-width] rounded-2xl border-slate-200 p-0 shadow-xl"
+      >
+        <Command>
+          <CommandInput placeholder={searchPlaceholder} />
+          <CommandList>
+            <CommandEmpty>{emptyMessage}</CommandEmpty>
+            <CommandGroup>
+              {options.map((option) => (
+                <CommandItem
+                  key={option.label}
+                  value={[option.label, ...(option.aliases ?? [])].join(" ")}
+                  onSelect={() => {
+                    onChange(option.label);
+                    setOpen(false);
+                  }}
+                  className="items-start rounded-xl px-3 py-2.5"
+                >
+                  <Check
+                    className={cn(
+                      "mt-0.5 h-4 w-4 shrink-0 text-[#103078]",
+                      value === option.label ? "opacity-100" : "opacity-0",
+                    )}
+                  />
+                  <span className="min-w-0">
+                    <span className="block truncate font-semibold text-slate-900">
+                      {option.label}
+                    </span>
+                    {option.description || option.aliases?.length ? (
+                      <span className="mt-0.5 block truncate text-xs text-slate-500">
+                        {option.description ?? option.aliases?.join(", ")}
+                      </span>
+                    ) : null}
+                  </span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 export default function ProfileSettings() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -124,6 +426,7 @@ export default function ProfileSettings() {
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [shouldShakeNickname, setShouldShakeNickname] = useState(false);
+  const [shouldShakeLoginId, setShouldShakeLoginId] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const normalizedNickname = useMemo(
@@ -136,10 +439,16 @@ export default function ProfileSettings() {
   const hasNicknameSpecialCharacter = NICKNAME_SPECIAL_CHARACTER_PATTERN.test(
     nicknameDisplay.normalize("NFKC"),
   );
+  const hasLoginIdInvalidCharacter = !LOGIN_ID_ALLOWED_PATTERN.test(loginId);
+  const isPasswordConfirmMismatched =
+    passwordConfirm.length > 0 && password !== passwordConfirm;
   const isJoinRequest = memberStatus === "pending" || memberStatus === null;
   const isJoinRoute = location.pathname === "/member/join";
   const safeNextPath = getSafeInternalPath(new URLSearchParams(location.search).get("next"));
   const isLoginIdLocked = !isJoinRequest && Boolean(authData.profile.loginId);
+  const selectedCollege = findCollege(college);
+  const departmentOptions =
+    selectedCollege?.departments.map((department) => ({ label: department })) ?? [];
 
   useEffect(() => {
     setNicknameDisplay(authData.profile.nicknameDisplay ?? "");
@@ -147,9 +456,10 @@ export default function ProfileSettings() {
       extractKookminRealName(authData.profile.fullName ?? authData.profile.displayName),
     );
     setStudentId(authData.profile.studentId ?? "");
-    setPhone(authData.profile.phone ?? "");
-    setCollege(authData.profile.college ?? "");
-    setDepartment(authData.profile.department ?? "");
+    setPhone(formatPhoneNumber(authData.profile.phone ?? ""));
+    const nextCollege = normalizeCollegeName(authData.profile.college);
+    setCollege(nextCollege);
+    setDepartment(normalizeDepartmentName(nextCollege, authData.profile.department));
     setClubAffiliation(authData.profile.clubAffiliation ?? "");
     setLoginId(authData.profile.loginId ?? "");
   }, [
@@ -174,6 +484,16 @@ export default function ProfileSettings() {
     return () => window.clearTimeout(timer);
   }, [shouldShakeNickname]);
 
+  useEffect(() => {
+    if (!shouldShakeLoginId) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => setShouldShakeLoginId(false), 220);
+
+    return () => window.clearTimeout(timer);
+  }, [shouldShakeLoginId]);
+
   function handleNicknameChange(value: string) {
     setNicknameDisplay(value);
 
@@ -181,6 +501,21 @@ export default function ProfileSettings() {
       setShouldShakeNickname(false);
       window.requestAnimationFrame(() => setShouldShakeNickname(true));
     }
+  }
+
+  function handleLoginIdChange(value: string) {
+    const nextValue = normalizeLoginIdInput(value);
+    setLoginId(nextValue);
+
+    if (!LOGIN_ID_ALLOWED_PATTERN.test(nextValue)) {
+      setShouldShakeLoginId(false);
+      window.requestAnimationFrame(() => setShouldShakeLoginId(true));
+    }
+  }
+
+  function handleCollegeChange(value: string) {
+    setCollege(value);
+    setDepartment("");
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -212,8 +547,18 @@ export default function ProfileSettings() {
 
     const wantsIdLogin = Boolean(loginId.trim() || password.trim() || passwordConfirm.trim());
 
+    if (hasLoginIdInvalidCharacter) {
+      setSubmitError("ID는 영어 소문자와 숫자만 사용할 수 있습니다.");
+      return;
+    }
+
     if (wantsIdLogin && !loginId.trim()) {
       setSubmitError("ID 로그인을 사용하려면 아이디를 입력해 주세요.");
+      return;
+    }
+
+    if (wantsIdLogin && !LOGIN_ID_PATTERN.test(loginId.trim())) {
+      setSubmitError("ID는 4~20자의 영어 소문자와 숫자로 입력해 주세요.");
       return;
     }
 
@@ -371,30 +716,41 @@ export default function ProfileSettings() {
                   inputMode="tel"
                   placeholder="예: 010-1234-5678"
                   value={phone}
-                  onChange={(event) => setPhone(event.target.value)}
+                  onChange={(event) => setPhone(formatPhoneNumber(event.target.value))}
                 />
               </div>
             </FieldShell>
 
             <FieldShell htmlFor="college" label="단과대" required>
-              <div className="relative">
-                <Building2 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <Input
-                  id="college"
-                  className="pl-10"
-                  placeholder="예: 소프트웨어융합대학"
-                  value={college}
-                  onChange={(event) => setCollege(event.target.value)}
-                />
-              </div>
+              <SearchableProfileSelect
+                id="college"
+                value={college}
+                options={KOOKMIN_COLLEGES.map((collegeOption) => ({
+                  label: collegeOption.label,
+                  aliases: collegeOption.aliases,
+                  description: collegeOption.aliases.length
+                    ? `검색어: ${collegeOption.aliases.join(", ")}`
+                    : undefined,
+                }))}
+                placeholder="단과대를 선택해 주세요"
+                searchPlaceholder="단과대 또는 약칭 검색"
+                emptyMessage="일치하는 단과대가 없습니다."
+                onChange={handleCollegeChange}
+              />
             </FieldShell>
 
             <FieldShell htmlFor="department" label="학과" required>
-              <Input
+              <SearchableProfileSelect
                 id="department"
-                placeholder="예: 인공지능학부"
+                disabled={!selectedCollege}
                 value={department}
-                onChange={(event) => setDepartment(event.target.value)}
+                options={departmentOptions}
+                placeholder={
+                  selectedCollege ? "학과를 선택해 주세요" : "먼저 단과대를 선택해 주세요"
+                }
+                searchPlaceholder="학과 검색"
+                emptyMessage="일치하는 학과가 없습니다."
+                onChange={setDepartment}
               />
             </FieldShell>
 
@@ -427,7 +783,7 @@ export default function ProfileSettings() {
               description={
                 isLoginIdLocked
                   ? "이미 만든 ID는 직접 변경할 수 없습니다."
-                  : "영문 소문자, 숫자, 점(.), 밑줄(_), 하이픈(-), 4~20자"
+                  : "이후 ID로 로그인할 때만 입력해 주세요."
               }
               htmlFor="login-id"
               label="로그인 아이디"
@@ -436,13 +792,23 @@ export default function ProfileSettings() {
                 <IdCard className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <Input
                   id="login-id"
-                  className="pl-10"
+                  aria-invalid={hasLoginIdInvalidCharacter}
+                  className={`pl-10 ${
+                    hasLoginIdInvalidCharacter
+                      ? "border-red-300 text-red-700 focus-visible:ring-red-500"
+                      : ""
+                  } ${shouldShakeLoginId && hasLoginIdInvalidCharacter ? "input-denied-shake" : ""}`}
                   disabled={isLoginIdLocked}
                   placeholder="예: honggildong"
                   value={loginId}
-                  onChange={(event) => setLoginId(event.target.value.toLowerCase())}
+                  onChange={(event) => handleLoginIdChange(event.target.value)}
                 />
               </div>
+              {hasLoginIdInvalidCharacter ? (
+                <p className="text-xs font-medium text-red-600">
+                  영어 소문자와 숫자만 사용할 수 있습니다.
+                </p>
+              ) : null}
             </FieldShell>
 
             <FieldShell htmlFor="new-password" label="새 비밀번호">
@@ -457,14 +823,34 @@ export default function ProfileSettings() {
             </FieldShell>
 
             <FieldShell htmlFor="confirm-password" label="비밀번호 확인">
-              <Input
-                id="confirm-password"
-                type="password"
-                autoComplete="new-password"
-                placeholder="한 번 더 입력"
-                value={passwordConfirm}
-                onChange={(event) => setPasswordConfirm(event.target.value)}
-              />
+              <div className="space-y-2">
+                <Input
+                  id="confirm-password"
+                  type="password"
+                  autoComplete="new-password"
+                  aria-invalid={isPasswordConfirmMismatched}
+                  className={
+                    isPasswordConfirmMismatched
+                      ? "border-red-300 text-red-700 focus-visible:ring-red-500"
+                      : passwordConfirm
+                        ? "border-emerald-300 focus-visible:ring-emerald-500"
+                        : ""
+                  }
+                  placeholder="한 번 더 입력"
+                  value={passwordConfirm}
+                  onChange={(event) => setPasswordConfirm(event.target.value)}
+                />
+                {isPasswordConfirmMismatched ? (
+                  <p className="text-xs font-medium text-red-600">
+                    비밀번호가 일치하지 않습니다.
+                  </p>
+                ) : passwordConfirm ? (
+                  <p className="flex items-center gap-1.5 text-xs font-medium text-emerald-600">
+                    <Check className="h-3.5 w-3.5" />
+                    비밀번호가 일치합니다.
+                  </p>
+                ) : null}
+              </div>
             </FieldShell>
           </div>
         </FormSection>

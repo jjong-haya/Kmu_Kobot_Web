@@ -213,7 +213,8 @@
   }
 }
 
-.nickname-denied-shake {
+.nickname-denied-shake,
+.input-denied-shake {
   animation: nickname-denied-shake 180ms ease-in-out;
 }
 
@@ -240,7 +241,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .nickname-denied-shake {
+  .nickname-denied-shake,
+  .input-denied-shake {
     animation: none;
   }
 }

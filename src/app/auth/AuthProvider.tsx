@@ -14,7 +14,7 @@ import {
   isSupabaseConfigured,
 } from "./supabase";
 
-const LOGIN_ID_PATTERN = /^[a-z0-9][a-z0-9._-]{2,18}[a-z0-9]$/;
+const LOGIN_ID_PATTERN = /^[a-z0-9]{4,20}$/;
 const NICKNAME_DISPLAY_PATTERN = /^[\uAC00-\uD7A3A-Za-z0-9 ]{2,12}$/u;
 const PUBLIC_CREDIT_NAME_MODES: PublicCreditNameMode[] = [
   "anonymous",
@@ -753,7 +753,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
     if (normalizedLoginId && !LOGIN_ID_PATTERN.test(normalizedLoginId)) {
       throw new Error(
-        "아이디는 영문 소문자, 숫자, 점(.), 밑줄(_), 하이픈(-) 조합으로 4자 이상 20자 이하만 사용할 수 있습니다.",
+        "아이디는 4자 이상 20자 이하의 영어 소문자와 숫자만 사용할 수 있습니다.",
       );
     }
 
