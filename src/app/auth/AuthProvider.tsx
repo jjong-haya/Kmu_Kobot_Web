@@ -106,6 +106,10 @@ function isMissingWorkspaceSchemaError(error: unknown) {
   );
 }
 
+function isAuthCallbackRoute() {
+  return typeof window !== "undefined" && window.location.pathname === "/auth/callback";
+}
+
 function normalizeString(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
@@ -136,6 +140,16 @@ function normalizeNicknameDisplay(value: string) {
 
 function createNicknameSlug(value: string) {
   return normalizeNicknameDisplay(value).toLocaleLowerCase("ko-KR").replace(/\s+/g, "_");
+}
+
+function extractKookminRealName(value: string | null | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  const realName = value.replace(/\s*\([^)]*\)\s*$/u, "").trim();
+
+  return realName || null;
 }
 
 function normalizeTechTags(value: unknown) {
@@ -194,9 +208,7 @@ function normalizeAuthorizationContext(data: unknown): AuthorizationContextData 
     ? record.permissions.filter((value): value is string => typeof value === "string")
     : [];
 
-  const nicknameDisplay =
-    readProfileString(profile, "nicknameDisplay", "nickname_display") ??
-    readProfileString(profile, "displayName", "display_name");
+  const nicknameDisplay = readProfileString(profile, "nicknameDisplay", "nickname_display");
   const displayName =
     nicknameDisplay ?? readProfileString(profile, "displayName", "display_name");
 
@@ -207,7 +219,7 @@ function normalizeAuthorizationContext(data: unknown): AuthorizationContextData 
       displayName,
       nicknameDisplay,
       nicknameSlug: readProfileString(profile, "nicknameSlug", "nickname_slug"),
-      fullName: readProfileString(profile, "fullName", "full_name"),
+      fullName: extractKookminRealName(readProfileString(profile, "fullName", "full_name")),
       studentId: readProfileString(profile, "studentId", "student_id"),
       phone: readProfileString(profile, "phone", "phone"),
       college: readProfileString(profile, "college", "college"),
@@ -405,8 +417,8 @@ async function buildNonActiveAuthorizationFallback(
       nicknameDisplay: normalizeString(profileRecord.nickname_display),
       nicknameSlug: normalizeString(profileRecord.nickname_slug),
       fullName:
-        normalizeString(profileRecord.full_name) ??
-        readUserMetadataString(user, "full_name", "name"),
+        extractKookminRealName(normalizeString(profileRecord.full_name)) ??
+        extractKookminRealName(readUserMetadataString(user, "full_name", "name")),
       studentId: normalizeString(profileRecord.student_id),
       phone: normalizeString(profileRecord.phone),
       college: normalizeString(profileRecord.college),
@@ -459,7 +471,7 @@ async function buildSessionOnlyAuthorizationFallback(
       displayName,
       nicknameDisplay: null,
       nicknameSlug: null,
-      fullName: readUserMetadataString(user, "full_name", "name"),
+      fullName: extractKookminRealName(readUserMetadataString(user, "full_name", "name")),
       studentId: null,
       phone: null,
       college: null,
@@ -493,6 +505,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const [authError, setAuthError] = useState<string | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
   const refreshAuthDataPromiseRef = useRef<Promise<AuthorizationContextData | null> | null>(null);
+  const isWorkspaceSchemaMissingRef = useRef(false);
   const configured = isSupabaseConfigured();
 
   async function refreshAuthData() {
@@ -515,10 +528,22 @@ export function AuthProvider({ children }: PropsWithChildren) {
     }
 
     const supabase = getSupabaseBrowserClient();
+
+    if (isWorkspaceSchemaMissingRef.current) {
+      const sessionOnlyAuthData = await buildSessionOnlyAuthorizationFallback(supabase);
+
+      if (sessionOnlyAuthData) {
+        setAuthData(sessionOnlyAuthData);
+        setAuthError(null);
+        return sessionOnlyAuthData;
+      }
+    }
+
     const { data, error } = await supabase.rpc("get_my_authorization_context");
 
     if (error) {
       if (isMissingWorkspaceSchemaError(error)) {
+        isWorkspaceSchemaMissingRef.current = true;
         const sessionOnlyAuthData = await buildSessionOnlyAuthorizationFallback(supabase);
 
         if (sessionOnlyAuthData) {
@@ -542,6 +567,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     }
 
     const normalized = normalizeAuthorizationContext(data);
+    isWorkspaceSchemaMissingRef.current = false;
     setAuthData(normalized);
     setAuthError(null);
     return normalized;
@@ -554,6 +580,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
     if (!nextSession?.user) {
       setAuthData(EMPTY_AUTH_CONTEXT);
       setAuthError(null);
+      return null;
+    }
+
+    if (isAuthCallbackRoute()) {
       return null;
     }
 

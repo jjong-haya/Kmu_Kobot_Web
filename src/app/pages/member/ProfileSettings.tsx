@@ -28,6 +28,14 @@ function normalizeNicknameDisplay(value: string) {
   return value.normalize("NFKC").trim().replace(/\s+/g, " ");
 }
 
+function extractKookminRealName(value: string | null | undefined) {
+  if (!value) {
+    return "";
+  }
+
+  return value.replace(/\s*\([^)]*\)\s*$/u, "").trim();
+}
+
 function getSafeProfileError(error: unknown) {
   const message = error instanceof Error ? error.message : "프로필 설정을 저장하지 못했습니다.";
   const normalized = message.toLowerCase();
@@ -135,7 +143,9 @@ export default function ProfileSettings() {
 
   useEffect(() => {
     setNicknameDisplay(authData.profile.nicknameDisplay ?? "");
-    setFullName(authData.profile.fullName ?? authData.profile.displayName ?? "");
+    setFullName(
+      extractKookminRealName(authData.profile.fullName ?? authData.profile.displayName),
+    );
     setStudentId(authData.profile.studentId ?? "");
     setPhone(authData.profile.phone ?? "");
     setCollege(authData.profile.college ?? "");
