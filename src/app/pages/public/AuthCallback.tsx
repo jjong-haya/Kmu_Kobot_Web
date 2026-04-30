@@ -22,9 +22,9 @@ const LOADING_STEPS = [
   "국민대학교 계정 확인 중",
   "학생 인증 정보를 확인하는 중",
   "KOBOT 멤버 상태 확인 중",
-  "KOBOT 멤버 공간 준비 중",
 ];
 const MIN_CALLBACK_LOADING_MS = 1000;
+const MIN_LOADING_STEP_MS = 650;
 
 function wait(ms: number) {
   return new Promise((resolve) => {
@@ -105,18 +105,6 @@ export default function AuthCallback() {
   }
 
   useEffect(() => {
-    if (status !== "loading") {
-      return;
-    }
-
-    const timer = window.setInterval(() => {
-      setLoadingStepIndex((current) => (current + 1) % LOADING_STEPS.length);
-    }, 1250);
-
-    return () => window.clearInterval(timer);
-  }, [status]);
-
-  useEffect(() => {
     let disposed = false;
     const loadingStartedAt = performance.now();
 
@@ -126,6 +114,22 @@ export default function AuthCallback() {
       if (remaining > 0) {
         await wait(remaining);
       }
+    }
+
+    async function runLoadingStep<T>(stepIndex: number, task: () => Promise<T>) {
+      if (!disposed) {
+        setLoadingStepIndex(stepIndex);
+      }
+
+      const stepStartedAt = performance.now();
+      const result = await task();
+      const remaining = MIN_LOADING_STEP_MS - (performance.now() - stepStartedAt);
+
+      if (remaining > 0) {
+        await wait(remaining);
+      }
+
+      return result;
     }
 
     async function completeCallback() {
@@ -192,7 +196,23 @@ export default function AuthCallback() {
 
       try {
         const supabase = getSupabaseBrowserClient();
-        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+        const {
+          exchangeError,
+          user,
+          userError,
+        } = await runLoadingStep(0, async () => {
+          const { error: nextExchangeError } = await supabase.auth.exchangeCodeForSession(code);
+          const {
+            data: { user: nextUser },
+            error: nextUserError,
+          } = await supabase.auth.getUser();
+
+          return {
+            exchangeError: nextExchangeError,
+            user: nextUser,
+            userError: nextUserError,
+          };
+        });
 
         if (exchangeError) {
           await waitForMinimumLoading();
@@ -205,11 +225,6 @@ export default function AuthCallback() {
           }
           return;
         }
-
-        const {
-          data: { user },
-          error: userError,
-        } = await supabase.auth.getUser();
 
         if (userError) {
           throw userError;
@@ -226,9 +241,16 @@ export default function AuthCallback() {
         }
 
         const email = user.email?.toLowerCase() ?? "";
+        const isSchoolAccount = await runLoadingStep(1, async () => {
+          if (!email.endsWith("@kookmin.ac.kr")) {
+            await supabase.auth.signOut();
+            return false;
+          }
 
-        if (!email.endsWith("@kookmin.ac.kr")) {
-          await supabase.auth.signOut();
+          return true;
+        });
+
+        if (!isSchoolAccount) {
           await waitForMinimumLoading();
 
           if (!disposed) {
@@ -238,8 +260,7 @@ export default function AuthCallback() {
           return;
         }
 
-        setLoadingStepIndex(2);
-        const authData = await refreshAuthData();
+        const authData = await runLoadingStep(2, refreshAuthData);
         await waitForMinimumLoading();
 
         if (disposed) {
@@ -306,12 +327,23 @@ export default function AuthCallback() {
         <CardContent className="space-y-5">
           {status === "loading" ? (
             <div className="space-y-5">
-              <div className="auth-robot-stage" aria-hidden="true">
-                <div className="auth-robot-path" />
+              <div className="auth-robot-stage" data-step={loadingStepIndex} aria-hidden="true">
+                <div className="auth-robot-path">
+                  <span className="auth-robot-progress" />
+                </div>
                 <img className="auth-robot-runner" src={robotRun} alt="" draggable={false} />
-                <span className="auth-checkpoint auth-checkpoint-1" />
-                <span className="auth-checkpoint auth-checkpoint-2" />
-                <span className="auth-checkpoint auth-checkpoint-3" />
+                {LOADING_STEPS.map((step, index) => (
+                  <span
+                    key={step}
+                    className={`auth-checkpoint auth-checkpoint-${index + 1} ${
+                      index < loadingStepIndex
+                        ? "is-complete"
+                        : index === loadingStepIndex
+                          ? "is-active"
+                          : "is-pending"
+                    }`}
+                  />
+                ))}
               </div>
 
               <div className="rounded-2xl border border-[#103078]/15 bg-[#f8fbff] p-5 text-center">

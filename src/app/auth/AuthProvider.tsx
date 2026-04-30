@@ -1,5 +1,5 @@
 ﻿import type { PostgrestError } from "@supabase/supabase-js";
-import { createContext, useEffect, useState, type PropsWithChildren } from "react";
+import { createContext, useEffect, useRef, useState, type PropsWithChildren } from "react";
 import {
   EMPTY_AUTH_CONTEXT,
   type AuthContextValue,
@@ -81,6 +81,29 @@ function toErrorMessage(error: unknown, fallback: string) {
   }
 
   return fallback;
+}
+
+function isMissingWorkspaceSchemaError(error: unknown) {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  const record = error as Record<string, unknown>;
+  const code = typeof record.code === "string" ? record.code : "";
+  const message = typeof record.message === "string" ? record.message.toLowerCase() : "";
+  const details = typeof record.details === "string" ? record.details.toLowerCase() : "";
+  const hint = typeof record.hint === "string" ? record.hint.toLowerCase() : "";
+  const combined = `${message} ${details} ${hint}`;
+
+  return (
+    code === "42P01" ||
+    code === "PGRST202" ||
+    code === "PGRST205" ||
+    (combined.includes("schema cache") &&
+      (combined.includes("get_my_authorization_context") ||
+        combined.includes("member_accounts") ||
+        combined.includes("profiles")))
+  );
 }
 
 function normalizeString(value: unknown) {
@@ -412,15 +435,79 @@ async function buildNonActiveAuthorizationFallback(
   });
 }
 
+async function buildSessionOnlyAuthorizationFallback(
+  supabase: ReturnType<typeof getSupabaseBrowserClient>,
+) {
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError || !user) {
+    return null;
+  }
+
+  const displayName =
+    readUserMetadataString(user, "display_name", "full_name", "name") ??
+    user.email?.split("@")[0] ??
+    null;
+
+  return normalizeAuthorizationContext({
+    profile: {
+      id: user.id,
+      email: user.email ?? null,
+      displayName,
+      nicknameDisplay: null,
+      nicknameSlug: null,
+      fullName: readUserMetadataString(user, "full_name", "name"),
+      studentId: null,
+      phone: null,
+      college: null,
+      department: null,
+      clubAffiliation: null,
+      publicCreditNameMode: "nickname",
+      techTags: [],
+      avatarUrl: readUserMetadataString(user, "avatar_url", "picture"),
+      loginId: null,
+    },
+    account: {
+      status: null,
+      hasLoginPassword: false,
+      isBootstrapAdmin: false,
+    },
+    organization: {
+      id: null,
+      slug: null,
+      name: null,
+    },
+    orgPositions: [],
+    teamMemberships: [],
+    permissions: [],
+  });
+}
+
 export function AuthProvider({ children }: PropsWithChildren) {
   const [session, setSession] = useState<AuthContextValue["session"]>(null);
   const [user, setUser] = useState<AuthContextValue["user"]>(null);
   const [authData, setAuthData] = useState(EMPTY_AUTH_CONTEXT);
   const [authError, setAuthError] = useState<string | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
+  const refreshAuthDataPromiseRef = useRef<Promise<AuthorizationContextData | null> | null>(null);
   const configured = isSupabaseConfigured();
 
   async function refreshAuthData() {
+    if (refreshAuthDataPromiseRef.current) {
+      return refreshAuthDataPromiseRef.current;
+    }
+
+    refreshAuthDataPromiseRef.current = refreshAuthDataInternal().finally(() => {
+      refreshAuthDataPromiseRef.current = null;
+    });
+
+    return refreshAuthDataPromiseRef.current;
+  }
+
+  async function refreshAuthDataInternal() {
     if (!configured) {
       setAuthData(EMPTY_AUTH_CONTEXT);
       setAuthError("서비스 설정을 확인하지 못했습니다. 운영진에게 문의해 주세요.");
@@ -431,6 +518,16 @@ export function AuthProvider({ children }: PropsWithChildren) {
     const { data, error } = await supabase.rpc("get_my_authorization_context");
 
     if (error) {
+      if (isMissingWorkspaceSchemaError(error)) {
+        const sessionOnlyAuthData = await buildSessionOnlyAuthorizationFallback(supabase);
+
+        if (sessionOnlyAuthData) {
+          setAuthData(sessionOnlyAuthData);
+          setAuthError(null);
+          return sessionOnlyAuthData;
+        }
+      }
+
       const fallbackAuthData = await buildNonActiveAuthorizationFallback(supabase);
 
       if (fallbackAuthData) {
