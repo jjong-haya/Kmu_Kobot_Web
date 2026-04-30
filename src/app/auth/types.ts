@@ -96,6 +96,7 @@ export interface AuthContextValue {
     loginId: string,
     password: string,
   ) => Promise<AuthorizationContextData | null>;
+  checkLoginIdAvailability: (loginId: string) => Promise<boolean>;
   saveProfileSettings: (
     input: SaveProfileSettingsInput,
   ) => Promise<AuthorizationContextData | null>;

@@ -1,102 +1,110 @@
-# 09. 에이전트 리뷰 로그
+# 09. 리뷰 로그
 
-## 1. 리뷰 요약
+## 1. 리뷰 방식
 
-### 1.1 핵심 합의
+### 1.1 이번 문서의 의미
 
-네 관점의 리뷰가 공통으로 지적한 P0 위험은 다음입니다.
+현재 세션에서는 새 sub-agent를 추가로 띄우지 않고, `ddd-spec-workflow` 규칙에 따라 로컬 리뷰 역할을 나누어 점검했다.
 
-```text
-공식 팀장, 프로젝트 팀장, maintainer, 임시 위임자를 같은 team lead 또는 projects.manage로 섞으면 안 된다.
-```
+역할은 다음과 같이 시뮬레이션했다.
 
-### 1.2 합의 원칙
-
-| 원칙 | 설명 |
+| 역할 | 관점 |
 | --- | --- |
-| Role과 Capability 분리 | 신분/직책과 행위 가능성은 다르다 |
-| Scope 필수 | 권한은 organization, official_team, project, self 범위가 있어야 한다 |
-| Source 필수 | 권한 출처가 president인지 delegation인지 기록해야 한다 |
-| Delegation은 role이 아님 | 기간과 scope가 제한된 임시 capability다 |
-| Audit은 command 내부에서 | 사용자가 직접 insert하면 안 된다 |
+| Product reviewer | 사용자가 기대하는 흐름과 문구 |
+| Domain reviewer | aggregate, value object, invariant |
+| Security reviewer | enumeration, privilege escalation, privacy leakage |
+| Data reviewer | DB constraint, RPC, RLS, race condition |
+| UX reviewer | 오류 위치, 복구 가능성, raw error 노출 여부 |
 
-## 2. 리뷰 기록
+## 2. 공통 합의
 
-### 2.1 계정/권한 리뷰
+### 2.1 모든 식별자는 값 객체다
 
-| 항목 | 내용 |
+`login_id`, `nickname`, `project_slug`, `invite_code`, `github_repository`, `vote_id`는 단순 문자열이 아니다.
+
+각 값은 최소한 다음을 가져야 한다.
+
+- 정규화 규칙
+- 유일성 범위
+- 소유자
+- 변경 가능 시점
+- 중복/충돌 시 사용자 문구
+- DB/RPC 수준의 최종 방어
+
+### 2.2 UI validation은 보조 수단이다
+
+UI는 빠른 피드백을 줄 뿐이다. 권한, 상태 전이, 유일성, 초대 코드 사용, 투표 제출, 연락 요청 생성은 DB/RPC에서 최종 결정해야 한다.
+
+## 3. 2026-05-01 Auth/LoginId 리뷰
+
+### 3.1 발견한 누락
+
+`login_id`를 단순 입력값으로 보고 형식 검사만 구현하면 안 된다. ID 로그인은 `login_id -> email -> Supabase password auth`로 이어지므로, 중복 ID는 인증 대상 자체를 모호하게 만든다.
+
+### 3.2 Why review
+
+| 질문 | 답 |
 | --- | --- |
-| 역할 | 계정/권한/회원 도메인 |
-| 핵심 발견 | 같은 permission code라도 권한 출처, 범위, 계정 상태, 승인 절차, 감사 로그가 함께 필요 |
-| 위험 | 공식 팀장, 프로젝트 팀장, maintainer, 임시 위임자가 `projects.manage`로 합쳐짐. 비국민대 계정 생성 전 차단은 안내/탈퇴 기록 요구와 충돌 가능 |
-| 반영 위치 | `02-domain-discovery.md`, `04-data-schema-and-security.md` |
+| 왜 중복을 막아야 하는가? | 같은 ID가 두 계정에 연결되면 ID 로그인 해석이 불가능해진다. |
+| 왜 DB unique index만으로 부족한가? | 최종 방어는 되지만 사용자에게 저장 실패 후 generic 오류만 보이면 UX가 나쁘다. |
+| 왜 RPC가 필요한가? | RLS를 우회하지 않고 인증된 사용자에게 availability boolean만 제공하기 위해서다. |
+| 왜 anon에게 열지 않는가? | 로그인 ID 존재 여부를 익명 사용자가 대량 조회하면 계정 열거 표면이 커진다. |
+| 왜 저장 직전 재확인하는가? | blur 이후 다른 사용자가 같은 ID를 선점할 수 있기 때문이다. |
+| 그래도 동시 제출하면? | `profiles_login_id_unique_idx`가 최종적으로 막는다. |
 
-### 2.2 프로젝트/공식팀/GitHub 리뷰
+### 3.3 반영 사항
 
-| 항목 | 내용 |
-| --- | --- |
-| 역할 | 프로젝트/공식팀/GitHub 연동 도메인 |
-| 핵심 발견 | OfficialTeam, ProjectCreationRequest, Invitation, GitHubRepositoryConnection을 분리해야 함 |
-| 위험 | DB `project_teams.status=pending`만으로 승인 전 신청서/사전모집/검토 이력을 담기 어려움 |
-| 반영 위치 | `02-domain-discovery.md`, `03-event-storming.md`, `05-functional-spec.md` |
+- `is_login_id_available(text)` RPC 추가
+- `AuthProvider.checkLoginIdAvailability` 추가
+- 저장 직전 availability 재확인
+- unique violation safe message 변환
+- `/member/join`과 `/member/profile` ID blur/submit 검증 연결
+- 중복이면 상단 카드가 아니라 ID 필드 하단 오류와 필드 강조로 표시
 
-### 2.3 DB/RLS/감사 로그 리뷰
+## 4. 남은 고위험 리뷰 항목
 
-| 항목 | 내용 |
-| --- | --- |
-| 역할 | DB/RLS/데이터 스키마/감사 로그 |
-| 핵심 발견 | RLS는 row 접근만 담당하고 상태 전이는 RPC command로 처리해야 함 |
-| 위험 | contact_requests, join_requests, role_transfer_requests, authority_delegations 등이 관련자 update로 상태 조작 가능 |
-| 반영 위치 | `04-data-schema-and-security.md`, `08-task-checklist.md` |
+### 4.1 RBAC / Capability
 
-### 2.4 IA/UX/운영 프로세스 리뷰
-
-| 항목 | 내용 |
-| --- | --- |
-| 역할 | IA/UX/운영 프로세스 |
-| 핵심 발견 | `/member/join`은 가입 요청서, `/member/pending`은 승인 대기 안내로 분리해야 함 |
-| 위험 | 프로젝트 팀장이 Admin처럼 보이거나 pending 화면에 ID 생성 CTA가 남는 문제 |
-| 반영 위치 | `06-design-spec.md`, `00-user-decision-checklist.md` |
-
-## 3. 후속 리뷰 필요 항목
-
-### 3.1 추가 리뷰 반영: Auth/Join/Pending
-
-| 항목 | 내용 |
-| --- | --- |
-| 원문 오류 노출 | `PKCE`, `schema cache`, `Could not find function`, `.env` 같은 개발자 메시지는 사용자 화면에 노출하지 않는다 |
-| PKCE 처리 | Supabase client 자동 URL 감지와 `AuthCallback.exchangeCodeForSession`이 중복되지 않게 수동 처리 한 곳으로 통일한다 |
-| 원래 링크 복귀 | `/login`, `/auth/callback`, `/member/join`, `/member/pending` 전 구간에서 safe internal `next`를 보존한다 |
-| 가입 화면 | Google 이름은 실명으로 단정하지 않고 “참고해 입력됨, 다르면 수정”으로 안내한다 |
-| ID 변경 | 최초 생성 후 직접 변경은 막고 별도 요청 플로우로 분리한다 |
-| 신규 status | `project_only`, `withdrawn`을 프론트 타입과 안내 화면에서 깨지지 않게 처리한다 |
-
-### 3.2 추가 리뷰 반영: Capability/Permission
-
-| 항목 | 내용 |
-| --- | --- |
-| broad permission | `projects.manage`, `members.manage`, `permissions.manage`를 즉시 제거하지 않고 capability 병행 레이어로 이전한다 |
-| helper 분리 | `current_user_is_project_team_lead` 의미를 lead/member/delegation/private-read/audit helper로 분리한다 |
-| delegation | 임시 위임은 role이 아니라 `scope`, `source`, `expiresAt`을 가진 capability로 표현한다 |
-| audit | 실행 command가 어떤 capability source/scope로 승인되었는지 감사 로그에 남긴다 |
-| migration 순서 | additive -> compatibility -> enforcement -> cleanup 순서로 진행한다 |
-
-### 3.3 열린 리뷰
-
-| ID | 질문 | 필요한 리뷰 |
+| ID | 질문 | 위험 |
 | --- | --- | --- |
-| REVIEW-001 | `maintainer` 제거 migration의 기존 데이터 변환 방식 | 권한 + DB |
-| REVIEW-002 | 실제 Supabase DB에 `project_only`, `withdrawn` 적용 전 preflight 결과 | DB |
-| REVIEW-003 | capability read model을 프론트 메뉴에 적용할 호환 기간 | UX + 권한 |
-| REVIEW-004 | 감사 로그 private payload 저장 위치와 1년 후 삭제 job | DB + 개인정보 |
-| REVIEW-005 | GitHub README private fallback 구현 방식 | Integration + UX |
+| REVIEW-RBAC-001 | 공식 팀장과 프로젝트 팀장을 같은 permission으로 다루고 있는가? | 프로젝트 범위 밖 자료 노출 |
+| REVIEW-RBAC-002 | 임시 권한은 role인가 capability인가? | 기간 만료 후 권한 잔류 |
+| REVIEW-RBAC-003 | 회장 직접 지명과 요청/수락 흐름이 같은 이벤트로 기록되는가? | 감사 추적 불완전 |
 
-## 4. 리뷰 사용 규칙
+### 4.2 Project / GitHub
 
-### 4.1 구현 전
+| ID | 질문 | 위험 |
+| --- | --- | --- |
+| REVIEW-GH-001 | 비공개 GitHub README snapshot을 누가 볼 수 있는가? | private repo 정보 노출 |
+| REVIEW-GH-002 | GitHub 연동 실패 시 내부 소개서와 날짜 비교 기준은 무엇인가? | 오래된 정보 표시 |
+| REVIEW-GH-003 | 프로젝트 팀장이 GitHub App 설치를 잘못했을 때 복구 UX가 있는가? | 연동 중단 |
 
-관련 task의 리뷰 항목이 있으면 먼저 확인한다.
+### 4.3 Contact / Vote / Audit
 
-### 4.2 구현 중
+| ID | 질문 | 위험 |
+| --- | --- | --- |
+| REVIEW-CONTACT-001 | 연락 요청 반복/유사 문구 스팸을 어디서 막는가? | 사용자 괴롭힘 |
+| REVIEW-VOTE-001 | 익명 투표는 운영진도 개인 선택을 모르는가? | 익명성 오해 |
+| REVIEW-AUDIT-001 | audit log payload에 전화번호/학번/토큰이 들어가는가? | 개인정보 과다 보관 |
 
-새로운 위험이 나오면 이 로그에 추가하고 `00-user-decision-checklist.md`에 질문을 등록한다.
+## 5. 다음 리뷰 게이트
+
+### 5.1 구현 전 반드시 묻기
+
+- 이 값은 식별자인가?
+- 중복 범위는 어디인가?
+- 누가 변경할 수 있는가?
+- 언제부터 잠기는가?
+- 실패하면 어떤 필드나 화면으로 안내하는가?
+- UI를 우회해도 DB/RPC에서 막히는가?
+- 어떤 감사 이벤트가 남는가?
+
+### 5.2 멈춰야 하는 조건
+
+다음 중 하나라도 답이 없으면 구현을 멈추고 질문 또는 문서화를 먼저 한다.
+
+- 권한 범위가 모호함
+- 상태 전이 경로가 모호함
+- 공개/비공개 기준이 모호함
+- 개인정보 보관 기준이 모호함
+- DB 불변조건이 없음

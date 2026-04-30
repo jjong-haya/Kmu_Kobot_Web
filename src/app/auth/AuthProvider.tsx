@@ -58,8 +58,26 @@ function toErrorMessage(error: unknown, fallback: string) {
 
   if (typeof error === "object" && error !== null) {
     const record = error as Record<string, unknown>;
+    const combined = [
+      record.message,
+      record.details,
+      record.hint,
+      record.constraint,
+      record.code,
+    ]
+      .filter((value): value is string => typeof value === "string")
+      .join(" ")
+      .toLowerCase();
 
     if (record.code === "23505") {
+      if (combined.includes("login_id")) {
+        return "이미 사용 중인 ID입니다.";
+      }
+
+      if (combined.includes("nickname")) {
+        return "이미 사용 중인 닉네임입니다.";
+      }
+
       return "이미 사용 중인 아이디 또는 닉네임입니다.";
     }
 
@@ -81,6 +99,10 @@ function toErrorMessage(error: unknown, fallback: string) {
   }
 
   return fallback;
+}
+
+function isDuplicateLoginIdMessage(message: string) {
+  return message.includes("이미 사용 중인 ID") || message.includes("이미 사용 중인 아이디");
 }
 
 function isMissingWorkspaceSchemaError(error: unknown) {
@@ -710,6 +732,41 @@ export function AuthProvider({ children }: PropsWithChildren) {
     return syncFromSession(data.session);
   }
 
+  async function checkLoginIdAvailability(loginId: string) {
+    if (!configured) {
+      throw new Error("서비스 설정을 확인하지 못했습니다. 운영진에게 문의해 주세요.");
+    }
+
+    if (!user) {
+      throw new Error("로그인 상태를 확인할 수 없습니다.");
+    }
+
+    const normalizedLoginId = loginId.trim().toLowerCase();
+
+    if (!normalizedLoginId) {
+      return true;
+    }
+
+    if (authData.profile.loginId === normalizedLoginId) {
+      return true;
+    }
+
+    if (!LOGIN_ID_PATTERN.test(normalizedLoginId)) {
+      return false;
+    }
+
+    const supabase = getSupabaseBrowserClient();
+    const { data, error } = await supabase.rpc("is_login_id_available", {
+      login_id_input: normalizedLoginId,
+    });
+
+    if (error) {
+      throw new Error(toErrorMessage(error, "ID 중복 확인을 완료하지 못했습니다."));
+    }
+
+    return data === true;
+  }
+
   async function saveProfileSettings(input: SaveProfileSettingsInput) {
     if (!configured) {
       throw new Error("서비스 설정을 확인하지 못했습니다. 운영진에게 문의해 주세요.");
@@ -765,6 +822,14 @@ export function AuthProvider({ children }: PropsWithChildren) {
       throw new Error("비밀번호는 8자 이상으로 입력해 주세요.");
     }
 
+    if (normalizedLoginId && normalizedLoginId !== currentLoginId) {
+      const isLoginIdAvailable = await checkLoginIdAvailability(normalizedLoginId);
+
+      if (!isLoginIdAvailable) {
+        throw new Error("이미 사용 중인 ID입니다.");
+      }
+    }
+
     const supabase = getSupabaseBrowserClient();
     const profilePayload = {
       display_name: nicknameDisplay,
@@ -788,9 +853,16 @@ export function AuthProvider({ children }: PropsWithChildren) {
       .eq("id", user.id);
 
     if (profileError) {
-      throw new Error(
-        toErrorMessage(profileError as PostgrestError, "프로필 정보를 저장하지 못했습니다."),
+      const safeMessage = toErrorMessage(
+        profileError as PostgrestError,
+        "프로필 정보를 저장하지 못했습니다.",
       );
+
+      if (isDuplicateLoginIdMessage(safeMessage)) {
+        throw new Error("이미 사용 중인 ID입니다.");
+      }
+
+      throw new Error(safeMessage);
     }
 
     if (password || nicknameDisplay || fullName) {
@@ -877,6 +949,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     refreshAuthData,
     signInWithGoogle,
     signInWithLoginId,
+    checkLoginIdAvailability,
     saveProfileSettings,
     signOut,
   };

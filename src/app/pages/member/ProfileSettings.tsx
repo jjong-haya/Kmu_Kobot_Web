@@ -443,7 +443,7 @@ function SearchableProfileSelect({
 export default function ProfileSettings() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { authData, memberStatus, saveProfileSettings } = useAuth();
+  const { authData, checkLoginIdAvailability, memberStatus, saveProfileSettings } = useAuth();
   const [nicknameDisplay, setNicknameDisplay] = useState("");
   const [fullName, setFullName] = useState("");
   const [studentId, setStudentId] = useState("");
@@ -455,6 +455,8 @@ export default function ProfileSettings() {
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [isCheckingLoginId, setIsCheckingLoginId] = useState(false);
+  const [checkedAvailableLoginId, setCheckedAvailableLoginId] = useState<string | null>(null);
   const [shakingField, setShakingField] = useState<FieldKey | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<FieldKey, string>>>({});
 
@@ -469,6 +471,7 @@ export default function ProfileSettings() {
     nicknameDisplay.normalize("NFKC"),
   );
   const hasLoginIdInvalidCharacter = !LOGIN_ID_ALLOWED_PATTERN.test(loginId);
+  const normalizedLoginId = loginId.trim().toLowerCase();
   const isPasswordConfirmMismatched =
     passwordConfirm.length > 0 && password !== passwordConfirm;
   const isJoinRequest = memberStatus === "pending" || memberStatus === null;
@@ -487,6 +490,11 @@ export default function ProfileSettings() {
   const passwordConfirmError =
     fieldErrors.passwordConfirm ??
     (isPasswordConfirmMismatched ? "비밀번호가 일치하지 않습니다." : null);
+  const isLoginIdAvailable = Boolean(
+    normalizedLoginId &&
+      checkedAvailableLoginId === normalizedLoginId &&
+      normalizedLoginId !== authData.profile.loginId,
+  );
 
   useEffect(() => {
     setNicknameDisplay(authData.profile.nicknameDisplay ?? "");
@@ -534,9 +542,13 @@ export default function ProfileSettings() {
     });
   }
 
-  function showFieldError(field: FieldKey, message: string) {
+  function showFieldError(field: FieldKey, message: string, shouldFocus = true) {
     setFieldErrors({ [field]: message });
     setShakingField(null);
+
+    if (!shouldFocus) {
+      return;
+    }
 
     window.requestAnimationFrame(() => {
       const element = document.getElementById(FIELD_ELEMENT_IDS[field]);
@@ -564,11 +576,50 @@ export default function ProfileSettings() {
   function handleLoginIdChange(value: string) {
     const nextValue = normalizeLoginIdInput(value);
     setLoginId(nextValue);
+    setCheckedAvailableLoginId(null);
     clearFieldError("loginId");
 
     if (!LOGIN_ID_ALLOWED_PATTERN.test(nextValue)) {
       setShakingField(null);
       window.requestAnimationFrame(() => setShakingField("loginId"));
+    }
+  }
+
+  async function ensureLoginIdAvailable(shouldFocus = true) {
+    const targetLoginId = normalizedLoginId;
+
+    if (!targetLoginId || targetLoginId === authData.profile.loginId) {
+      return true;
+    }
+
+    if (hasLoginIdInvalidCharacter || !LOGIN_ID_PATTERN.test(targetLoginId)) {
+      return true;
+    }
+
+    if (checkedAvailableLoginId === targetLoginId) {
+      return true;
+    }
+
+    setIsCheckingLoginId(true);
+
+    try {
+      const isAvailable = await checkLoginIdAvailability(targetLoginId);
+
+      if (!isAvailable) {
+        setCheckedAvailableLoginId(null);
+        showFieldError("loginId", "이미 사용 중인 ID입니다.", shouldFocus);
+        return false;
+      }
+
+      setCheckedAvailableLoginId(targetLoginId);
+      clearFieldError("loginId");
+      return true;
+    } catch (error) {
+      setCheckedAvailableLoginId(null);
+      showFieldError("loginId", getSafeProfileError(error), shouldFocus);
+      return false;
+    } finally {
+      setIsCheckingLoginId(false);
     }
   }
 
@@ -633,6 +684,10 @@ export default function ProfileSettings() {
       return;
     }
 
+    if (!(await ensureLoginIdAvailable())) {
+      return;
+    }
+
     if (wantsIdLogin && !password.trim()) {
       showFieldError("password", "ID 로그인을 사용하려면 비밀번호를 입력해 주세요.");
       return;
@@ -678,7 +733,19 @@ export default function ProfileSettings() {
 
       toast.success("프로필 설정을 저장했습니다.");
     } catch (error) {
-      toast.error(getSafeProfileError(error));
+      const safeMessage = getSafeProfileError(error);
+
+      if (safeMessage.includes("이미 사용 중인 ID") || safeMessage.includes("이미 사용 중인 아이디")) {
+        showFieldError("loginId", "이미 사용 중인 ID입니다.");
+        return;
+      }
+
+      if (safeMessage.includes("닉네임")) {
+        showFieldError("nicknameDisplay", safeMessage);
+        return;
+      }
+
+      toast.error(safeMessage);
     } finally {
       setIsSaving(false);
     }
@@ -912,10 +979,20 @@ export default function ProfileSettings() {
                   placeholder="예: honggildong"
                   value={loginId}
                   onChange={(event) => handleLoginIdChange(event.target.value)}
+                  onBlur={() => {
+                    void ensureLoginIdAvailable(false);
+                  }}
                 />
               </div>
               {loginIdError ? (
                 <p className="text-xs font-medium text-red-600">{loginIdError}</p>
+              ) : isCheckingLoginId ? (
+                <p className="text-xs font-medium text-slate-500">ID 중복 확인 중...</p>
+              ) : isLoginIdAvailable ? (
+                <p className="flex items-center gap-1.5 text-xs font-medium text-emerald-600">
+                  <Check className="h-3.5 w-3.5" />
+                  사용 가능한 ID입니다.
+                </p>
               ) : null}
             </FieldShell>
 
@@ -980,10 +1057,16 @@ export default function ProfileSettings() {
           <Button
             type="submit"
             className="h-11 w-full bg-[#103078] text-white hover:bg-[#2048A0] sm:w-auto"
-            disabled={isSaving}
+            disabled={isSaving || isCheckingLoginId}
           >
             <Save className="h-4 w-4" />
-            {isSaving ? "저장 중..." : isJoinRequest ? "회원가입 요청하기" : "프로필 저장"}
+            {isCheckingLoginId
+              ? "ID 확인 중..."
+              : isSaving
+                ? "저장 중..."
+                : isJoinRequest
+                  ? "회원가입 요청하기"
+                  : "프로필 저장"}
           </Button>
         </div>
       </form>
