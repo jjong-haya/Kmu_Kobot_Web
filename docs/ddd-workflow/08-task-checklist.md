@@ -55,13 +55,21 @@
   - Files: `src/app/auth/AuthProvider.tsx`, `src/app/auth/types.ts`, `src/app/pages/member/ProfileSettings.tsx`
   - Migration: `supabase/migrations/20260501043000_login_id_availability.sql`
   - Invariants: global uniqueness, lowercase normalization, first-claim lock, authenticated-only availability check
+- [x] TASK-0105: Align member status, active-only ID login, and anonymous public attribution defaults.
+  - Spec: `14-verification-question-ledger.md`
+  - Files: `src/app/auth/AuthProvider.tsx`, `src/app/auth/types.ts`, `src/app/pages/member/ProfileSettings.tsx`
+  - Migration: `supabase/migrations/20260501060000_tighten_identity_audit_project_scope.sql`
+  - Invariants: canonical member status set, active-only login ID resolver, anonymous public attribution default
 
 ## 5. Phase 2: Capability / Permission
 
 - [x] TASK-0201: Document broad permission risk.
 - [x] TASK-0202: Design split helpers for project lead/operator/delegation/private-read/audit-read.
 - [x] TASK-0203: Design scoped capability read model.
-- [ ] TASK-0204: Implement capability-scope database/RLS migration.
+- [x] TASK-0204: Implement first capability-scope database/RLS tightening migration.
+  - Migration: `supabase/migrations/20260501060000_tighten_identity_audit_project_scope.sql`
+  - Invariants: actual project lead only, separate project operator helper, explicit temporary delegation scope, tighter project row read, audit read scoped by authority
+- [ ] TASK-0205: Implement full scoped capability read model and command RPC replacement for remaining direct table transitions.
 
 ## 6. Phase 3: Command RPC
 
@@ -69,7 +77,8 @@
   - Must handle expiration, max uses, row locking, audit, and notification.
 - [ ] TASK-0302: Implement Contact Request command RPCs.
   - Must handle accept, reject, report, auto-expire, and rate-limiting.
-- [ ] TASK-0303: Restrict audit log writes to command RPCs/triggers.
+- [x] TASK-0303: Remove normal-user direct audit log insert/call access.
+- [ ] TASK-0304: Implement internal audit command/RPC helper with redaction.
 
 ## 7. Phase 4: Project / GitHub / Vote
 
@@ -84,9 +93,8 @@
 | ID | Task | Reason |
 | --- | --- | --- |
 | P0-AUTH-001 | Verify Supabase Auth Hook connection | SQL function alone does not enforce account creation gate |
-| P0-AUTH-002 | Align member status enum between frontend and DB | Prevent `project_only`/`withdrawn` route and RLS drift |
-| P0-AUTH-003 | Decide ID login for non-active users | Current resolver may allow pending/suspended/alumni password login |
-| P0-RBAC-001 | Split capability scope/source | Prevent project leads from acting like global operators |
-| P0-AUDIT-001 | Restrict direct audit inserts | Prevent forged audit history |
+| P0-RBAC-001 | Replace remaining direct table state transitions with command RPCs | Prevent scoped helpers from being used too broadly |
+| P0-PROJECT-001 | Split project read models into intro, review metadata, and internal material | Prevent private project material leakage |
+| P0-AUDIT-001 | Add audit payload redaction helper | Prevent personal-data over-retention |
 | P0-INVITE-001 | Add invitation redemption RPC | Prevent expired/replayed/concurrent invite use |
 | P0-VOTE-001 | Define vote anonymity level | Prevent mismatch between user expectation and data model |

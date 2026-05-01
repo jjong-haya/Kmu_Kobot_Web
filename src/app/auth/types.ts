@@ -116,7 +116,7 @@ export const EMPTY_AUTH_CONTEXT: AuthorizationContextData = {
     college: null,
     department: null,
     clubAffiliation: null,
-    publicCreditNameMode: "nickname",
+    publicCreditNameMode: "anonymous",
     techTags: [],
     avatarUrl: null,
     loginId: null,

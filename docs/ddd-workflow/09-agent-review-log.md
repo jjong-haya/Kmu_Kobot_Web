@@ -184,3 +184,30 @@ This DDD documentation restart can close because:
 - Three independent sub-agent perspectives were integrated.
 
 Feature implementation cannot close yet. Any feature slice must pull its active questions from `14-verification-question-ledger.md`, answer them, and restart the loop from Step 1 for the affected domain path.
+
+## 8. 2026-05-01 Review: Identity / Audit / Project Scope Tightening
+
+### 8.1 Reviewer Summary
+
+| Reviewer | Role | Scope | Approval Status | Key Findings |
+| --- | --- | --- | --- | --- |
+| Sartre | Domain Reviewer | Member status, ID login, public attribution, project lead/operator/delegation, audit authority | needs-rework-integrated | Active-only ID login, canonical statuses, anonymous default, and audit direct-write removal are correct. Private project review and internal read must stay separate. `review_join_requests` delegation must not directly mutate memberships. |
+| Dirac | Implementation Reviewer | Supabase migration, RLS policies, TypeScript defaults | needs-rework-integrated | SQL and TS are plausible, but requester self-update on join requests and delegated membership updates were too broad. Existing `projects.manage/projects.read` behavior may intentionally tighten and should be reviewed against UI. |
+| Parfit | Risk Reviewer | Privilege escalation, audit forging, privacy leakage | needs-rework-integrated | Audit forge path and non-active ID login are closed. Direct membership mutation by delegates and self-approval risk must be removed. Official-team review access should not be mixed into private project material read. |
+
+### 8.2 Rework Applied
+
+| Finding | Decision | Evidence |
+| --- | --- | --- |
+| Delegate with `review_join_requests` could insert/update membership rows directly. | Accepted. Removed delegated membership insert/update from direct RLS. Future approval must use command RPC. | `supabase/migrations/20260501060000_tighten_identity_audit_project_scope.sql` |
+| Delegate with `review_join_requests` could update join-request rows directly. | Accepted. Removed delegated direct update until a command RPC can enforce request identity, transition, audit, and notification. | `supabase/migrations/20260501060000_tighten_identity_audit_project_scope.sql`, `Q-AUTHZ-003` |
+| Requester could update own project join request and spoof approval/review fields. | Accepted. Removed requester self-update from direct join-request update policy. Future cancel/edit must use command RPC. | `supabase/migrations/20260501060000_tighten_identity_audit_project_scope.sql` |
+| Official-team lead review access was mixed into `can_read_private_project`. | Accepted. Removed review helper from private project row-read helper. Review metadata needs a separate read model. | `supabase/migrations/20260501060000_tighten_identity_audit_project_scope.sql`, `Q-PROJECT-001` |
+| `maintainer` storage vocabulary differs from `ProjectOperator` domain language. | Deferred. Storage remains for compatibility; added active question before role-management UI. | `Q-AUTHZ-004` |
+| Audit payload redaction and authority snapshot are still missing. | Deferred. Direct write path is blocked now; redaction/internal audit command remains active. | `Q-AUDIT-002` |
+
+### 8.3 Closure Decision
+
+This slice can proceed to build verification and commit because the reviewers' blocking RLS concerns were integrated into the migration.
+
+The broader capability/project/audit DDD loop is not fully closed. Remaining active questions are tracked in `14-verification-question-ledger.md`, especially `Q-AUTHZ-002`, `Q-AUTHZ-003`, `Q-PROJECT-001`, `Q-PROJECT-004`, and `Q-AUDIT-002`.

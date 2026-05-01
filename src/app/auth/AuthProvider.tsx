@@ -147,7 +147,7 @@ function readProfileString(
 function normalizePublicCreditNameMode(value: unknown): PublicCreditNameMode {
   return PUBLIC_CREDIT_NAME_MODES.includes(value as PublicCreditNameMode)
     ? (value as PublicCreditNameMode)
-    : "nickname";
+    : "anonymous";
 }
 
 function normalizeMemberStatus(value: unknown): MemberStatus {
@@ -446,7 +446,7 @@ async function buildNonActiveAuthorizationFallback(
       college: normalizeString(profileRecord.college),
       department: normalizeString(profileRecord.department),
       clubAffiliation: normalizeString(profileRecord.club_affiliation),
-      publicCreditNameMode: profileRecord.public_credit_name_mode ?? "nickname",
+      publicCreditNameMode: profileRecord.public_credit_name_mode ?? "anonymous",
       techTags: profileRecord.tech_tags ?? [],
       avatarUrl:
         normalizeString(profileRecord.avatar_url) ??
@@ -499,7 +499,7 @@ async function buildSessionOnlyAuthorizationFallback(
       college: null,
       department: null,
       clubAffiliation: null,
-      publicCreditNameMode: "nickname",
+      publicCreditNameMode: "anonymous",
       techTags: [],
       avatarUrl: readUserMetadataString(user, "avatar_url", "picture"),
       loginId: null,

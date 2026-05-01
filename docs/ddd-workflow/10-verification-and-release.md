@@ -133,3 +133,49 @@ The frontend calls `is_login_id_available`, so the Supabase migration must be de
 | `git diff --check` | Whitespace and patch sanity | Passed |
 | `npm run build` | TypeScript/Vite production build | Passed. Vite chunk-size warning remains. |
 | UTF-8 file check | Ensure Korean summary has no replacement characters | Passed |
+
+## 6. 2026-05-01 Verification: Identity / Audit / Project Scope Tightening
+
+### 6.1 Scope
+
+| Area | File |
+| --- | --- |
+| DB migration | `supabase/migrations/20260501060000_tighten_identity_audit_project_scope.sql` |
+| Auth defaults | `src/app/auth/AuthProvider.tsx` |
+| Auth types | `src/app/auth/types.ts` |
+| Join/profile defaults | `src/app/pages/member/ProfileSettings.tsx` |
+| Security ledger | `docs/ddd-workflow/04-data-schema-and-security.md` |
+| Task checklist | `docs/ddd-workflow/08-task-checklist.md` |
+| Review log | `docs/ddd-workflow/09-agent-review-log.md` |
+| Question ledger | `docs/ddd-workflow/14-verification-question-ledger.md` |
+| Korean summary | `docs/ddd-workflow/SUMMARY-ko.md` |
+
+### 6.2 Expected Behavior
+
+1. ID/password login resolves only active members with a registered password.
+2. Pending, suspended, rejected, alumni, project-only, and withdrawn users cannot resolve login ID to email.
+3. Public attribution defaults to anonymous unless the member changes it later.
+4. Project lead helper means actual active project `lead` only.
+5. Maintainer/operator and temporary delegation no longer count as project lead.
+6. Temporary delegation is checked by explicit scope and expiration.
+7. Normal authenticated users cannot directly insert audit logs or call the broad audit-log helper.
+8. Project membership rows cannot be directly inserted/updated by `review_join_requests` delegates.
+9. Project join requests cannot be directly updated by `review_join_requests` delegates until a command RPC exists.
+10. Project join requesters cannot directly update their own request into an approved/reviewed state.
+11. Official-team review authority is not mixed into `can_read_private_project`; review metadata needs a separate read model.
+
+### 6.3 Evidence
+
+| Command / Review | Purpose | Result |
+| --- | --- | --- |
+| `git diff --check` | Whitespace and patch sanity | Passed |
+| `npm run build` | TypeScript/Vite production build | Passed. Vite chunk-size warning remains. |
+| Domain reviewer | Check domain terms and invariants | Needs-rework findings integrated. |
+| Implementation reviewer | Check RLS and SQL/TS risks | Needs-rework findings integrated. |
+| Risk reviewer | Check privilege escalation and privacy leakage | Needs-rework findings integrated. |
+
+### 6.4 Release Note
+
+This migration has not been applied to the remote Supabase project in this pass.
+
+Reason: previous remote migration attempts exposed migration-history and database-password setup issues. The safe release path is to commit/push the migration first, then apply it deliberately with the correct Supabase DB password and migration history repair/pull plan.

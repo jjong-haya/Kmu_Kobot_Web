@@ -715,8 +715,8 @@ export default function ProfileSettings() {
         department,
         clubAffiliation: clubAffiliation.trim(),
         publicCreditNameMode: isJoinRequest
-          ? "nickname"
-          : (authData.profile.publicCreditNameMode ?? "nickname"),
+          ? "anonymous"
+          : (authData.profile.publicCreditNameMode ?? "anonymous"),
         techTags: authData.profile.techTags,
         loginId: loginId.trim() ? loginId : null,
         password: password.trim() ? password : undefined,

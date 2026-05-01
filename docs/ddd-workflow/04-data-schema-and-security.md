@@ -16,6 +16,7 @@ It records the current database model, intended security boundary, known gaps, a
 | `supabase/migrations/20260428173000_member_workspace_core.sql` | Workspace extension tables: nickname history, audit, notifications, contact, project, invitation, vote, delegation, exit request. |
 | `supabase/migrations/20260501033000_tighten_login_id_format.sql` | Login ID cleanup and stricter format. |
 | `supabase/migrations/20260501043000_login_id_availability.sql` | Authenticated login ID availability RPC. |
+| `supabase/migrations/20260501060000_tighten_identity_audit_project_scope.sql` | Active-only ID login, canonical status constraint, default nickname regex repair, audit insert lock-down, project lead/operator/delegation helper split, and tighter project RLS. |
 
 ### 2.2 Table Groups
 
@@ -41,13 +42,16 @@ It records the current database model, intended security boundary, known gaps, a
 | `current_user_is_active_member()` | Checks active account. | Good base for member-only access. |
 | `current_user_has_permission(text)` | Checks broad permission strings. | Too coarse for scoped project/team commands. |
 | `get_my_authorization_context()` | Returns profile, account, org positions, team memberships, permissions. | Needs scoped capability read model later. |
-| `resolve_login_email(text)` | Resolves login ID to email. | Should decide whether only `active` can resolve. |
+| `resolve_login_email(text)` | Resolves login ID to email. | Active-only as of `20260501060000`; pending/suspended/rejected/alumni/project-only/withdrawn cannot use ID login. |
 | `is_login_id_available(text)` | Authenticated login ID availability check. | Good for current login ID slice. |
-| `normalize_nickname_slug(text)` | Normalizes nickname display to slug. | Must align DB regex with frontend rule. |
+| `normalize_nickname_slug(text)` | Normalizes nickname display to slug. | Aligned to frontend rule: Korean/English letters, numbers, spaces; underscores are stored internally only. |
 | `assert_active_nickname_available(uuid,citext)` | Active-member nickname uniqueness. | Good base; cooldown still missing. |
-| `current_user_is_project_team_lead(uuid)` | Checks project lead/maintainer/delegation. | P0 overbroad helper risk. |
-| `can_read_private_project(uuid)` | Checks private project visibility. | P0 overbroad official-team/project-read risk. |
-| `create_audit_log(...)` | Inserts audit log. | P0 unsafe if callable by normal authenticated users. |
+| `current_user_is_project_team_lead(uuid)` | Checks actual active project lead only. | Tightened in `20260501060000`; no longer includes maintainer or temporary delegation. |
+| `current_user_is_project_operator(uuid)` | Checks project lead/maintainer without delegation. | Helper for future operator-scoped read models; not a lead-transfer authority. |
+| `current_user_has_project_delegated_scope(uuid,text)` | Checks accepted, unexpired temporary delegation by explicit scope. | Good base; accept/reject delegation still needs command RPC. |
+| `current_user_can_review_project(uuid)` | Allows president/vice/member manager or official team lead review metadata. | Should not be reused for internal project material. |
+| `can_read_private_project(uuid)` | Checks project row visibility. | Tightened in `20260501060000`; still needs separate intro/review/internal read models. |
+| `create_audit_log(...)` | Inserts audit log. | Execute revoked from normal users in `20260501060000`; replacement internal command path still needed. |
 
 ## 4. Security Boundary By Context
 
@@ -57,7 +61,7 @@ It records the current database model, intended security boundary, known gaps, a
 | --- | --- | --- |
 | First account creation must start with Google OAuth. | Supabase Auth hook function. | Dashboard hook connection must be verified. |
 | School-domain users are allowed; exceptions require active allowlist. | `is_allowed_sign_in_email`. | Exception lifecycle/audit needs command flow. |
-| Login ID is globally unique and lowercase. | DB unique index, check, trigger, availability RPC. | Login resolution status policy open. |
+| Login ID is globally unique and lowercase. | DB unique index, check, trigger, availability RPC. | Resolved for phase 1: ID login resolves active accounts only. |
 | Raw auth errors are not shown to users. | Frontend safe error mapping. | Needs regression test. |
 
 ### 4.2 Member Registry
@@ -75,22 +79,22 @@ It records the current database model, intended security boundary, known gaps, a
 | --- | --- | --- |
 | Nickname active-member uniqueness. | Trigger + advisory lock. | Cooldown and hidden-history visibility need enforcement. |
 | Phone/student ID/department are internal data. | RLS row policies only. | Need safe profile views/column-level read models. |
-| Public attribution defaults to anonymous. | DB default should be source of truth. | Frontend defaults must be aligned. |
+| Public attribution defaults to anonymous. | DB default and frontend defaults. | Resolved for phase 1; withdrawal/public-credit UI still needs final copy. |
 
 ### 4.4 Authority And Capability
 
 | Rule | Enforcing Layer | Gap |
 | --- | --- | --- |
 | Role, capability, scope, source, and expiry are separate. | Not fully implemented. | Need scoped capability read model. |
-| Project lead manages only own project. | Project helper/RLS. | Current helper includes maintainer/delegate as lead-like. |
-| Temporary delegation is not role transfer. | `authority_delegations`. | Scope-specific helper needed; no re-delegation. |
+| Project lead manages only own project. | Project helper/RLS. | Lead helper is now actual lead only; command RPCs still needed for transitions. |
+| Temporary delegation is not role transfer. | `authority_delegations`, scoped delegation helper. | Delegate accept/reject/apply lifecycle still needs command RPC. |
 | Role transfer request, acceptance, and application are separate. | `role_transfer_requests`. | Command RPC needed for assignment transaction. |
 
 ### 4.5 Project / Invitation / GitHub
 
 | Rule | Enforcing Layer | Gap |
 | --- | --- | --- |
-| Private project internal material is scoped. | `can_read_private_project`. | Current policy may overexpose to official team members and broad `projects.read`. |
+| Private project internal material is scoped. | `can_read_private_project` tightened for project rows. | Must split intro/review/internal material read models before private materials ship. |
 | Project creation request is separate from active project. | Not implemented as separate table. | Need `project_creation_requests` and pre-team model. |
 | Invitation redemption is atomic. | Not implemented. | Need `redeem_invitation` RPC and redemption history. |
 | Private GitHub README is fetched server-side and shown by KOBOT authorization. | Not implemented. | Need GitHub connection/snapshot tables. |
@@ -103,7 +107,7 @@ It records the current database model, intended security boundary, known gaps, a
 | Contact spam is rate-limited and reportable. | Some spam fields exist. | Rate-limit event/abuse workflow missing. |
 | Vote submissions enforce status/time/eligibility/max choices. | Tables exist. | Direct insert policies do not enforce full invariant. |
 | Anonymous vote guarantee is explicit. | `votes.anonymity`. | Current schema links voter to selected option. |
-| Audit logs cannot be forged. | Current RLS/RPC too broad. | Restrict inserts to command RPCs/triggers/service role. |
+| Audit logs cannot be forged. | Direct insert policy removed; `create_audit_log` execute revoked from normal users. | Internal audit command/redaction helper still needed. |
 | Audit payload redacts sensitive data. | Policy only in docs. | Redaction helper/test missing. |
 
 ## 5. Required Command RPCs
@@ -147,11 +151,7 @@ State transitions and high-risk operations should not be direct table updates.
 | ID | Gap | Affected Question |
 | --- | --- | --- |
 | GAP-AUTH-001 | Auth hook function exists, but dashboard hook connection is not documented as verified. | `Q-AUTH-003` |
-| GAP-AUTH-002 | Login ID password sign-in may resolve non-active accounts. | `Q-AUTH-004` |
-| GAP-STATUS-001 | Frontend member statuses and DB status constraints can drift. | `Q-AUTH-002` |
-| GAP-AUTHZ-001 | `current_user_is_project_team_lead` grants lead-like power to maintainer/delegation. | `Q-AUTHZ-001` |
-| GAP-AUTHZ-002 | Broad `projects.manage`/`projects.read` can overreach private project scope. | `Q-AUTHZ-002`, `Q-PROJECT-001` |
-| GAP-AUDIT-001 | Active members can insert audit logs or call audit RPC. | `Q-AUDIT-001` |
+| GAP-AUTHZ-002 | Some older broad permissions still exist and must not be used as scoped project command authority. | `Q-AUTHZ-002`, `Q-PROJECT-001` |
 | GAP-AUDIT-002 | Audit payload redaction is not enforced. | `Q-AUDIT-002` |
 | GAP-INVITE-001 | Invitation redemption lacks atomic command and history. | `Q-INVITE-001`, `Q-INVITE-002` |
 | GAP-VOTE-001 | Vote ballot insert lacks command-level eligibility/status/max-choice checks. | `Q-VOTE-001`, `Q-VOTE-002` |
