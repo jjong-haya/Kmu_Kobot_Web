@@ -366,7 +366,7 @@ function ProfileSelect({
         aria-invalid={invalid}
         className={cn(
           "h-11 rounded-xl border-slate-300 bg-white px-3 text-left text-sm font-medium shadow-none hover:bg-slate-50",
-          !value && "text-slate-400",
+          !value && "text-slate-300",
           disabled && "cursor-not-allowed bg-slate-100 text-slate-400",
           invalid && "border-red-300 text-red-700 ring-1 ring-red-100 hover:bg-red-50/30",
           isShaking && "input-denied-shake",
@@ -593,6 +593,7 @@ export default function ProfileSettings() {
 
   function inputStateClass(field: FieldKey, invalid: boolean) {
     return cn(
+      "placeholder:text-slate-300",
       invalid && "border-red-300 text-red-700 ring-1 ring-red-100 focus-visible:ring-red-500",
       shakingField === field && "input-denied-shake",
     );
@@ -771,7 +772,6 @@ export default function ProfileSettings() {
                   id="nickname-display"
                   aria-invalid={Boolean(nicknameError)}
                   className={cn("pl-10", inputStateClass("nicknameDisplay", Boolean(nicknameError)))}
-                  placeholder="예: 코봇 메이커"
                   value={nicknameDisplay}
                   onChange={(event) => handleNicknameChange(event.target.value)}
                 />
@@ -786,7 +786,7 @@ export default function ProfileSettings() {
                 id="full-name"
                 aria-invalid={Boolean(fieldErrors.fullName)}
                 className={inputStateClass("fullName", Boolean(fieldErrors.fullName))}
-                placeholder="예: 홍길동"
+                placeholder="홍길동"
                 value={fullName}
                 onChange={(event) => {
                   setFullName(event.target.value);
@@ -806,7 +806,7 @@ export default function ProfileSettings() {
                   aria-invalid={Boolean(fieldErrors.studentId)}
                   className={cn("pl-10", inputStateClass("studentId", Boolean(fieldErrors.studentId)))}
                   inputMode="numeric"
-                  placeholder="예: 20260000"
+                  placeholder="20260000"
                   value={studentId}
                   onChange={(event) => {
                     setStudentId(event.target.value);
@@ -827,7 +827,7 @@ export default function ProfileSettings() {
                   aria-invalid={Boolean(fieldErrors.phone)}
                   className={cn("pl-10", inputStateClass("phone", Boolean(fieldErrors.phone)))}
                   inputMode="tel"
-                  placeholder="예: 010-1234-5678"
+                  placeholder="010-1234-5678"
                   value={phone}
                   onChange={(event) => {
                     setPhone(formatPhoneNumber(event.target.value));
@@ -892,7 +892,7 @@ export default function ProfileSettings() {
                     "pl-10",
                     inputStateClass("clubAffiliation", Boolean(fieldErrors.clubAffiliation)),
                   )}
-                  placeholder="예: KOBOT"
+                  placeholder="KOBOT"
                   value={clubAffiliation}
                   onChange={(event) => {
                     setClubAffiliation(event.target.value);
@@ -928,7 +928,6 @@ export default function ProfileSettings() {
                   aria-invalid={Boolean(loginIdError)}
                   className={cn("pl-10", inputStateClass("loginId", Boolean(loginIdError)))}
                   disabled={isLoginIdLocked}
-                  placeholder="ID"
                   value={loginId}
                   onChange={(event) => handleLoginIdChange(event.target.value)}
                   onBlur={() => {
@@ -976,6 +975,7 @@ export default function ProfileSettings() {
                   autoComplete="new-password"
                   aria-invalid={Boolean(passwordConfirmError)}
                   className={cn(
+                    "placeholder:text-slate-300",
                     passwordConfirmError
                       ? "border-red-300 text-red-700 ring-1 ring-red-100 focus-visible:ring-red-500"
                       : passwordConfirm
