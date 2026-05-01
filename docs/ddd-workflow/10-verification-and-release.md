@@ -1,66 +1,100 @@
-# 10. 검증 및 릴리스 기록
+# 10. Verification And Release
 
-## 1. 릴리스 게이트
+## 1. Release Gate
 
-### 1.1 코드 검증
+### 1.1 Code Verification
 
 - [ ] `git diff --check`
 - [ ] `npm run build`
-- [ ] 변경된 경로의 주요 사용자 흐름 수동 확인
+- [ ] Manual flow check when a UI path changes
 
-### 1.2 DB 검증
+### 1.2 Database Verification
 
-- [ ] migration 파일이 additive인지 확인
-- [ ] 기존 데이터와 충돌하는 constraint가 없는지 확인
-- [ ] Supabase 원격 DB에 migration 적용
-- [ ] RPC 또는 RLS 변경이 있으면 최소 존재 여부 확인
+- [ ] Migration is additive or has an explicit data migration plan.
+- [ ] Existing data is compatible with new constraints.
+- [ ] Remote Supabase migration is applied.
+- [ ] Remote migration history matches local migration history.
 
-### 1.3 보안/개인정보 검증
+### 1.3 Security / Privacy Verification
 
-- [ ] raw Supabase/PostgREST/PKCE 오류가 사용자에게 그대로 노출되지 않는다.
-- [ ] 개인정보, 토큰, 비공개 README, 투표 선택값이 감사 로그 payload에 저장되지 않는다.
-- [ ] anon에게 열 필요 없는 RPC는 authenticated만 grant한다.
+- [ ] Raw Supabase, PostgREST, PKCE, or environment errors are not shown to users.
+- [ ] Sensitive data is not stored in audit payloads.
+- [ ] RPCs that do not need anonymous access are granted only to `authenticated`.
 
-## 2. 2026-05-01 Auth/LoginId 중복 검사 검증
+### 1.4 DDD Loop Closure Verification
 
-### 2.1 검증 대상
+- [ ] `DDD Loop Review Log` exists for the current slice.
+- [ ] At least 3 independent reviewer perspectives are recorded.
+- [ ] `Disagreement Register` classifies every disagreement as `accepted`, `rejected`, `deferred`, or `needs-rework`.
+- [ ] `Unresolved Questions Checklist` includes small questions, not only major blockers.
+- [ ] Every unresolved question either has an answer or a user-approved assumption.
+- [ ] If any question remains unresolved, the loop restarts from Step 1.
+- [ ] The code or document changes created while resolving questions are checked for new questions.
+- [ ] `Closure Decision` explains why it is safe to proceed.
 
-| 구분 | 파일 |
+## 2. 2026-05-01 Verification: Login ID Availability
+
+### 2.1 Scope
+
+| Area | File |
 | --- | --- |
 | DB | `supabase/migrations/20260501043000_login_id_availability.sql` |
 | Auth | `src/app/auth/AuthProvider.tsx` |
 | Types | `src/app/auth/types.ts` |
 | UI | `src/app/pages/member/ProfileSettings.tsx` |
-| DDD | `docs/ddd-workflow/13-full-project-ddd-revalidation-2026-05-01.md` |
+| Summary | `docs/ddd-workflow/SUMMARY-ko.md` |
 
-### 2.2 기대 동작
+### 2.2 Expected Behavior
 
-1. ID 입력칸에서 형식이 맞는 ID를 blur하면 중복 확인을 시도한다.
-2. 이미 사용 중이면 "이미 사용 중인 ID입니다."를 ID 입력칸 아래에 표시한다.
-3. 회원가입 요청 버튼을 눌렀을 때 중복이면 ID 입력칸으로 스크롤하고 빨간 테두리/진동을 적용한다.
-4. 저장 직전 다시 중복 확인을 수행한다.
-5. 동시에 같은 ID를 제출하면 DB unique index가 최종 차단한다.
-6. 익명 사용자는 availability RPC를 호출할 수 없다.
+1. A valid login ID is checked on input blur.
+2. A duplicate ID shows `이미 사용 중인 ID입니다.` below the login ID field.
+3. Submit re-checks availability before saving.
+4. Duplicate submit scrolls to the login ID input and highlights it.
+5. Concurrent duplicate claims are still blocked by the database unique index.
+6. Anonymous users cannot call the availability RPC.
 
-### 2.3 실행 결과
+### 2.3 Evidence
 
-| 명령 | 목적 | 결과 |
+| Command | Purpose | Result |
 | --- | --- | --- |
-| `git diff --check` | whitespace 및 patch sanity | 통과 |
-| `npm run build` | TypeScript/Vite production build | 통과. Vite chunk size warning만 존재 |
-| `npx supabase db push --db-url ... --yes` | 원격 Supabase RPC 반영 | 통과. `20260501043000` 적용 |
-| `npx supabase migration list --db-url ...` | 원격 migration 이력 확인 | 통과. local/remote 모두 `20260501043000` 일치 |
+| `git diff --check` | Whitespace and patch sanity | Passed |
+| `npm run build` | TypeScript/Vite production build | Passed. Vite chunk-size warning remains. |
+| `npx supabase db push --db-url ... --yes` | Apply remote Supabase RPC migration | Passed. `20260501043000` applied. |
+| `npx supabase migration list --db-url ...` | Confirm local/remote migration history | Passed. Local and remote both include `20260501043000`. |
 
-## 3. 릴리스 주의
+## 3. Release Note
 
-### 3.1 Vercel과 Supabase 순서
+The frontend calls `is_login_id_available`, so the Supabase migration must be deployed before or with the Vercel deployment.
 
-이번 변경은 프론트 코드가 새 RPC `is_login_id_available`를 호출한다. 따라서 Vercel 배포 전에 Supabase migration이 원격 DB에 적용되어야 한다.
+## 4. 2026-05-01 Verification: DDD Skill And Loop Foundation
 
-### 3.2 실패 시 사용자 경험
+### 4.1 Scope
 
-RPC가 없거나 실패하면 사용자에게 raw DB 오류 대신 "ID 중복 확인을 완료하지 못했습니다." 계열의 안전한 문구를 보여준다.
+| Area | File |
+| --- | --- |
+| Local skill | `C:\Users\jongh\.codex\skills\ddd-spec-workflow\SKILL.md` |
+| Local skill | `C:\Users\jongh\.codex\skills\ddd-spec-workflow\references\artifact-templates.md` |
+| Local skill | `C:\Users\jongh\.codex\skills\ddd-spec-workflow\references\sub-agent-prompts.md` |
+| Local skill | `C:\Users\jongh\.codex\skills\explain-before-action\SKILL.md` |
+| Project docs | `docs/ddd-workflow/README.md` |
+| Project docs | `docs/ddd-workflow/08-task-checklist.md` |
+| Project docs | `docs/ddd-workflow/09-agent-review-log.md` |
 
-### 3.3 알려진 잔여 경고
+### 4.2 Expected Behavior
 
-Vite production build에서 chunk size warning이 발생할 수 있다. 이는 이번 기능의 실패는 아니지만 route-level lazy loading으로 추후 개선할 수 있다.
+1. DDD work starts with domain understanding, not code.
+2. Explanation is required before editing when the user asks what something means or why it exists.
+3. Verification collects every unresolved question, including small questions.
+4. Any unresolved question restarts the loop from Step 1.
+5. At least 3 independent reviewer perspectives are required before closure.
+6. Reviewer disagreements are classified and integrated before closure.
+7. Feature-specific DDD loops must run again; the workflow-foundation closure does not automatically approve future feature work.
+
+### 4.3 Evidence
+
+| Command | Purpose | Result |
+| --- | --- | --- |
+| `quick_validate.py C:\Users\jongh\.codex\skills\ddd-spec-workflow` | Validate skill metadata and structure | Passed |
+| `quick_validate.py C:\Users\jongh\.codex\skills\explain-before-action` | Validate skill metadata and structure | Passed |
+| `git diff --check` | Whitespace and patch sanity | Passed |
+| `npm run build` | TypeScript/Vite production build | Passed. Vite chunk-size warning remains. |

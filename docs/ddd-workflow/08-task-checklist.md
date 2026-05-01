@@ -1,102 +1,83 @@
-# 08. 작업 체크리스트
+# 08. Task Checklist
 
-## 1. 운영 원칙
+## 1. Pre-Implementation Gate
 
-### 1.1 모든 구현 전 확인
+- [ ] Step 1 domain understanding is written before implementation.
+- [ ] Ubiquitous language is defined with banned ambiguous synonyms.
+- [ ] The bounded context is identified.
+- [ ] The aggregate owner is identified.
+- [ ] Domain value objects are listed.
+- [ ] Identity, uniqueness, ownership, lifecycle, permission, visibility, concurrency, and privacy invariants are written down.
+- [ ] Commands and domain events are named before database/UI changes.
+- [ ] Permission, state, and visibility scope is explicit.
+- [ ] UI validation is not the only enforcement mechanism.
+- [ ] A database constraint, RLS rule, trigger, or command RPC enforces critical invariants.
+- [ ] Safe user-facing error copy is defined.
+- [ ] Audit and notification side effects are defined when needed.
+- [ ] Remaining user decisions are listed in `00-user-decision-checklist.md`.
 
-- [ ] 관련 bounded context가 문서에 정의되어 있다.
-- [ ] 값 객체, 식별자, 권한, 상태 전이에 대한 불변조건이 적혀 있다.
-- [ ] UI validation만으로 막는 규칙이 없다.
-- [ ] DB constraint, RLS, RPC, trigger 중 하나 이상으로 최종 방어한다.
-- [ ] 실패 시 사용자에게 보여줄 안전한 문구가 정해져 있다.
-- [ ] 개인정보, 토큰, 비공개 README, 투표 선택값이 로그 payload에 그대로 들어가지 않는다.
+## 2. Verification Gate
 
-### 1.2 모든 구현 후 확인
+- [ ] Run `git diff --check`.
+- [ ] Run `npm run build`.
+- [ ] Push Supabase migrations when database changes exist.
+- [ ] Verify local/remote migration history when database changes exist.
+- [ ] Record evidence in `10-verification-and-release.md`.
+- [ ] Collect every unresolved question, including small questions.
+- [ ] If any question remains unresolved, return to Step 1 and rerun the DDD loop.
+- [ ] Review with at least 3 independent perspectives: Domain, Implementation, Risk.
+- [ ] Record reviewer disagreements as `accepted`, `rejected`, `deferred`, or `needs-rework`.
+- [ ] Close the loop only after questions, assumptions, disagreements, and evidence are documented.
 
-- [ ] `git diff --check`를 실행했다.
-- [ ] `npm run build`를 실행했다.
-- [ ] DB 변경이 있으면 Supabase migration 적용 여부를 확인했다.
-- [ ] `10-verification-and-release.md`에 결과를 기록했다.
-- [ ] 새로 발견한 질문은 `00-user-decision-checklist.md` 또는 재검증 문서에 남겼다.
+## 3. Phase 0: Workflow Foundation
 
-## 2. Phase 0: DDD 기반 정비
+- [x] TASK-0001: Create `ddd-spec-workflow` skill.
+- [x] TASK-0002: Create the `docs/ddd-workflow` ledger.
+- [x] TASK-0003: Perform first-pass domain review.
+- [x] TASK-0004: Add invariant matrix and form-field gate to `ddd-spec-workflow`.
+- [x] TASK-0005: Strengthen the DDD loop so unresolved questions force a Step 1 restart.
+- [x] TASK-0006: Require 3 independent reviewer perspectives before DDD loop closure.
+- [x] TASK-0007: Create `explain-before-action` skill for explanation-first work.
 
-- [x] TASK-0001: `ddd-spec-workflow` skill 생성
-  - 목적: 모든 큰 작업을 DDD, event storming, spec/design/tasks 흐름으로 진행하기 위함
+## 4. Phase 1: Auth / Join / Pending
 
-- [x] TASK-0002: `docs/ddd-workflow` 문서 세트 생성
-  - 목적: Kiro-style spec/design/tasks 기반 작업 원장 유지
+- [x] TASK-0101: Separate `/member/join` from `/member/pending`.
+- [x] TASK-0102: Hide raw OAuth/Supabase errors from user-facing callback UI.
+- [x] TASK-0103: Make Landing CTA reflect authenticated state.
+- [x] TASK-0104: Enforce `login_id` availability.
+  - Spec: `13-domain-risk-review-2026-05-01.md`
+  - Files: `src/app/auth/AuthProvider.tsx`, `src/app/auth/types.ts`, `src/app/pages/member/ProfileSettings.tsx`
+  - Migration: `supabase/migrations/20260501043000_login_id_availability.sql`
+  - Invariants: global uniqueness, lowercase normalization, first-claim lock, authenticated-only availability check
 
-- [x] TASK-0003: 프로젝트 주요 도메인 1차 리뷰
-  - 범위: 계정, 회원, 권한, 프로젝트, 초대, GitHub, 연락, 투표, 감사 로그
+## 5. Phase 2: Capability / Permission
 
-- [x] TASK-0004: DDD skill에 invariant matrix와 폼 필드 게이트 추가
-  - 수정 파일: `C:/Users/jongh/.codex/skills/ddd-spec-workflow/SKILL.md`
-  - 이유: ID, slug, code, nickname, role, status 같은 필드를 UI validation만으로 처리하는 누락 방지
+- [x] TASK-0201: Document broad permission risk.
+- [x] TASK-0202: Design split helpers for project lead/operator/delegation/private-read/audit-read.
+- [x] TASK-0203: Design scoped capability read model.
+- [ ] TASK-0204: Implement capability-scope database/RLS migration.
 
-## 3. Phase 1: Auth / Join / Pending
+## 6. Phase 3: Command RPC
 
-- [x] TASK-0101: `/member/join`과 `/member/pending` UX 문구 정리
-  - 결과: pending 화면에서 ID 생성 CTA 제거, 가입 정보 입력과 승인 대기 역할 분리
+- [ ] TASK-0301: Implement `redeem_invitation` RPC.
+  - Must handle expiration, max uses, row locking, audit, and notification.
+- [ ] TASK-0302: Implement Contact Request command RPCs.
+  - Must handle accept, reject, report, auto-expire, and rate-limiting.
+- [ ] TASK-0303: Restrict audit log writes to command RPCs/triggers.
 
-- [x] TASK-0102: OAuth callback raw error 사용자 노출 차단
-  - 결과: PKCE, schema cache, Supabase 함수 오류를 사용자 친화 문구로 변환
+## 7. Phase 4: Project / GitHub / Vote
 
-- [x] TASK-0103: 로그인 상태에 따른 Landing CTA 정리
-  - 결과: 로그인 사용자는 로그인 버튼 대신 상태 기반 CTA를 표시
+- [ ] TASK-0401: Implement `project_creation_requests`.
+- [ ] TASK-0402: Implement recruitment-card visibility policy.
+- [ ] TASK-0403: Implement GitHub repository connection and README snapshot model.
+- [ ] TASK-0404: Implement vote eligibility/result snapshots.
+- [ ] TASK-0405: State the exact anonymity level for votes.
 
-- [x] TASK-0104: `login_id` 중복 검사와 DDD 불변조건 보완
-  - Spec reference: `13-full-project-ddd-revalidation-2026-05-01.md`
-  - 수정 파일: `src/app/auth/AuthProvider.tsx`
-  - 수정 파일: `src/app/auth/types.ts`
-  - 수정 파일: `src/app/pages/member/ProfileSettings.tsx`
-  - DB 파일: `supabase/migrations/20260501043000_login_id_availability.sql`
-  - 불변조건: 전역 유일성, 소문자 정규화, 최초 설정 후 잠금, 인증된 사용자만 중복 확인 가능
-  - UX: blur 및 submit 시 중복 확인, 중복이면 ID 입력칸으로 이동/강조
+## 8. Current P0 Backlog
 
-## 4. Phase 2: Capability / Permission
-
-- [x] TASK-0201: broad permission 위험 목록화
-  - 위험: `projects.manage`, `members.manage`, `permissions.manage`가 scope 없이 쓰이면 운영진과 프로젝트 팀장 권한이 섞인다.
-
-- [x] TASK-0202: `current_user_is_project_team_lead` 분리 설계
-  - 필요 helper: lead, operator, delegated scope, private read, audit read
-
-- [x] TASK-0203: capability read model 설계
-  - 핵심 필드: code, scopeType, scopeId, source, expiresAt
-
-- [ ] TASK-0204: capability 기반 DB/RLS migration 구현
-  - 우선순위: P0
-  - 이유: 프로젝트 팀장이 자기 프로젝트 밖의 비공개 자료를 볼 수 없게 하기 위함
-
-## 5. Phase 3: Command RPC
-
-- [ ] TASK-0301: `redeem_invitation` RPC 구현
-  - 우선순위: P0
-  - 검증: 같은 코드 동시 사용 시 1명만 성공
-  - 필수: 만료, max uses, audit log, notification
-
-- [ ] TASK-0302: Contact Request RPC 구현
-  - 우선순위: P1
-  - 검증: 3일 미응답 자동 거절, 신고, 반복 요청 제한
-
-- [ ] TASK-0303: Audit log insert 제한
-  - 우선순위: P0
-  - 원칙: 일반 사용자는 직접 insert 불가, command RPC/trigger만 기록
-
-## 6. Phase 4: Project / GitHub / Vote
-
-- [ ] TASK-0401: `project_creation_requests` schema와 승인 command 구현
-- [ ] TASK-0402: 프로젝트 모집 카드 공개/비공개 정책 구현
-- [ ] TASK-0403: GitHub repository connection과 README snapshot schema 구현
-- [ ] TASK-0404: vote eligibility/result snapshot schema 구현
-- [ ] TASK-0405: 익명 투표 보장 수준을 UI와 약관에 명시
-
-## 7. 현재 남은 P0
-
-| ID | 작업 | 이유 |
+| ID | Task | Reason |
 | --- | --- | --- |
-| P0-RBAC-001 | capability scope/source 분리 | 운영진과 프로젝트 팀장 권한 혼합 방지 |
-| P0-AUDIT-001 | audit log 직접 insert 제한 | 감사 로그 위조 방지 |
-| P0-INVITE-001 | invitation redeem RPC | 초대 코드 동시 사용/만료 우회 방지 |
-| P0-VOTE-001 | 익명 투표 수준 명시 | 사용자 기대와 실제 DB 구조 불일치 방지 |
+| P0-RBAC-001 | Split capability scope/source | Prevent project leads from acting like global operators |
+| P0-AUDIT-001 | Restrict direct audit inserts | Prevent forged audit history |
+| P0-INVITE-001 | Add invitation redemption RPC | Prevent expired/replayed/concurrent invite use |
+| P0-VOTE-001 | Define vote anonymity level | Prevent mismatch between user expectation and data model |
