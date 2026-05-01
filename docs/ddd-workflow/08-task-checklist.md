@@ -60,6 +60,16 @@
   - Files: `src/app/auth/AuthProvider.tsx`, `src/app/auth/types.ts`, `src/app/pages/member/ProfileSettings.tsx`
   - Migration: `supabase/migrations/20260501060000_tighten_identity_audit_project_scope.sql`
   - Invariants: canonical member status set, active-only login ID resolver, anonymous public attribution default
+- [x] TASK-0106: Add explicit membership application submission state.
+  - Decision: profile completion and join request submission are separate domain events.
+  - Migration: `supabase/migrations/20260501070000_membership_application_submission.sql`
+  - Frontend: `src/app/auth/AuthProvider.tsx`
+- [ ] TASK-0107: Add project-only participant route/read model.
+  - Decision: project-only users can access profile, notifications, and joined/invited project spaces only.
+- [ ] TASK-0108: Enforce nickname cooldown and hidden-history read policy.
+  - Decision: nickname changes are limited to once per 7 days; hidden history override is president/vice only.
+- [ ] TASK-0109: Update signup/privacy consent copy.
+  - Decision: signup must disclose student ID, phone, department, club affiliation, nickname history, audit retention, and contact rules.
 
 ## 5. Phase 2: Capability / Permission
 
@@ -70,6 +80,8 @@
   - Migration: `supabase/migrations/20260501060000_tighten_identity_audit_project_scope.sql`
   - Invariants: actual project lead only, separate project operator helper, explicit temporary delegation scope, tighter project row read, audit read scoped by authority
 - [ ] TASK-0205: Implement full scoped capability read model and command RPC replacement for remaining direct table transitions.
+- [ ] TASK-0206: Add stable official-team slug/display-name seed mapping.
+  - Decision: stable English slugs with Korean display names.
 
 ## 6. Phase 3: Command RPC
 
@@ -79,6 +91,8 @@
   - Must handle accept, reject, report, auto-expire, and rate-limiting.
 - [x] TASK-0303: Remove normal-user direct audit log insert/call access.
 - [ ] TASK-0304: Implement internal audit command/RPC helper with redaction.
+- [ ] TASK-0305: Implement project join request approve/reject/cancel RPCs.
+  - Must prevent requester self-approval and direct membership mutation by delegates.
 
 ## 7. Phase 4: Project / GitHub / Vote
 
@@ -88,6 +102,8 @@
 - [ ] TASK-0404: Implement vote eligibility/result snapshots.
 - [x] TASK-0405: State the exact anonymity level for votes.
   - Decision: normal users/operators see aggregate results only; president can inspect individual vote records only for audit purposes with prior disclosure.
+- [ ] TASK-0406: Split project read models into public intro, review metadata, and internal material.
+- [ ] TASK-0407: Implement GitHub README latest-snapshot retention and source-change request flow.
 
 ## 8. Current P0 Backlog
 
@@ -99,3 +115,8 @@
 | P0-AUDIT-001 | Add audit payload redaction helper | Prevent personal-data over-retention |
 | P0-INVITE-001 | Add invitation redemption RPC | Prevent expired/replayed/concurrent invite use |
 | P0-VOTE-001 | Implement vote eligibility snapshot and president-only audit read model | Prevent eligibility drift and overbroad ballot visibility |
+
+## 9. Recommended Defaults Applied On 2026-05-01
+
+- [x] DEC-BATCH-0001: Use Codex-recommended defaults for remaining product decisions unless a future change widens privacy, permission, cost, deletion, or legal responsibility.
+- [x] DEC-BATCH-0002: Convert remaining product questions in `14-verification-question-ledger.md` to `assumption-approved` or `converted-to-task`.

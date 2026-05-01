@@ -906,6 +906,18 @@ export function AuthProvider({ children }: PropsWithChildren) {
       }
     }
 
+    if (authData.account.status === "pending" || authData.account.status === null) {
+      const { error: submitApplicationError } = await supabase.rpc(
+        "submit_current_membership_application",
+      );
+
+      if (submitApplicationError) {
+        throw new Error(
+          toErrorMessage(submitApplicationError, "회원가입 요청을 제출하지 못했습니다."),
+        );
+      }
+    }
+
     return refreshAuthData();
   }
 

@@ -17,12 +17,14 @@ It records the current database model, intended security boundary, known gaps, a
 | `supabase/migrations/20260501033000_tighten_login_id_format.sql` | Login ID cleanup and stricter format. |
 | `supabase/migrations/20260501043000_login_id_availability.sql` | Authenticated login ID availability RPC. |
 | `supabase/migrations/20260501060000_tighten_identity_audit_project_scope.sql` | Active-only ID login, canonical status constraint, default nickname regex repair, audit insert lock-down, project lead/operator/delegation helper split, and tighter project RLS. |
+| `supabase/migrations/20260501070000_membership_application_submission.sql` | Explicit membership application table and submission RPC. |
 
 ### 2.2 Table Groups
 
 | Context | Tables |
 | --- | --- |
 | Identity And Access | `organizations`, `profiles`, `member_accounts`, `allowed_login_exceptions`, `bootstrap_admin_emails` |
+| Member Application | `membership_applications` |
 | RBAC / Official Team | `org_positions`, `org_position_assignments`, `teams`, `team_roles`, `team_memberships`, `permissions`, `org_position_permissions`, `team_role_permissions` |
 | Profile Identity | `nickname_histories` |
 | Audit / Notification | `audit_logs`, `notifications` |
@@ -42,6 +44,7 @@ It records the current database model, intended security boundary, known gaps, a
 | `current_user_is_active_member()` | Checks active account. | Good base for member-only access. |
 | `current_user_has_permission(text)` | Checks broad permission strings. | Too coarse for scoped project/team commands. |
 | `get_my_authorization_context()` | Returns profile, account, org positions, team memberships, permissions. | Needs scoped capability read model later. |
+| `submit_current_membership_application()` | Records explicit join request submission after required profile fields are saved. | Implemented in `20260501070000`; approval/rejection RPCs still needed. |
 | `resolve_login_email(text)` | Resolves login ID to email. | Active-only as of `20260501060000`; pending/suspended/rejected/alumni/project-only/withdrawn cannot use ID login. |
 | `is_login_id_available(text)` | Authenticated login ID availability check. | Good for current login ID slice. |
 | `normalize_nickname_slug(text)` | Normalizes nickname display to slug. | Aligned to frontend rule: Korean/English letters, numbers, spaces; underscores are stored internally only. |

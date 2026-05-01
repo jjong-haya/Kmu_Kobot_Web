@@ -195,3 +195,34 @@ This must be disclosed before ballot submission.
 | User decision | President can inspect individual vote records only for audit purposes. |
 | `14-verification-question-ledger.md` | `Q-VOTE-001` moved to resolved archive as `R-VOTE-001`. |
 | `08-task-checklist.md` | `TASK-0405` marked complete; next work is eligibility snapshot and president-only audit read model. |
+
+## 8. 2026-05-01 Verification: Recommended Defaults And Membership Application
+
+### 8.1 Scope
+
+| Area | File |
+| --- | --- |
+| User decisions | `docs/ddd-workflow/00-user-decision-checklist.md` |
+| Question ledger | `docs/ddd-workflow/14-verification-question-ledger.md` |
+| Task checklist | `docs/ddd-workflow/08-task-checklist.md` |
+| DB migration | `supabase/migrations/20260501070000_membership_application_submission.sql` |
+| Frontend auth | `src/app/auth/AuthProvider.tsx` |
+
+### 8.2 Expected Behavior
+
+1. Remaining product decisions use the Codex-recommended safe defaults unless a future change widens privacy, authority, cost, deletion, or legal responsibility.
+2. Pending users saving required join profile fields also submit an explicit `membership_applications` row.
+3. Join submission emits a redacted audit event.
+4. Member managers receive an in-app notification for a submitted application.
+5. Raw profile PII is stored in the application snapshot for review, but audit payload stores field-presence booleans only.
+
+### 8.3 Evidence
+
+| Command | Purpose | Result |
+| --- | --- | --- |
+| `git diff --check` | Whitespace and patch sanity | Passed |
+| `npm run build` | TypeScript/Vite production build | Passed. Vite chunk-size warning remains. |
+
+### 8.4 Release Note
+
+The new frontend RPC call requires `20260501070000_membership_application_submission.sql` to be applied to Supabase before the deployed join form is used in production.
