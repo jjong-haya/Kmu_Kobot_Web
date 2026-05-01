@@ -248,11 +248,10 @@ Acceptance:
 - Eligibility is snapshotted when vote opens.
 - Single-candidate president election uses yes/no.
 - If winner rejects, rerun vote rather than automatically offering next candidate.
-- Anonymous vote explains exactly who can or cannot see individual choices.
+- Anonymous vote explains that normal users/operators see aggregate results only, and the president can inspect individual choices only for audit purposes.
 
 Active questions:
 
-- `Q-VOTE-001`
 - `Q-VOTE-002`
 
 ## 11. Audit, Notification, Retention

@@ -145,7 +145,7 @@ Active question:
 | `대기` | Ambiguous status. | `가입 승인 대기`, `연락 응답 대기`, `프로젝트 검토 대기`. |
 | `관리자` | Too broad. | `회장`, `부회장`, `공식 팀장`, `프로젝트 팀장`. |
 | `mock`, `DB 연결 전` | Developer state exposed. | `준비 중`, `아직 표시할 항목이 없습니다`, or hide in production. |
-| `익명 투표` | Can mislead if database remains linkable. | `결과 화면에서는 익명`, or explicit stronger guarantee. |
+| `익명 투표` | Can mislead if president audit access is not disclosed. | `결과는 익명으로 집계되며, 회장만 감사 목적으로 개별 기록을 확인할 수 있습니다.` |
 | `프로젝트 자료` | Could mean intro or internal materials. | `프로젝트 소개서`, `README`, `프로젝트 내부 자료`. |
 
 ## 6. Mobile Requirements

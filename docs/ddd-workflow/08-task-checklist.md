@@ -86,7 +86,8 @@
 - [ ] TASK-0402: Implement recruitment-card visibility policy.
 - [ ] TASK-0403: Implement GitHub repository connection and README snapshot model.
 - [ ] TASK-0404: Implement vote eligibility/result snapshots.
-- [ ] TASK-0405: State the exact anonymity level for votes.
+- [x] TASK-0405: State the exact anonymity level for votes.
+  - Decision: normal users/operators see aggregate results only; president can inspect individual vote records only for audit purposes with prior disclosure.
 
 ## 8. Current P0 Backlog
 
@@ -97,4 +98,4 @@
 | P0-PROJECT-001 | Split project read models into intro, review metadata, and internal material | Prevent private project material leakage |
 | P0-AUDIT-001 | Add audit payload redaction helper | Prevent personal-data over-retention |
 | P0-INVITE-001 | Add invitation redemption RPC | Prevent expired/replayed/concurrent invite use |
-| P0-VOTE-001 | Define vote anonymity level | Prevent mismatch between user expectation and data model |
+| P0-VOTE-001 | Implement vote eligibility snapshot and president-only audit read model | Prevent eligibility drift and overbroad ballot visibility |

@@ -166,7 +166,7 @@ Add commands, events, policies, read models, and external systems under the owni
 | ApplicantIntroOnlyPolicy | Applicants can see project intro/README but not internal materials. |
 | AtomicInvitationRedemptionPolicy | Invitation redemption checks hash, status, expiry, max uses, target, membership effect, audit, and notification in one transaction. |
 | RecipientContactDisclosurePolicy | Contact recipient chooses which contact payload is disclosed after acceptance. |
-| BallotAnonymityPolicy | The exact anonymity level must be visible to voters before submission. |
+| BallotAnonymityPolicy | Voters must see before submission that normal screens show aggregate results only, while the president can inspect individual vote records for audit purposes. |
 | AuditRedactionPolicy | Audit payloads do not copy raw phone, student ID, contact payloads, tokens, private README text, or vote choices. |
 
 ## 5. Read Models

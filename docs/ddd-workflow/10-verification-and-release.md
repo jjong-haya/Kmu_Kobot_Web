@@ -179,3 +179,19 @@ The frontend calls `is_login_id_available`, so the Supabase migration must be de
 This migration has not been applied to the remote Supabase project in this pass.
 
 Reason: previous remote migration attempts exposed migration-history and database-password setup issues. The safe release path is to commit/push the migration first, then apply it deliberately with the correct Supabase DB password and migration history repair/pull plan.
+
+## 7. 2026-05-01 Verification: Vote Anonymity Decision
+
+### 7.1 Decision
+
+Anonymous vote means aggregate visibility for normal users/operators and president-only individual ballot audit access.
+
+This must be disclosed before ballot submission.
+
+### 7.2 Evidence
+
+| Evidence | Result |
+| --- | --- |
+| User decision | President can inspect individual vote records only for audit purposes. |
+| `14-verification-question-ledger.md` | `Q-VOTE-001` moved to resolved archive as `R-VOTE-001`. |
+| `08-task-checklist.md` | `TASK-0405` marked complete; next work is eligibility snapshot and president-only audit read model. |

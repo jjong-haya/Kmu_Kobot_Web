@@ -143,15 +143,15 @@ Priority: P0 for governance, P1 for general voting.
 
 Blocked by:
 
-- `Q-VOTE-001`
 - `Q-VOTE-002`
 
 Implementation goals:
 
-1. Decide anonymity level.
-2. Add eligibility snapshot.
-3. Implement ballot submission RPC.
-4. Implement election rerun / winner acceptance workflow.
+1. Add eligibility snapshot.
+2. Implement ballot submission RPC.
+3. Split aggregate result read model from president-only audit read model.
+4. Add voter-facing anonymity disclosure copy before submission.
+5. Implement election rerun / winner acceptance workflow.
 
 ## 9. Phase 6: UX Cleanup And Dashboard
 

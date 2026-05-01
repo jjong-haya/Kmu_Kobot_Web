@@ -175,7 +175,7 @@ KOBOT Web
 | `PublicCreditNameMode` | `anonymous`, `nickname`, or `real_name`; default public display is anonymous. |
 | `InvitationCode` | Raw code must not be stored; store hash, expiry, max use count, status, and target. |
 | `RepositoryFullName` | GitHub `owner/repo`; may refer to a private repository. |
-| `VoteAnonymity` | UI anonymity and database anonymity must be stated separately. |
+| `VoteAnonymity` | Normal users, team leads, vice president, and operators see aggregate results only; president-only individual ballot audit access is retained and must be disclosed. |
 
 ## 5. Bounded Contexts
 

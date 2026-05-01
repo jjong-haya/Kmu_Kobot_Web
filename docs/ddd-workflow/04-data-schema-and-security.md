@@ -106,7 +106,7 @@ It records the current database model, intended security boundary, known gaps, a
 | Contact payload is disclosed only after recipient accepts. | Table has payload fields. | Direct update can bypass lifecycle; command RPC needed. |
 | Contact spam is rate-limited and reportable. | Some spam fields exist. | Rate-limit event/abuse workflow missing. |
 | Vote submissions enforce status/time/eligibility/max choices. | Tables exist. | Direct insert policies do not enforce full invariant. |
-| Anonymous vote guarantee is explicit. | `votes.anonymity`. | Current schema links voter to selected option. |
+| Anonymous vote guarantee is explicit. | `votes.anonymity`, vote result read model, president-only audit read model. | Individual ballot records may remain linkable for president audit only; voter UI must disclose this before submission. |
 | Audit logs cannot be forged. | Direct insert policy removed; `create_audit_log` execute revoked from normal users. | Internal audit command/redaction helper still needed. |
 | Audit payload redacts sensitive data. | Policy only in docs. | Redaction helper/test missing. |
 
@@ -154,7 +154,7 @@ State transitions and high-risk operations should not be direct table updates.
 | GAP-AUTHZ-002 | Some older broad permissions still exist and must not be used as scoped project command authority. | `Q-AUTHZ-002`, `Q-PROJECT-001` |
 | GAP-AUDIT-002 | Audit payload redaction is not enforced. | `Q-AUDIT-002` |
 | GAP-INVITE-001 | Invitation redemption lacks atomic command and history. | `Q-INVITE-001`, `Q-INVITE-002` |
-| GAP-VOTE-001 | Vote ballot insert lacks command-level eligibility/status/max-choice checks. | `Q-VOTE-001`, `Q-VOTE-002` |
+| GAP-VOTE-001 | Vote ballot insert lacks command-level eligibility/status/max-choice checks and president-only audit read separation. | `Q-VOTE-002` |
 | GAP-CONTACT-001 | Contact request update can bypass lifecycle. | `Q-CONTACT-001` |
 
 ## 8. Security Design Rule
