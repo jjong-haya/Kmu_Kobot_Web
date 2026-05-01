@@ -1,10 +1,8 @@
-﻿import {
+import {
   BadgeCheck,
   Check,
-  ChevronsUpDown,
   GraduationCap,
   IdCard,
-  Lock,
   Phone,
   Save,
   ShieldCheck,
@@ -16,17 +14,16 @@ import { Navigate, useLocation, useNavigate } from "react-router";
 import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "../../components/ui/alert";
 import { Button } from "../../components/ui/button";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "../../components/ui/command";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
-import { Popover, PopoverContent, PopoverTrigger } from "../../components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../../components/ui/select";
 import { cn } from "../../components/ui/utils";
 import { useAuth } from "../../auth/useAuth";
 import type { MemberStatus } from "../../auth/types";
@@ -339,20 +336,17 @@ function FormSection({
   );
 }
 
-function SearchableProfileSelect({
+function ProfileSelect({
   disabled,
-  emptyMessage,
   id,
   invalid,
   isShaking,
   options,
   placeholder,
-  searchPlaceholder,
   value,
   onChange,
 }: {
   disabled?: boolean;
-  emptyMessage: string;
   id: string;
   invalid?: boolean;
   isShaking?: boolean;
@@ -362,81 +356,48 @@ function SearchableProfileSelect({
     description?: string;
   }>;
   placeholder: string;
-  searchPlaceholder: string;
   value: string;
   onChange: (value: string) => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const selectedOption = options.find((option) => option.label === value);
-
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant="outline"
-          role="combobox"
-          aria-expanded={open}
-          id={id}
-          disabled={disabled}
-          className={cn(
-            "h-11 w-full justify-between rounded-xl border-slate-300 bg-white px-3 text-left text-sm font-medium shadow-none hover:bg-slate-50",
-            !value && "text-slate-400",
-            disabled && "cursor-not-allowed bg-slate-100 text-slate-400",
-            invalid && "border-red-300 text-red-700 ring-1 ring-red-100 hover:bg-red-50/30",
-            isShaking && "input-denied-shake",
-          )}
-        >
-          <span className="min-w-0 truncate">{selectedOption?.label ?? placeholder}</span>
-          {disabled ? (
-            <Lock className="ml-2 h-4 w-4 shrink-0 text-slate-400" />
-          ) : (
-            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 text-slate-400" />
-          )}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent
-        align="start"
-        className="w-[--radix-popover-trigger-width] rounded-2xl border-slate-200 p-0 shadow-xl"
+    <Select disabled={disabled} value={value} onValueChange={onChange}>
+      <SelectTrigger
+        id={id}
+        aria-invalid={invalid}
+        className={cn(
+          "h-11 rounded-xl border-slate-300 bg-white px-3 text-left text-sm font-medium shadow-none hover:bg-slate-50",
+          !value && "text-slate-400",
+          disabled && "cursor-not-allowed bg-slate-100 text-slate-400",
+          invalid && "border-red-300 text-red-700 ring-1 ring-red-100 hover:bg-red-50/30",
+          isShaking && "input-denied-shake",
+        )}
       >
-        <Command>
-          <CommandInput placeholder={searchPlaceholder} />
-          <CommandList>
-            <CommandEmpty>{emptyMessage}</CommandEmpty>
-            <CommandGroup>
-              {options.map((option) => (
-                <CommandItem
-                  key={option.label}
-                  value={[option.label, ...(option.aliases ?? [])].join(" ")}
-                  onSelect={() => {
-                    onChange(option.label);
-                    setOpen(false);
-                  }}
-                  className="items-start rounded-xl px-3 py-2.5"
-                >
-                  <Check
-                    className={cn(
-                      "mt-0.5 h-4 w-4 shrink-0 text-[#103078]",
-                      value === option.label ? "opacity-100" : "opacity-0",
-                    )}
-                  />
-                  <span className="min-w-0">
-                    <span className="block truncate font-semibold text-slate-900">
-                      {option.label}
-                    </span>
-                    {option.description || option.aliases?.length ? (
-                      <span className="mt-0.5 block truncate text-xs text-slate-500">
-                        {option.description ?? option.aliases?.join(", ")}
-                      </span>
-                    ) : null}
+        <SelectValue placeholder={placeholder} />
+      </SelectTrigger>
+      <SelectContent
+        align="start"
+        className="z-[80] max-h-72 w-[var(--radix-select-trigger-width)] rounded-2xl border-slate-200 p-1 shadow-xl"
+      >
+        <SelectGroup>
+          {options.map((option) => (
+            <SelectItem
+              key={option.label}
+              value={option.label}
+              className="min-h-11 rounded-xl px-3 py-2.5"
+            >
+              <span className="min-w-0">
+                <span className="block truncate font-semibold text-slate-900">{option.label}</span>
+                {option.description || option.aliases?.length ? (
+                  <span className="mt-0.5 block truncate text-xs text-slate-500">
+                    {option.description ?? option.aliases?.join(", ")}
                   </span>
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
+                ) : null}
+              </span>
+            </SelectItem>
+          ))}
+        </SelectGroup>
+      </SelectContent>
+    </Select>
   );
 }
 
@@ -880,7 +841,7 @@ export default function ProfileSettings() {
             </FieldShell>
 
             <FieldShell htmlFor="college" label="단과대" required>
-              <SearchableProfileSelect
+              <ProfileSelect
                 id="college"
                 value={college}
                 options={KOOKMIN_COLLEGES.map((collegeOption) => ({
@@ -891,8 +852,6 @@ export default function ProfileSettings() {
                     : undefined,
                 }))}
                 placeholder="단과대를 선택해 주세요"
-                searchPlaceholder="단과대 또는 약칭 검색"
-                emptyMessage="일치하는 단과대가 없습니다."
                 invalid={Boolean(fieldErrors.college)}
                 isShaking={shakingField === "college"}
                 onChange={handleCollegeChange}
@@ -903,7 +862,7 @@ export default function ProfileSettings() {
             </FieldShell>
 
             <FieldShell htmlFor="department" label="학과" required>
-              <SearchableProfileSelect
+              <ProfileSelect
                 id="department"
                 disabled={!selectedCollege}
                 value={department}
@@ -911,8 +870,6 @@ export default function ProfileSettings() {
                 placeholder={
                   selectedCollege ? "학과를 선택해 주세요" : "먼저 단과대를 선택해 주세요"
                 }
-                searchPlaceholder="학과 검색"
-                emptyMessage="일치하는 학과가 없습니다."
                 invalid={Boolean(fieldErrors.department)}
                 isShaking={shakingField === "department"}
                 onChange={(value) => {
@@ -961,13 +918,8 @@ export default function ProfileSettings() {
         >
           <div className="grid gap-5 md:grid-cols-3">
             <FieldShell
-              description={
-                isLoginIdLocked
-                  ? "이미 만든 ID는 직접 변경할 수 없습니다."
-                  : "이후 ID로 로그인할 때만 입력해 주세요."
-              }
               htmlFor="login-id"
-              label="로그인 아이디"
+              label="ID"
             >
               <div className="relative">
                 <IdCard className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -976,7 +928,7 @@ export default function ProfileSettings() {
                   aria-invalid={Boolean(loginIdError)}
                   className={cn("pl-10", inputStateClass("loginId", Boolean(loginIdError)))}
                   disabled={isLoginIdLocked}
-                  placeholder="예: honggildong"
+                  placeholder="ID"
                   value={loginId}
                   onChange={(event) => handleLoginIdChange(event.target.value)}
                   onBlur={() => {
@@ -996,7 +948,7 @@ export default function ProfileSettings() {
               ) : null}
             </FieldShell>
 
-            <FieldShell htmlFor="new-password" label="새 비밀번호">
+            <FieldShell htmlFor="new-password" label="비밀번호">
               <Input
                 id="new-password"
                 type="password"
