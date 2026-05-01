@@ -1,123 +1,176 @@
-# 06. 디자인 명세서
+# 06. UX And Design Specification Ledger
 
-## 1. 정보 구조
+## 1. Purpose
 
-### 1.1 공개 영역과 내부 영역
+This file is the cumulative DDD Step 10 UX ledger.
 
-| 영역 | 목적 | 디자인 원칙 |
+Screens must express domain state in user language. Do not expose developer terms such as raw Supabase errors, `mock`, `DB 연결 전`, schema cache, PKCE internals, or table names.
+
+## 2. Information Architecture
+
+### 2.1 Public Surface
+
+| Route | Domain | User Goal | UX Rule |
+| --- | --- | --- | --- |
+| `/` | Public Showcase | Understand KOBOT and navigate to projects/recruit/login. | No internal workspace data. No stale recruitment deadline. |
+| `/projects` | Public Project Catalog | Browse approved public projects. | Show only approved + public-safe intro. |
+| `/notice` | Public Notice | Read public announcements. | Separate from internal announcements unless visibility is explicit. |
+| `/recruit` | Public Recruiting | Understand how to join. | Do not pretend public form is authenticated join request unless implemented. |
+| `/contact` | Public Inquiry | Send general inquiry. | Separate from member-to-member contact request. |
+| `/activities` | Public Activity Gallery | Browse activity records. | Avoid private member/project details. |
+| `/faq` | Public Help | Read common questions. | Keep terms aligned with join/member workflow. |
+| `/privacy`, `/terms` | Legal / Privacy | Understand rules and data use. | Must match actual collected fields. |
+| `/login` | Identity And Access | Log in with Google or existing ID. | Minimal, user-facing, no path/debug details. |
+| `/auth/callback` | Identity And Access | Wait while account is verified. | Show step progress and safe retry actions. |
+
+### 2.2 Member Access Surface
+
+| Route | Domain | User Goal | UX Rule |
+| --- | --- | --- | --- |
+| `/member/join` | Join Request | Submit required join information. | Field-level validation, scroll/focus to errors, no top-level generic alerts for field errors. |
+| `/member/pending` | Approval Pending / Restricted | Understand status and available actions. | CTA whitelist: refresh, home, logout, inquiry. No ID creation/profile edit CTA here. |
+| `/member/profile` | Profile Identity | Edit active-member profile. | Active-only unless explicitly allowed. |
+
+### 2.3 Member Workspace Surface
+
+| Navigation Section | Routes | Domain |
 | --- | --- | --- |
-| Public Showcase | 발표/포트폴리오/시연 | 짧고 명확, 내부 운영 정보 최소화 |
-| Login | Member Workspace 진입 | 개발자 경로/원시 오류 노출 금지 |
-| Join | 가입 요청서 작성 | 필요한 입력만, 실명 자동 입력, 제출 CTA 명확 |
-| Pending | 승인 대기/제한 안내 | 새로고침/문의/로그아웃만 |
-| Member Workspace | 실제 운영 | 역할/권한 범위가 보이는 IA |
-| Admin/Operation | 운영진 또는 프로젝트 운영 | 전체 운영과 프로젝트 내부 운영 분리 |
+| My Activity | `/member`, `/member/notifications`, `/member/contact-requests` | Dashboard, Notification, Contact |
+| Communication | `/member/announcements`, `/member/qna` | Internal Comms, Q&A |
+| Learning | `/member/study-log`, `/member/study-playlist`, `/member/peer-review` | Learning And Knowledge |
+| Projects | `/member/projects`, `/member/showcase` | Project Workspace, Public Showcase Management |
+| Events And People | `/member/events`, `/member/office-hours`, `/member/members` | Events, Office Hours, Member Directory |
+| Resources | `/member/resources`, `/member/templates`, `/member/equipment` | Resources And Equipment |
+| Operations | `/member/roadmap`, `/member/retro`, `/member/changelog`, `/member/votes` | Operations, Retrospective, Voting |
+| Global Operations | `/member/forms`, `/member/integrations`, `/member/permissions` | Forms, Integrations, Capability |
 
-## 2. 라우트 정책
+## 3. Screen State Requirements
 
-### 2.1 현재 라우트 기준
+Every non-static screen should define:
 
-| 라우트 | 접근 | UX 역할 |
+- Loading state
+- Empty state
+- Restricted state
+- Pending state if domain lifecycle supports it
+- Error state with user-safe copy
+- Success state
+- Mobile behavior
+
+## 4. Critical UX Rules
+
+### 4.1 Login And Callback
+
+Allowed copy:
+
+- `국민대학교 계정인지 확인하는 중`
+- `KOBOT 멤버 상태를 확인하는 중`
+- `워크스페이스로 이동 준비 중`
+- `로그인 정보를 다시 확인해 주세요`
+
+Forbidden copy:
+
+- `PKCE code verifier not found`
+- `schema cache`
+- `public.get_my_authorization_context`
+- Raw URL/path debugging such as `/member로 이동합니다`
+
+### 4.2 Join Form
+
+Rules:
+
+- Remove explanatory cards that repeat the page title.
+- Use field-level feedback.
+- Invalid nickname/login ID should shake the field and show a short reason below it.
+- Submit button should scroll to the first invalid field.
+- Email should not be re-entered if Google already supplied it.
+- Public credit display setting is not part of initial join unless explicitly required by product policy.
+
+### 4.3 Pending / Restricted
+
+Rules:
+
+- Pending page explains status, not the whole product.
+- No ID creation CTA.
+- No project creation CTA.
+- No confusing workspace menu.
+- Non-school/restricted account pages should explain the account restriction and recovery path.
+
+### 4.4 Dashboard
+
+The dashboard should become an action hub, not a static card wall.
+
+Phase 1 dashboard sections:
+
+| Section | Source Domain | Rule |
 | --- | --- | --- |
-| `/` | 모두 | 공개 랜딩 |
-| `/login` | 모두 | 로그인 |
-| `/auth/callback` | OAuth callback | 처리 화면, raw error 숨김 |
-| `/member/join` | session + pending incomplete | 가입 요청서 |
-| `/member/pending` | session + pending complete/제한 상태 | 승인/상태 안내 |
-| `/member/profile` | active only | 프로필 수정 |
-| `/member` | active + dashboard permission | 대시보드 |
-| `/member/projects` | active + project capability | 프로젝트 목록/운영 진입 |
+| Today / Needs Action | Notification, Vote, Contact, Project | Role-dependent items only. |
+| My Projects | Project Workspace | Only projects the user belongs to or can review. |
+| Active Votes | Voting | Show eligibility and closing time. |
+| Contact Requests | Contact | Show pending received/sent items. |
+| Recent Announcements | Communication | Internal announcements only. |
 
-### 2.2 추가 권장 라우트
+Active questions:
 
-| 라우트 | 목적 |
-| --- | --- |
-| `/member/projects/:projectId` | 프로젝트 상세 |
-| `/member/projects/:projectId/apply` | 참여 신청 |
-| `/member/projects/:projectId/operators` | 프로젝트 운영진/위임 관리 |
-| `/member/projects/:projectId/invitations` | 초대 코드/링크 관리 |
-| `/member/projects/:projectId/readme` | README/소개서 미리보기 |
-| `/member/admin/members` | 가입 승인 |
-| `/member/admin/audit` | 전체/범위 감사 로그 |
-| `/member/admin/permissions` | 권한 관리 |
+- `Q-DASH-001`
+- `Q-DASH-002`
 
-## 3. 사이드바 규칙
+### 4.5 Project Screens
 
-### 3.1 노출 그룹
+Rules:
 
-| 그룹 | 대상 | 메뉴 |
+- Public project list shows only approved and public-safe items.
+- Recruitment share page shows intro/README/needed roles/skills, not internal material.
+- Project lead screen should not look like global admin.
+- Private project badges must explain who can see what.
+- Developer-state text must be removed before release.
+
+### 4.6 Permissions Screen
+
+Rules:
+
+- Do not use `Admin`, `Leadership`, `Member`, `Guest` as the core model.
+- Use `President`, `Vice President`, `Official Team Lead`, `Project Lead`, `Project Operator`, `Temporary Delegate`, `Active Member`.
+- Explain `Role`, `Capability`, `Scope`, `Source`, and `Expiry`.
+
+Active question:
+
+- `Q-UX-002`
+
+## 5. Copy Risk Register
+
+| Risky Copy | Risk | Replacement Direction |
 | --- | --- | --- |
-| 내 활동 | active member 전체 | 대시보드, 알림, 연락 |
-| 내 프로젝트 | 프로젝트 참여자 | 내가 참여한 프로젝트, 신청 상태 |
-| 프로젝트 운영 | 프로젝트 팀장/operator/임시 위임자 | 해당 프로젝트 내부에서만 초대/신청/자료 관리 |
-| 공식 팀 운영 | 공식 팀장 | 자기 공식 팀 승인/초대/검토 |
-| 전체 운영 | 회장/부회장 | 가입 승인, 권한, 전체 감사 |
-| 시스템 설정 | 회장 중심 | 연동, 정책, 위험 기능 |
+| `팀장 이상` | Mixes official team lead and project lead. | `운영진`, `공식 팀장`, or `이 프로젝트 관리자` depending on scope. |
+| `승인` | Ambiguous approval target. | `가입 승인`, `프로젝트 생성 승인`, `참여 승인`, `권한 이전 승인`. |
+| `대기` | Ambiguous status. | `가입 승인 대기`, `연락 응답 대기`, `프로젝트 검토 대기`. |
+| `관리자` | Too broad. | `회장`, `부회장`, `공식 팀장`, `프로젝트 팀장`. |
+| `mock`, `DB 연결 전` | Developer state exposed. | `준비 중`, `아직 표시할 항목이 없습니다`, or hide in production. |
+| `익명 투표` | Can mislead if database remains linkable. | `결과 화면에서는 익명`, or explicit stronger guarantee. |
+| `프로젝트 자료` | Could mean intro or internal materials. | `프로젝트 소개서`, `README`, `프로젝트 내부 자료`. |
 
-### 3.2 금지
+## 6. Mobile Requirements
 
-- 프로젝트 팀장에게 글로벌 `Admin` 라벨을 보여주지 않는다.
-- pending 화면에서 프로필/ID 생성 CTA를 보여주지 않는다.
-- `팀장 이상` 문구를 쓰지 않는다.
-- Supabase, PKCE, callback path 같은 개발 용어를 사용자 화면에 노출하지 않는다.
+- Login/join pages use single-column flow.
+- Member sidebar becomes a mobile sheet.
+- Primary action stays visible after long forms where possible.
+- Field errors must remain close to the field.
+- Motion must respect `prefers-reduced-motion`.
 
-## 4. 화면별 문구 원칙
+## 7. Accessibility Requirements
 
-### 4.1 Login
+- Error states must be text, not only color/shake.
+- Focus must move to the first invalid field on submit.
+- Icon-only buttons need accessible labels.
+- Status badges need readable text labels.
+- Contact/vote/privacy decisions must be readable before action confirmation.
 
-| 잘못된 문구 | 대체 문구 |
-| --- | --- |
-| `/member로 이동합니다` | 로그인 후 이어서 진행합니다 |
-| Supabase 세션 동기화 | 로그인 정보를 확인하는 중입니다 |
-| PKCE code verifier not found | 로그인 정보가 이어지지 않았습니다. 다시 로그인해 주세요 |
-| 프로필에서 만든 login_id | ID |
+## 8. UX Questions
 
-### 4.2 Join
+Open UX questions are tracked in `14-verification-question-ledger.md`:
 
-- 제목: `가입 요청 정보 입력`
-- 설명: `국민대 Google 계정으로 확인된 정보를 바탕으로 KOBOT 활동에 필요한 정보를 입력해 주세요.`
-- CTA: `회원가입 요청하기`
-
-### 4.3 Pending
-
-- 제목: `가입 요청이 접수되었습니다`
-- 설명: `운영진 승인 후 Member Workspace가 열립니다.`
-- CTA whitelist: `상태 새로고침`, `운영진 문의`, `로그아웃`
-
-## 5. 상태별 UI
-
-### 5.1 Loading
-
-로그인 콜백은 단순 스피너보다 단계 문구를 보여준다.
-
-```text
-국민대학교 계정인지 확인하는 중...
-KOBOT 멤버 상태를 확인하는 중...
-워크스페이스로 이동 준비 중...
-```
-
-### 5.2 Error
-
-- 사용자가 해결할 수 있는 행동을 먼저 보여준다.
-- 원문 기술 오류는 접어서 보이거나 문의용 코드로만 제공한다.
-- 취소/실패/권한 없음/비국민대 계정을 구분한다.
-
-### 5.3 Restricted
-
-- 왜 제한되는지 짧게 설명한다.
-- 다음 행동은 1~2개만 둔다.
-- 내부 메뉴를 보여주지 않는다.
-
-## 6. 모바일/접근성
-
-### 6.1 모바일
-
-- 로그인/가입 화면은 카드 중앙 정렬.
-- 좌측 장식 영역은 모바일에서 축약 또는 숨김.
-- 긴 설명보다 CTA와 상태 문구 우선.
-
-### 6.2 접근성
-
-- 버튼은 목적이 분명한 텍스트 사용.
-- 권한/상태 색상은 텍스트 라벨과 함께 제공.
-- 애니메이션은 `prefers-reduced-motion` 고려.
+- `Q-DASH-001`
+- `Q-DASH-002`
+- `Q-PUBLIC-001`
+- `Q-PUBLIC-002`
+- `Q-UX-001`
+- `Q-UX-002`

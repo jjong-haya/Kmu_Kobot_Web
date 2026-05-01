@@ -1,122 +1,373 @@
-# 02. 도메인 발견
+# 02. Domain Discovery Ledger
 
-## 1. 유비쿼터스 언어
+## 1. Purpose
 
-### 1.1 반드시 구분할 용어
+This file is the cumulative DDD Step 1-6 ledger for KOBOT Web.
 
-| 용어 | 정확한 의미 | 혼동하면 생기는 문제 |
-| --- | --- | --- |
-| 공개 페이지 | 발표, 포트폴리오, 시연용 외부 페이지 | 내부 운영 기능을 공개 페이지에 과도하게 설명함 |
-| Member Workspace | 로그인 후 실제 동아리원이 쓰는 운영 공간 | 메인 페이지와 목적이 섞임 |
-| 회장 | 최고 관리자 | 부회장/공식 팀장과 동일 권한처럼 처리됨 |
-| 부회장 | 전체 운영 보조 관리자 | 회장 전용 권한과 섞임 |
-| 공식 팀 | 로봇 A~D, IoT, 연구팀 같은 동아리 운영 단위 | 프로젝트 팀과 섞임 |
-| 공식 팀장 | 공식 팀을 운영하는 운영진 | 프로젝트 팀장과 같은 “팀장”으로 처리됨 |
-| 프로젝트 팀 | 실제 협업 단위 | 공식 팀 소속 권한과 섞임 |
-| 프로젝트 팀장 | 특정 프로젝트 책임자 | 운영진으로 잘못 표시됨 |
-| project_operator | 프로젝트 내부 운영 보조자 | 팀장 변경/공개범위 변경까지 가능해짐 |
-| 임시 위임자 | 기간과 scope가 제한된 대행자 | 정식 팀장처럼 권한이 확산됨 |
-| 가입 요청서 | `/member/join`에서 작성하는 심사 정보 | 승인 대기 안내와 섞임 |
-| 승인 대기 | 가입 요청 제출 후 `/member/pending`에서 보는 상태 | ID 생성/프로필 수정 CTA가 노출됨 |
+Do not recreate the domain map from scratch on every task. Add new domains, terms, aggregates, invariants, and open questions here when they are discovered.
 
-### 1.2 금지 표현
+Per-run verification questions belong in `14-verification-question-ledger.md`. This file is the stable domain tree.
 
-| 금지 표현 | 이유 | 대체 표현 |
-| --- | --- | --- |
-| 팀장 이상 | 공식 팀장과 프로젝트 팀장이 섞임 | 운영진, 공식 팀장 이상, 이 프로젝트 관리자 |
-| 관리자 | 전체 관리자처럼 보임 | 전체 운영 관리자, 프로젝트 관리자 |
-| 승인자 | 승인 종류가 불명확 | 가입 승인자, 프로젝트 승인자, 참여 승인자 |
-| 팀장 권한 | 공식 팀/프로젝트 팀 혼동 | 공식 팀장 권한, 프로젝트 팀장 권한 |
-| pending 사용자 | 상태가 넓음 | 가입 정보 미완성 사용자, 승인 대기 사용자 |
+## 2. Root Domain
 
-## 2. 바운디드 컨텍스트
+KOBOT Web is a club operations platform with two different product surfaces:
 
-### 2.1 컨텍스트 목록
-
-| 컨텍스트 | 책임 | 주요 파일/문서 | 핵심 위험 |
+| Surface | Purpose | Primary Users | Important Boundary |
 | --- | --- | --- | --- |
-| Public Showcase | 발표/포트폴리오용 공개 페이지 | `src/app/pages/public/*` | 내부 운영 정보 과노출 |
-| Auth & Onboarding | Google OAuth, ID 로그인, 가입 요청, pending 분기 | `src/app/auth/*`, `Login.tsx`, `AuthCallback.tsx`, `ProfileSettings.tsx` | callback origin 오류, pending/profile 혼동 |
-| Member Approval | 가입 승인/반려/정지/탈퇴 | `member_accounts`, `ApprovalPending.tsx`, Admin | 승인 책임과 감사 로그 누락 |
-| Capability & Authorization | Role, permission, scope, source, delegation | `auth_rbac.sql`, `member_workspace_core.sql` | `projects.manage` 과범위 |
-| Official Team | 공식 팀/공식 팀장/공식 팀원 | `teams`, `team_memberships` | 공식 팀원과 공식 팀장 혼동 |
-| Project Workspace | 프로젝트 생성, 승인, 멤버십, 공개범위 | `project_teams`, `Projects.tsx` | 프로젝트 팀장과 운영진 혼동 |
-| Invitation & Recruitment | 초대 코드, 링크, 모집 카드, 참여 신청 | `invitation_codes`, `project_team_join_requests` | 코드 race condition, target_type 혼동 |
-| GitHub README | private/public README 조회, snapshot, fallback | 정책 문서, 아직 DB 테이블 부족 | token 노출, private README 과노출 |
-| Contact Request | 연락 요청, 수락/거절/신고/스팸 제한 | `contact_requests`, `ContactRequests.tsx` | 연락처 payload 과노출 |
-| Voting & Governance | 회장 선거, 일반 안건, 익명 투표 | `votes`, `vote_ballots`, `Votes.tsx` | 익명성 깨짐, 투표권 범위 오류 |
-| Audit/Notification/Retention | 감사 로그, 알림, 1년 보존/삭제 | `audit_logs`, `notifications` | 개인정보 원문 과보관, 사용자 직접 insert |
-| Legal/Privacy | 개인정보 처리방침, 약관, 고지 | `Privacy.tsx`, `Terms.tsx`, `docs/product/legal*` | 실제 수집 항목과 고지 불일치 |
+| Public Showcase | Presentation, portfolio, recruiting, public project introduction | Guests, applicants, presentation audience | Must not expose private member/project operations data |
+| Member Workspace | Real club operations after login | KOBOT members, operators, project participants | Must enforce membership status, role/capability scope, project privacy, auditability |
 
-### 2.2 컨텍스트 관계
-
-```mermaid
-flowchart LR
-  Public["Public Showcase"] --> Auth["Auth & Onboarding"]
-  Auth --> Approval["Member Approval"]
-  Approval --> Capability["Capability & Authorization"]
-  Capability --> OfficialTeam["Official Team"]
-  Capability --> Project["Project Workspace"]
-  Project --> Invitation["Invitation & Recruitment"]
-  Project --> Github["GitHub README"]
-  Project --> Vote["Voting & Governance"]
-  Project --> Contact["Contact Request"]
-  Capability --> Audit["Audit/Notification/Retention"]
-  Invitation --> Audit
-  Vote --> Audit
-  Contact --> Audit
-  Github --> Audit
-  Legal["Legal/Privacy"] --> Auth
-  Legal --> Audit
-```
-
-## 3. Aggregate 후보
-
-### 3.1 계정/권한 계열
-
-| Aggregate | Root | Entity | Value Object | 불변식 |
-| --- | --- | --- | --- | --- |
-| MemberAccount | `member_accounts` | Profile, ApprovalRecord | MemberStatus, SchoolEmail | active 전 기능 접근 가능, pending은 join/pending만 |
-| ProfileIdentity | `profiles` | NicknameHistory | NicknameSlug, PublicCreditMode | nickname_slug는 active 기준 대소문자 무관 unique |
-| AuthoritySource | OrgPosition/TeamRole/Delegation | Assignment | Scope, Capability | Role, Capability, Delegation을 섞지 않음 |
-| AuditLog | `audit_logs` | AuditPayload | Sensitivity, RetentionPolicy | 사용자 직접 insert/update/delete 금지 |
-
-### 3.2 팀/프로젝트 계열
-
-| Aggregate | Root | Entity | Value Object | 불변식 |
-| --- | --- | --- | --- | --- |
-| OfficialTeam | `teams` | TeamMembership, TeamLeadAssignment | OfficialTeamSlug | 공식 팀장은 운영진, 일반 팀원은 운영진 아님 |
-| ProjectCreationRequest | 신규 필요 | PreMember, ReviewRecord | ProjectType, RecruitmentAudience | 승인 전 프로젝트는 전체 목록 미노출 |
-| ProjectTeam | `project_teams` | ProjectMembership | Visibility, ProjectStatus | 프로젝트 팀장은 자기 프로젝트만 관리 |
-| ProjectRecruitment | 신규/분리 필요 | RequiredRole, TechTag | SharePolicy | 공유 페이지는 소개서/README 중심 |
-| Invitation | `invitation_codes` | InvitationRedemption | TokenHash, Expiry, MaxUses | redeem은 원자적 RPC로만 처리 |
-
-### 3.3 협업/거버넌스 계열
-
-| Aggregate | Root | Entity | Value Object | 불변식 |
-| --- | --- | --- | --- | --- |
-| ContactRequest | `contact_requests` | ContactRequestEvent | ContactPayload, AbuseSignal | 수락 전/후 공개 범위 분리 |
-| Vote | `votes` | Option, Ballot, Nomination | EligibilityScope, Anonymity | active 이후 선택지 수정 금지 |
-| LeadershipTransfer | `role_transfer_requests` | ApprovalStep | TransferType, AfterStatus | 수락/승인/적용 상태 분리 |
-| TemporaryDelegation | `authority_delegations` | DelegationScope | Expiry, ScopeList | 최대 7일, 재위임/팀장 변경 금지 |
-| GitHubRepositoryConnection | 신규 필요 | ReadmeSnapshot, SyncAttempt | RepoFullName, CommitSha | private README는 서버/GitHub App으로만 조회 |
-
-## 4. 현재 코드와 도메인 불일치
-
-### 4.1 가장 큰 불일치
-
-| 위치 | 불일치 | 위험 |
-| --- | --- | --- |
-| `current_user_is_project_team_lead()` | lead, maintainer, accepted delegation을 함께 true | 팀장이 아닌 사용자가 팀장급 권한 획득 |
-| `projects.manage` | scope 없는 넓은 permission | 공식 팀장이 전체 프로젝트 관리자처럼 작동 |
-| `can_read_private_project()` | 공식 팀 membership 포함 | 공식 팀 일반 팀원이 private project를 볼 수 있음 |
-| `vote_ballots` | voter_user_id와 선택 연결 | 운영진/DB에서 익명 투표 추적 가능 |
-| `audit_logs` | active member insert 허용 | 감사 로그 신뢰성 저하 |
-
-### 4.2 원칙
+## 3. Domain Tree
 
 ```text
-Role = 신분
-Capability = 행위 가능성
-Delegation = 기간제 capability
+KOBOT Web
+├─ Public Showcase
+│  ├─ Landing
+│  ├─ Public Projects
+│  ├─ Public Notice
+│  ├─ Recruit
+│  ├─ Activities
+│  ├─ FAQ
+│  └─ Contact / Terms / Privacy
+├─ Identity And Access
+│  ├─ Google OAuth First Login
+│  ├─ School Email Gate
+│  ├─ Login ID Credential
+│  ├─ OAuth Callback And Next Path
+│  └─ Restricted Account Guidance
+├─ Member Registry
+│  ├─ Join Request Profile
+│  ├─ Approval Pending
+│  ├─ Active Member
+│  ├─ Suspended / Rejected / Alumni / Withdrawn
+│  ├─ Project-Only Participant
+│  └─ Profile Identity And Nickname History
+├─ Authority And Capability
+│  ├─ Organization Position
+│  ├─ Official Team Role
+│  ├─ Project Role
+│  ├─ Scoped Capability
+│  ├─ Temporary Delegation
+│  └─ Role Transfer
+├─ Official Team Operations
+│  ├─ Robot A Team
+│  ├─ Robot B Team
+│  ├─ Robot C Team
+│  ├─ Robot D Team
+│  ├─ IoT Team
+│  └─ Research Team
+├─ Project Workspace
+│  ├─ Project Creation Request
+│  ├─ Project Team
+│  ├─ Project Membership
+│  ├─ Project Activity / Study Log
+│  ├─ Project Visibility
+│  └─ Project Lead Transfer / Exit
+├─ Invitation And Recruitment
+│  ├─ Member Activation Code
+│  ├─ Official Team Invite
+│  ├─ Project Invite
+│  ├─ Recruitment Share Page
+│  └─ Project Join Request
+├─ GitHub README Integration
+│  ├─ Repository Connection
+│  ├─ GitHub App Access
+│  ├─ README Snapshot
+│  ├─ Internal Description
+│  └─ Display Source Policy
+├─ Communication
+│  ├─ Contact Request
+│  ├─ Contact Exchange
+│  ├─ Contact Spam Report
+│  ├─ Notification
+│  └─ Announcement / Q&A
+├─ Learning And Knowledge
+│  ├─ Study Log
+│  ├─ Study Playlist
+│  ├─ Peer Review
+│  └─ Templates
+├─ Resources And Equipment
+│  ├─ Resource Library
+│  ├─ Equipment Inventory
+│  ├─ Equipment Rental
+│  └─ Return / Maintenance
+├─ Events And Attendance
+│  ├─ Event
+│  ├─ Session
+│  ├─ Office Hours
+│  └─ Attendance
+├─ Voting And Governance
+│  ├─ President Election
+│  ├─ Temporary President
+│  ├─ General Vote
+│  ├─ Candidate Nomination
+│  ├─ Ballot
+│  └─ Result Snapshot
+├─ Audit Notification And Retention
+│  ├─ Audit Log
+│  ├─ Redacted Payload
+│  ├─ Actor Authority Snapshot
+│  ├─ Notification
+│  └─ Retention / Purge
+└─ Legal And Privacy
+   ├─ Terms
+   ├─ Privacy Policy
+   ├─ Consent Notice
+   ├─ Personal Data Display Scope
+   └─ Withdrawal / Rejoin
 ```
+
+## 4. Ubiquitous Language
+
+### 4.1 People And Account Terms
+
+| Korean Term | Code/Spec Term | Meaning | Banned Ambiguous Synonyms |
+| --- | --- | --- | --- |
+| 사용자 | `User` | Supabase Auth user. May not be a KOBOT member. | member, account owner |
+| 학교 Google 사용자 | `SchoolGoogleUser` | User authenticated through Google with `kookmin.ac.kr` identity. | external user |
+| 가입 요청 작성 중 사용자 | `JoinProfileIncompleteUser` | Logged in, but required join profile is incomplete. | pending user |
+| 승인 대기 사용자 | `PendingApplicant` | Join profile submitted, waiting for approval. | pending user |
+| 활동 부원 | `ActiveMember` | Approved KOBOT member with `member_accounts.status = active`. | user, approved user |
+| 프로젝트 전용 참여자 | `ProjectOnlyParticipant` | Not a full KOBOT member but can join a specific project. | external member |
+| 운영진 | `OperatorGroup` | President, vice president, and official team leads. Project leads are not global operators. | admin, team lead above |
+| 회장 | `President` | Highest organization administrator. | admin |
+| 부회장 | `VicePresident` | Organization-wide support administrator. | admin |
+| 공식 팀장 | `OfficialTeamLead` | Lead of Robot A-D, IoT, or Research team. | team lead, project lead |
+| 프로젝트 팀장 | `ProjectLead` | Lead of one project team only. | operator, official team lead |
+| 프로젝트 운영 보조자 | `ProjectOperator` | Project-scoped helper. Cannot transfer lead role or change high-risk settings unless explicitly granted. | maintainer |
+| 임시 위임자 | `TemporaryDelegate` | Person accepting time-limited delegated project capability. | temporary lead |
+
+### 4.2 Team And Project Terms
+
+| Korean Term | Code/Spec Term | Meaning | Banned Ambiguous Synonyms |
+| --- | --- | --- | --- |
+| 공식 팀 | `OfficialTeam` | Club operating unit: Robot A, B, C, D, IoT, Research. | project team |
+| 프로젝트 팀 | `ProjectTeam` | Collaboration unit created around a project. | official team |
+| 공식 팀 기반 프로젝트 | `OfficialBasedProject` | Project created under an official team name. | official team |
+| 개인/자율 프로젝트 | `AutonomousProject` | Project created with a new/free project identity. | private project |
+| 프로젝트 소개서 | `ProjectIntro` | Internal description or README-backed intro shown to applicants. | internal material |
+| 프로젝트 내부 자료 | `ProjectInternalMaterial` | Member-only project resources, meeting notes, links, files. | README |
+| 모집 공유 페이지 | `RecruitmentSharePage` | Shareable card/page for recruiting project members. | public project page |
+| 참여 예정자 | `PreTeamMember` | Person listed before project approval or before final membership acceptance. | member |
+
+### 4.3 Authority Terms
+
+| Korean Term | Code/Spec Term | Meaning | Banned Ambiguous Synonyms |
+| --- | --- | --- | --- |
+| Role | `Role` | Responsibility or position held by a person. | permission |
+| Capability | `Capability` | Ability to perform a specific command. | role, permission string |
+| Scope | `Scope` | Boundary where a capability applies: organization, official team, project, self. | target |
+| Source | `AuthoritySource` | Why the user has the capability: president, vice president, team lead, project lead, delegation. | role |
+| Delegation | `Delegation` | Time-limited capability transfer, not a role transfer. | temporary role |
+| Audit Log | `AuditLog` | Tamper-resistant record of who did what under which authority. | activity log |
+| Activity Log | `ActivityLog` | Project/team work record. Not a security audit trail. | audit log |
+
+### 4.4 Identity Value Objects
+
+| Value Object | Rule |
+| --- | --- |
+| `SchoolEmail` | Must be `kookmin.ac.kr` unless manually allowed through exception policy. |
+| `LoginId` | Lowercase `[a-z0-9]{4,20}`, globally unique, optional until created, locked after creation unless admin flow exists. |
+| `NicknameDisplay` | 2-12 visible chars, Korean/English/numbers/spaces, no `_`, no special characters, no banned words. |
+| `NicknameSlug` | Lowercase normalized nickname where spaces become `_`; uniqueness is active-member scoped unless historical attribution is explicitly modeled. |
+| `StudentId` | Required join profile field; sensitive internal contact/verification data. |
+| `PhoneNumber` | Required join profile field; formatted for display, sensitive internal contact data. |
+| `PublicCreditNameMode` | `anonymous`, `nickname`, or `real_name`; default public display is anonymous. |
+| `InvitationCode` | Raw code must not be stored; store hash, expiry, max use count, status, and target. |
+| `RepositoryFullName` | GitHub `owner/repo`; may refer to a private repository. |
+| `VoteAnonymity` | UI anonymity and database anonymity must be stated separately. |
+
+## 5. Bounded Contexts
+
+### 5.1 Public Showcase
+
+| Item | Description |
+| --- | --- |
+| Purpose | Present KOBOT publicly and support recruiting/demo/portfolio use. |
+| Owned Data | Public project summaries, public notices, activities, recruiting copy. |
+| Primary Routes | `/`, `/projects`, `/notice`, `/recruit`, `/activities`, `/faq`, `/contact`, `/privacy`, `/terms` |
+| External Dependencies | Vercel SPA routing, public assets. |
+| Risk | Accidentally exposing member-only data or private project metadata. |
+
+### 5.2 Identity And Access
+
+| Item | Description |
+| --- | --- |
+| Purpose | Authenticate users, preserve next path, build authorization context. |
+| Owned Data | Supabase session, profile identity, login ID credential state, school-email eligibility. |
+| Primary Routes | `/login`, `/auth/callback`, `/member/join`, `/member/pending` |
+| Main Files | `src/app/auth/*`, `src/app/pages/public/Login.tsx`, `src/app/pages/public/AuthCallback.tsx`, `supabase/migrations/20260325150000_auth_rbac.sql` |
+| Risk | Raw OAuth errors, PKCE origin mismatch, account enumeration, non-school access. |
+
+### 5.3 Member Registry
+
+| Item | Description |
+| --- | --- |
+| Purpose | Manage join profile, member status, approval, suspension, withdrawal, rejoin. |
+| Owned Data | `profiles`, `member_accounts`, `nickname_histories`, `member_exit_requests`. |
+| Aggregate Roots | `MemberAccount`, `ProfileIdentity`, `MemberExitRequest`. |
+| Risk | Profile PII visibility, nickname collision, incorrect pending/join routing, missing audit trail. |
+
+### 5.4 Authority And Capability
+
+| Item | Description |
+| --- | --- |
+| Purpose | Decide who may execute commands, in which scope, and from which authority source. |
+| Owned Data | `org_positions`, `org_position_assignments`, `teams`, `team_roles`, `team_memberships`, `permissions`, `authority_delegations`, `role_transfer_requests`. |
+| Aggregate Roots | `AuthorityAssignment`, `TemporaryDelegation`, `RoleTransferRequest`. |
+| Risk | Global permission strings like `projects.manage` being treated as scoped authority. |
+
+### 5.5 Official Team Operations
+
+| Item | Description |
+| --- | --- |
+| Purpose | Operate official club teams and team-lead authority. |
+| Owned Data | `teams`, `team_roles`, `team_memberships`. |
+| Official Teams | Robot A, Robot B, Robot C, Robot D, IoT, Research. |
+| Risk | Confusing official team membership with project membership. |
+
+### 5.6 Project Workspace
+
+| Item | Description |
+| --- | --- |
+| Purpose | Create, approve, operate, and archive project teams. |
+| Owned Data | `project_teams`, `project_team_memberships`, `project_team_join_requests`, future `project_creation_requests`. |
+| Aggregate Roots | `ProjectCreationRequest`, `ProjectTeam`, `ProjectMembership`. |
+| Risk | Pending projects appearing as approved, private projects leaking, project leads acting as global admins. |
+
+### 5.7 Invitation And Recruitment
+
+| Item | Description |
+| --- | --- |
+| Purpose | Issue codes/links and support project recruiting before/after approval. |
+| Owned Data | `invitation_codes`, future `invitation_redemptions`, future `project_recruitment_cards`. |
+| Aggregate Roots | `Invitation`, `RecruitmentCard`, `ProjectJoinRequest`. |
+| Risk | Code replay, expired code reuse, unbounded auto-join, missing notification to project lead. |
+
+### 5.8 GitHub README Integration
+
+| Item | Description |
+| --- | --- |
+| Purpose | Show README/project intro inside KOBOT while respecting private repository boundaries. |
+| Owned Data | Future `github_repository_connections`, `readme_snapshots`, `readme_sync_attempts`. |
+| External Dependencies | GitHub App, GitHub API. |
+| Risk | Private README leakage, token handling, stale README/source mismatch. |
+
+### 5.9 Communication
+
+| Item | Description |
+| --- | --- |
+| Purpose | Announcements, Q&A, notifications, and contact request workflow. |
+| Owned Data | `notifications`, `contact_requests`, `contact_request_events`, future announcement/Q&A tables. |
+| Aggregate Roots | `ContactRequest`, `Notification`, `Announcement`. |
+| Risk | Contact spam, exposing phone/email too early, harassment reports without operator workflow. |
+
+### 5.10 Learning And Knowledge
+
+| Item | Description |
+| --- | --- |
+| Purpose | Study records, playlists, peer review, reusable templates. |
+| Owned Data | Currently mostly UI mock data; future study/resource tables. |
+| Primary Routes | `/member/study-log`, `/member/study-playlist`, `/member/peer-review`, `/member/templates` |
+| Risk | Project/internal study material visibility not tied to project membership. |
+
+### 5.11 Resources And Equipment
+
+| Item | Description |
+| --- | --- |
+| Purpose | Club resource library, equipment inventory, rental/return/maintenance. |
+| Owned Data | Currently mostly UI mock data; future resources/equipment/rental tables. |
+| Primary Routes | `/member/resources`, `/member/equipment` |
+| Risk | Rental state transition without command/audit; equipment availability mismatch. |
+
+### 5.12 Events And Attendance
+
+| Item | Description |
+| --- | --- |
+| Purpose | Events, sessions, office hours, attendance tracking. |
+| Owned Data | Currently mostly UI mock data; future event/session/attendance tables. |
+| Primary Routes | `/member/events`, `/member/office-hours`; inactive `Attendance.tsx`. |
+| Risk | Attendance personal data, event eligibility, manual correction audit. |
+
+### 5.13 Voting And Governance
+
+| Item | Description |
+| --- | --- |
+| Purpose | President election, general votes, nominations, ballots, result publication. |
+| Owned Data | `votes`, `vote_options`, `vote_ballots`, `vote_ballot_options`, `vote_nominations`. |
+| Aggregate Roots | `Vote`, `Ballot`, `Nomination`, `Election`. |
+| Risk | Misleading anonymity, changing options after open, missing eligibility snapshot. |
+
+### 5.14 Audit Notification And Retention
+
+| Item | Description |
+| --- | --- |
+| Purpose | Record important actions, notify affected users, retain/purge data by policy. |
+| Owned Data | `audit_logs`, `notifications`, retention fields. |
+| Aggregate Roots | `AuditLog`, `Notification`, `RetentionPolicy`. |
+| Risk | Users inserting fake audit logs, storing raw PII/private README/vote selections. |
+
+### 5.15 Legal And Privacy
+
+| Item | Description |
+| --- | --- |
+| Purpose | Explain terms, privacy, consent, withdrawal, public attribution. |
+| Owned Data | Terms/privacy pages, consent copy, public credit settings. |
+| Primary Routes | `/privacy`, `/terms` |
+| Risk | Collecting phone/student ID without clear display/retention policy; withdrawal attribution conflict. |
+
+## 6. Aggregate Candidates
+
+| Aggregate Root | Context | Child Entities | Value Objects | Invariants |
+| --- | --- | --- | --- | --- |
+| `MemberAccount` | Member Registry | ApprovalRecord, StatusHistory | MemberStatus, SchoolEmail | Only approved active members enter full workspace. |
+| `ProfileIdentity` | Member Registry | NicknameHistory | NicknameDisplay, NicknameSlug, PublicCreditNameMode | Active nickname uniqueness and safe public attribution. |
+| `AuthorityAssignment` | Authority And Capability | RoleAssignment, CapabilityGrant | Scope, Source, CapabilityCode | Capability must be scoped and source-aware. |
+| `TemporaryDelegation` | Authority And Capability | DelegationAcceptance | Expiry, ScopeList | Max 7 days; no role-transfer capability. |
+| `RoleTransferRequest` | Authority And Capability | ApprovalStep | TransferType, PreviousHolderAfterStatus | Requested/accepted/applied states must be separate. |
+| `OfficialTeam` | Official Team Operations | TeamMembership | OfficialTeamSlug, OfficialTeamRole | Official team lead is an operator, project lead is not. |
+| `ProjectCreationRequest` | Project Workspace | PreTeamMember, ReviewRecord | ProjectType, RecruitmentAudience | Approved request creates/activates project. |
+| `ProjectTeam` | Project Workspace | ProjectMembership, ProjectActivity | ProjectSlug, Visibility, ProjectStatus | Private project readable only by authorized scope. |
+| `RecruitmentCard` | Invitation And Recruitment | RequiredRole, ShareTarget | Audience, Visibility | Only approved/public-checkable intro is shown. |
+| `Invitation` | Invitation And Recruitment | RedemptionAttempt | CodeHash, Expiry, MaxUses, TargetType | Redemption is atomic and audited. |
+| `GitHubRepositoryConnection` | GitHub README Integration | ReadmeSnapshot, SyncAttempt | RepositoryFullName, Branch, Path, CommitSha | Private README shown only through KOBOT authorization. |
+| `ContactRequest` | Communication | ContactRequestEvent | ContactPayload, AbuseSignal, Expiry | Contact payload exchange happens after acceptance. |
+| `Vote` | Voting And Governance | Option, Ballot, Nomination | EligibilityScope, Anonymity, ResultVisibility | Open vote options are immutable; eligibility is snapshotted. |
+| `AuditLog` | Audit Notification And Retention | RedactedPayload | RetentionPolicy, ActorAuthoritySnapshot | Users cannot forge audit logs; sensitive payload is redacted. |
+| `EquipmentRental` | Resources And Equipment | RentalEvent | RentalStatus, DueDate | Borrow/return/overdue transitions are audited. |
+| `EventSession` | Events And Attendance | AttendanceRecord | AttendanceStatus, CorrectionReason | Attendance correction requires authority and audit. |
+
+## 7. Cross-Domain Invariants
+
+| ID | Invariant | Enforcing Layer |
+| --- | --- | --- |
+| INV-ID-001 | `login_id` is globally unique and normalized lowercase. | DB unique index + RPC + UI validation |
+| INV-ID-002 | Login ID existence must not be exposed to anonymous users. | RPC grant and safe login error copy |
+| INV-NICK-001 | Active-member nickname slug cannot collide. | DB trigger/function + UI validation |
+| INV-AUTH-001 | A role alone does not grant command authority without capability, scope, source, and valid status. | RPC/RLS helper redesign required |
+| INV-PROJECT-001 | Project lead authority applies only to that project. | Scoped helper/RLS required |
+| INV-PROJECT-002 | Pending or rejected projects must not appear as approved projects. | Query/RLS/read model |
+| INV-INVITE-001 | Invitation redemption must be atomic with expiry/max-use checks. | Security definer RPC with row lock |
+| INV-GH-001 | Private GitHub README content must not be stored or displayed outside authorized project scope. | Server-side fetch + snapshot RLS |
+| INV-CONTACT-001 | Recipient contact details are disclosed only after recipient accepts and chooses payload. | Contact command RPC |
+| INV-CONTACT-002 | Repeated/similar contact requests are rate-limited and reportable. | RPC + rate-limit events |
+| INV-VOTE-001 | A vote marked anonymous must not show individual choices in normal operator UI. | Read model + RLS + copy |
+| INV-VOTE-002 | Vote eligibility should be snapshotted at opening. | Snapshot table required |
+| INV-AUDIT-001 | Audit logs cannot be directly inserted by normal active members. | RLS/RPC/trigger redesign required |
+| INV-PII-001 | Phone, student ID, contact payloads, tokens, private README text, and vote selections must not be copied raw into audit payload. | Redaction policy + tests |
+| INV-RET-001 | Personal operational records default to 1-year retention unless product/legal policy says otherwise. | Purge job or retention query required |
+
+## 8. New Domain Discovery Rule
+
+When a new feature appears, ask:
+
+1. Does it introduce a new actor?
+2. Does it introduce a new value object?
+3. Does it introduce a new status machine?
+4. Does it cross an existing bounded context?
+5. Does it require a command rather than direct update?
+6. Does it create a new visibility level?
+7. Does it collect, show, retain, or delete personal data?
+8. Does it require audit, notification, or external integration?
+
+If yes, add the node to this file and add verification questions to `14-verification-question-ledger.md`.

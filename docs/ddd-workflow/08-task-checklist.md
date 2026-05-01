@@ -15,6 +15,7 @@
 - [ ] Safe user-facing error copy is defined.
 - [ ] Audit and notification side effects are defined when needed.
 - [ ] Remaining user decisions are listed in `00-user-decision-checklist.md`.
+- [ ] Active verification questions are listed in `14-verification-question-ledger.md`.
 
 ## 2. Verification Gate
 
@@ -38,6 +39,11 @@
 - [x] TASK-0005: Strengthen the DDD loop so unresolved questions force a Step 1 restart.
 - [x] TASK-0006: Require 3 independent reviewer perspectives before DDD loop closure.
 - [x] TASK-0007: Create `explain-before-action` skill for explanation-first work.
+- [x] TASK-0008: Rebuild cumulative domain tree and terminology ledger.
+- [x] TASK-0009: Rebuild cumulative event-storming ledger.
+- [x] TASK-0010: Rebuild data/schema/security ledger.
+- [x] TASK-0011: Create active verification question ledger.
+- [x] TASK-0012: Integrate 3 read-only sub-agent review findings into the DDD loop.
 
 ## 4. Phase 1: Auth / Join / Pending
 
@@ -77,6 +83,9 @@
 
 | ID | Task | Reason |
 | --- | --- | --- |
+| P0-AUTH-001 | Verify Supabase Auth Hook connection | SQL function alone does not enforce account creation gate |
+| P0-AUTH-002 | Align member status enum between frontend and DB | Prevent `project_only`/`withdrawn` route and RLS drift |
+| P0-AUTH-003 | Decide ID login for non-active users | Current resolver may allow pending/suspended/alumni password login |
 | P0-RBAC-001 | Split capability scope/source | Prevent project leads from acting like global operators |
 | P0-AUDIT-001 | Restrict direct audit inserts | Prevent forged audit history |
 | P0-INVITE-001 | Add invitation redemption RPC | Prevent expired/replayed/concurrent invite use |

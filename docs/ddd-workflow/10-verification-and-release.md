@@ -98,3 +98,38 @@ The frontend calls `is_login_id_available`, so the Supabase migration must be de
 | `quick_validate.py C:\Users\jongh\.codex\skills\explain-before-action` | Validate skill metadata and structure | Passed |
 | `git diff --check` | Whitespace and patch sanity | Passed |
 | `npm run build` | TypeScript/Vite production build | Passed. Vite chunk-size warning remains. |
+
+## 5. 2026-05-01 Verification: Full Project DDD Restart
+
+### 5.1 Scope
+
+| Area | File |
+| --- | --- |
+| Cumulative domain tree | `docs/ddd-workflow/02-domain-discovery.md` |
+| Cumulative event storming | `docs/ddd-workflow/03-event-storming.md` |
+| Data/security ledger | `docs/ddd-workflow/04-data-schema-and-security.md` |
+| Functional spec | `docs/ddd-workflow/05-functional-spec.md` |
+| UX/design spec | `docs/ddd-workflow/06-design-spec.md` |
+| Implementation plan | `docs/ddd-workflow/07-implementation-plan.md` |
+| Task checklist | `docs/ddd-workflow/08-task-checklist.md` |
+| Agent review log | `docs/ddd-workflow/09-agent-review-log.md` |
+| Verification question queue | `docs/ddd-workflow/14-verification-question-ledger.md` |
+| Korean summary | `docs/ddd-workflow/SUMMARY-ko.md` |
+
+### 5.2 Expected Behavior
+
+1. DDD Step 1 starts from the cumulative domain tree instead of rediscovering everything from scratch.
+2. Terminology is shared across the project and ambiguous synonyms are banned.
+3. Domain tree, event map, data/security map, functional spec, UX spec, and implementation plan are connected.
+4. Active verification questions are tracked in a queue-like ledger and not silently deleted.
+5. Solving a question restarts Step 1 for the affected domain path.
+6. Three independent reviewer perspectives are integrated before closing the documentation pass.
+7. Feature implementation remains blocked by its active P0 questions.
+
+### 5.3 Evidence
+
+| Command | Purpose | Result |
+| --- | --- | --- |
+| `git diff --check` | Whitespace and patch sanity | Passed |
+| `npm run build` | TypeScript/Vite production build | Passed. Vite chunk-size warning remains. |
+| UTF-8 file check | Ensure Korean summary has no replacement characters | Passed |

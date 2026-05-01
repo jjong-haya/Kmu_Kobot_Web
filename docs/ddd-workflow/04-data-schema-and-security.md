@@ -1,185 +1,176 @@
-# 04. 데이터 스키마와 보안
+# 04. Data Schema And Security Ledger
 
-## 1. 현재 데이터 모델 현황
+## 1. Purpose
 
-### 1.1 마이그레이션 파일
+This file is the cumulative DDD Step 8-9 ledger.
 
-| 파일 | 책임 |
+It records the current database model, intended security boundary, known gaps, and required command/RPC enforcement.
+
+## 2. Current Persistence Inventory
+
+### 2.1 Migrations
+
+| File | Responsibility |
 | --- | --- |
-| `supabase/migrations/20260325150000_auth_rbac.sql` | 조직, 프로필, 멤버 계정, 공식 팀, RBAC, OAuth hook, 로그인 ID RPC |
-| `supabase/migrations/20260428173000_member_workspace_core.sql` | 닉네임 이력, 감사 로그, 알림, 연락 요청, 프로젝트, 초대, 투표, 권한 양도/위임, 탈퇴 요청 |
+| `supabase/migrations/20260325150000_auth_rbac.sql` | Base organization, profile, member account, official team, RBAC, auth hook, login ID resolver. |
+| `supabase/migrations/20260428173000_member_workspace_core.sql` | Workspace extension tables: nickname history, audit, notifications, contact, project, invitation, vote, delegation, exit request. |
+| `supabase/migrations/20260501033000_tighten_login_id_format.sql` | Login ID cleanup and stricter format. |
+| `supabase/migrations/20260501043000_login_id_availability.sql` | Authenticated login ID availability RPC. |
 
-### 1.2 현재 테이블 분류
+### 2.2 Table Groups
 
-| 분류 | 테이블 |
+| Context | Tables |
 | --- | --- |
-| 조직/회원 | `organizations`, `profiles`, `member_accounts`, `allowed_login_exceptions`, `bootstrap_admin_emails` |
-| 직책/팀/RBAC | `org_positions`, `org_position_assignments`, `teams`, `team_roles`, `team_memberships`, `permissions`, `org_position_permissions`, `team_role_permissions` |
-| 프로필/감사/알림 | `nickname_histories`, `audit_logs`, `notifications` |
-| 연락 | `contact_requests`, `contact_request_events` |
-| 프로젝트 | `project_teams`, `project_team_memberships`, `project_team_join_requests` |
-| 초대 | `invitation_codes` |
-| 투표 | `votes`, `vote_options`, `vote_ballots`, `vote_ballot_options`, `vote_nominations` |
-| 권한 이동 | `role_transfer_requests`, `authority_delegations` |
-| 탈퇴 | `member_exit_requests` |
+| Identity And Access | `organizations`, `profiles`, `member_accounts`, `allowed_login_exceptions`, `bootstrap_admin_emails` |
+| RBAC / Official Team | `org_positions`, `org_position_assignments`, `teams`, `team_roles`, `team_memberships`, `permissions`, `org_position_permissions`, `team_role_permissions` |
+| Profile Identity | `nickname_histories` |
+| Audit / Notification | `audit_logs`, `notifications` |
+| Contact | `contact_requests`, `contact_request_events` |
+| Project | `project_teams`, `project_team_memberships`, `project_team_join_requests` |
+| Invitation | `invitation_codes` |
+| Voting | `votes`, `vote_options`, `vote_ballots`, `vote_ballot_options`, `vote_nominations` |
+| Governance / Delegation | `role_transfer_requests`, `authority_delegations` |
+| Withdrawal | `member_exit_requests` |
 
-## 2. 스키마 명세 원칙
+## 3. Current Functions And RPCs
 
-### 2.1 모든 테이블에 필요한 명세 항목
-
-| 항목 | 설명 |
-| --- | --- |
-| Aggregate | 어느 도메인 Aggregate에 속하는가 |
-| Primary Key | PK와 생성 방식 |
-| Ownership | row의 소유자와 관리자 |
-| Status Machine | 허용 상태와 상태 전이 |
-| Invariants | DB 제약과 RPC 제약 |
-| RLS Intent | select/insert/update/delete 권한 의도 |
-| Audit Event | 어떤 command에서 어떤 감사 이벤트를 남기는가 |
-| Sensitive Fields | 개인정보/민감정보 여부 |
-| Retention | 보존 기간과 삭제/익명화 방식 |
-| Concurrency Strategy | unique, row lock, idempotency, transaction |
-
-## 3. 현재 P0 위험
-
-### 3.1 `current_user_is_project_team_lead` 의미 오염
-
-현재 함수는 project `lead`, `maintainer`, accepted delegation을 모두 팀장처럼 판단할 수 있습니다.
-
-#### 3.1.1 위험
-
-| 사용처 | 사고 가능성 |
-| --- | --- |
-| 프로젝트 update | maintainer/임시 위임자가 공개 범위, 핵심 필드 수정 |
-| 초대 코드 관리 | 제한 없는 초대 발급/폐기 |
-| 투표 관리 | 투표 생성/마감/수정 가능 |
-| 감사 로그 열람 | 민감 프로젝트 로그 열람 |
-| 위임 관리 | 임시 위임자의 재위임/권한 확산 |
-
-#### 3.1.2 권장 분리
-
-```text
-current_user_is_project_lead(project_id)
-current_user_is_project_operator(project_id)
-current_user_has_project_delegated_scope(project_id, scope)
-current_user_can_read_project_audit(project_id)
-current_user_can_create_project_vote(project_id)
-```
-
-### 3.2 넓은 permission 코드 위험
-
-`projects.manage`, `members.manage`, `votes.manage` 같은 넓은 permission은 scope/source 없이 사용하면 위험합니다.
-
-#### 3.2.1 권장 Capability 구조
-
-```ts
-type Capability = {
-  code: string;
-  scopeType: "organization" | "official_team" | "project" | "self";
-  scopeId: string | null;
-  source:
-    | "president"
-    | "vice_president"
-    | "official_team_lead"
-    | "project_lead"
-    | "project_operator"
-    | "temporary_delegation";
-  expiresAt?: string;
-};
-```
-
-### 3.3 감사 로그 신뢰성 위험
-
-현재 active member가 audit log insert 가능한 구조는 감사 로그의 신뢰성을 낮춥니다.
-
-#### 3.3.1 권장 원칙
-
-| 작업 | 정책 |
-| --- | --- |
-| INSERT | service role, trigger, security definer RPC만 |
-| UPDATE | 금지. 정정은 correction event |
-| DELETE | 금지. 보존 기간 후 purge job만 |
-| payload | redacted diff 중심 |
-| 민감정보 | 전화번호, 학번, 연락처 payload, 투표 선택, private README 원문 저장 금지 |
-
-### 3.4 익명 투표 구조 위험
-
-현재 `vote_ballots.voter_user_id`와 `vote_ballot_options.option_id`가 연결되면 운영진/DB 접근자는 개별 선택을 추적할 수 있습니다.
-
-#### 3.4.1 1차 권장
-
-| 수준 | 정책 |
-| --- | --- |
-| UI 익명 | 운영진 화면에는 집계만 표시 |
-| DB 완전 익명 | 2차 암호/토큰 설계 필요 |
-| 명세 | 익명 수준을 문서에 명확히 고지 |
-
-### 3.5 직접 update 위험
-
-다음 도메인은 프론트 직접 update가 아니라 RPC command로만 처리해야 합니다.
-
-| 도메인 | 필요한 RPC |
-| --- | --- |
-| 초대 코드 | `redeem_invitation(raw_code)` |
-| 참여 신청 | `approve_project_join_request`, `reject_project_join_request` |
-| 연락 요청 | `send_contact_request`, `accept_contact_request`, `reject_contact_request`, `report_contact_spam` |
-| 투표 | `create_vote`, `open_vote`, `submit_ballot`, `close_vote`, `publish_vote_result` |
-| 권한 양도 | `request_role_transfer`, `accept_role_transfer`, `apply_role_transfer` |
-| 임시 위임 | `request_authority_delegation`, `accept_authority_delegation`, `expire_authority_delegation` |
-| 탈퇴 | `request_member_exit`, `approve_member_exit`, `complete_member_exit` |
-
-## 4. 추가 또는 분리 필요 테이블
-
-### 4.1 프로젝트/초대/GitHub
-
-| 테이블 | 이유 |
-| --- | --- |
-| `project_creation_requests` | 승인 전 신청서와 승인된 프로젝트 본체 분리 |
-| `project_pre_members` | 승인 전 팀원 모집/참여 예정자 관리 |
-| `project_recruitment_cards` | 카카오톡/공지방 공유 카드와 공개 정책 분리 |
-| `invitation_redemptions` | 코드 사용 이력, 중복/실패 추적 |
-| `github_repository_connections` | GitHub App 설치/저장소/branch/path/visibility 관리 |
-| `readme_snapshots` | GitHub 장애/권한 제거 fallback |
-| `readme_sync_attempts` | sync 실패 원인과 최신성 판단 |
-
-### 4.2 권한/투표/연락
-
-| 테이블 | 이유 |
-| --- | --- |
-| `capability_assignments` 또는 read model | source/scope/expiresAt 기반 권한 표시 |
-| `vote_eligibility_snapshots` | 투표 시작 시점 투표권자 고정 |
-| `vote_result_snapshots` | 결과 공개 시점 집계 snapshot |
-| `contact_abuse_cases` | 단일 spam_report 필드보다 운영진 검토/조치에 적합 |
-| `rate_limit_events` | 반복 요청/자동화 방지 근거 |
-
-## 5. 보존/개인정보 정책
-
-### 5.1 기본 정책
-
-| 데이터 | 기본 보존 | 1년 후 |
+| Function | Current Purpose | DDD Status |
 | --- | --- | --- |
-| 감사 로그 | 1년 | 삭제 또는 payload redaction 후 비식별 통계만 |
-| 연락 요청 | 1년, 피요청자 숨김 가능 | 삭제 |
-| 탈퇴 처리 기록 | 1년 | 삭제 |
-| 산출물 | 삭제하지 않음 | 작성 당시 표시명 snapshot 또는 익명 정책 유지 |
-| 투표 결과 | 결과 보존 | 개별 ballot은 정책에 따라 삭제/분리 |
+| `before_user_created_kobot(event jsonb)` | Reject non-Google/non-school account creation. | Must verify Supabase Dashboard hook is actually connected. |
+| `handle_new_user()` | Creates profile/member account on auth user creation. | Good base, but join submission remains inferred from profile completion. |
+| `current_user_is_active_member()` | Checks active account. | Good base for member-only access. |
+| `current_user_has_permission(text)` | Checks broad permission strings. | Too coarse for scoped project/team commands. |
+| `get_my_authorization_context()` | Returns profile, account, org positions, team memberships, permissions. | Needs scoped capability read model later. |
+| `resolve_login_email(text)` | Resolves login ID to email. | Should decide whether only `active` can resolve. |
+| `is_login_id_available(text)` | Authenticated login ID availability check. | Good for current login ID slice. |
+| `normalize_nickname_slug(text)` | Normalizes nickname display to slug. | Must align DB regex with frontend rule. |
+| `assert_active_nickname_available(uuid,citext)` | Active-member nickname uniqueness. | Good base; cooldown still missing. |
+| `current_user_is_project_team_lead(uuid)` | Checks project lead/maintainer/delegation. | P0 overbroad helper risk. |
+| `can_read_private_project(uuid)` | Checks private project visibility. | P0 overbroad official-team/project-read risk. |
+| `create_audit_log(...)` | Inserts audit log. | P0 unsafe if callable by normal authenticated users. |
 
-### 5.2 감사 로그 payload 금지 후보
+## 4. Security Boundary By Context
 
-- 전화번호 원문
-- 학번 원문
-- 연락 요청자가 첨부한 연락처 원문
-- 수락자가 공개한 연락처 원문
-- 익명 투표 선택값
-- private GitHub README 원문
-- OAuth token, GitHub token, Supabase secret
+### 4.1 Identity And Access
 
-## 6. 구현 전 DB 질문
+| Rule | Enforcing Layer | Gap |
+| --- | --- | --- |
+| First account creation must start with Google OAuth. | Supabase Auth hook function. | Dashboard hook connection must be verified. |
+| School-domain users are allowed; exceptions require active allowlist. | `is_allowed_sign_in_email`. | Exception lifecycle/audit needs command flow. |
+| Login ID is globally unique and lowercase. | DB unique index, check, trigger, availability RPC. | Login resolution status policy open. |
+| Raw auth errors are not shown to users. | Frontend safe error mapping. | Needs regression test. |
 
-### 6.1 P0 질문
+### 4.2 Member Registry
 
-1. RLS는 row 접근만 담당하고, 상태 전이는 전부 RPC로 처리할 것인가?
-2. `current_user_is_project_team_lead`를 폐기하고 역할별 helper로 분리할 것인가?
-3. `projects.manage` 같은 넓은 permission을 deprecated하고 scope capability로 바꿀 것인가?
-4. 감사 로그에 개인정보 원문 저장을 금지할 것인가?
-5. 익명 투표의 익명 수준은 어디까지 보장할 것인가?
+| Rule | Enforcing Layer | Gap |
+| --- | --- | --- |
+| Full workspace access requires active status. | `RequireActiveMember`, RLS active checks. | Project-only route model missing. |
+| Join request submission should be explicit. | Currently profile completeness inference. | Need `MembershipApplication` or submitted flag/state. |
+| Status transitions require audit. | Some fields exist. | State-transition RPCs missing. |
+| Withdrawal keeps contribution attribution policy but removes/limits personal data. | `member_exit_requests`. | Completion command/purge policy missing. |
+
+### 4.3 Profile Identity And PII
+
+| Rule | Enforcing Layer | Gap |
+| --- | --- | --- |
+| Nickname active-member uniqueness. | Trigger + advisory lock. | Cooldown and hidden-history visibility need enforcement. |
+| Phone/student ID/department are internal data. | RLS row policies only. | Need safe profile views/column-level read models. |
+| Public attribution defaults to anonymous. | DB default should be source of truth. | Frontend defaults must be aligned. |
+
+### 4.4 Authority And Capability
+
+| Rule | Enforcing Layer | Gap |
+| --- | --- | --- |
+| Role, capability, scope, source, and expiry are separate. | Not fully implemented. | Need scoped capability read model. |
+| Project lead manages only own project. | Project helper/RLS. | Current helper includes maintainer/delegate as lead-like. |
+| Temporary delegation is not role transfer. | `authority_delegations`. | Scope-specific helper needed; no re-delegation. |
+| Role transfer request, acceptance, and application are separate. | `role_transfer_requests`. | Command RPC needed for assignment transaction. |
+
+### 4.5 Project / Invitation / GitHub
+
+| Rule | Enforcing Layer | Gap |
+| --- | --- | --- |
+| Private project internal material is scoped. | `can_read_private_project`. | Current policy may overexpose to official team members and broad `projects.read`. |
+| Project creation request is separate from active project. | Not implemented as separate table. | Need `project_creation_requests` and pre-team model. |
+| Invitation redemption is atomic. | Not implemented. | Need `redeem_invitation` RPC and redemption history. |
+| Private GitHub README is fetched server-side and shown by KOBOT authorization. | Not implemented. | Need GitHub connection/snapshot tables. |
+
+### 4.6 Contact / Vote / Audit
+
+| Rule | Enforcing Layer | Gap |
+| --- | --- | --- |
+| Contact payload is disclosed only after recipient accepts. | Table has payload fields. | Direct update can bypass lifecycle; command RPC needed. |
+| Contact spam is rate-limited and reportable. | Some spam fields exist. | Rate-limit event/abuse workflow missing. |
+| Vote submissions enforce status/time/eligibility/max choices. | Tables exist. | Direct insert policies do not enforce full invariant. |
+| Anonymous vote guarantee is explicit. | `votes.anonymity`. | Current schema links voter to selected option. |
+| Audit logs cannot be forged. | Current RLS/RPC too broad. | Restrict inserts to command RPCs/triggers/service role. |
+| Audit payload redacts sensitive data. | Policy only in docs. | Redaction helper/test missing. |
+
+## 5. Required Command RPCs
+
+State transitions and high-risk operations should not be direct table updates.
+
+| Priority | RPC / Command | Context | Must Enforce |
+| --- | --- | --- | --- |
+| P0 | `submit_join_request` | Member Registry | Required profile fields, submitted timestamp, audit, notification. |
+| P0 | `approve_member_join` / `reject_member_join` | Member Registry | Authority source/scope, status transition, audit. |
+| P0 | `redeem_invitation` | Invitation | Hash lookup, expiry, max uses, row lock, target, membership effect, audit, notification. |
+| P0 | `approve_project_creation` / `reject_project_creation` | Project | Approval authority, pre-team visibility, status transition, audit. |
+| P0 | `approve_project_join_request` / `reject_project_join_request` | Project | Project lead/delegate scope, membership creation, notification. |
+| P0 | `submit_ballot` | Voting | Open status, time window, eligibility snapshot, max choices, same-vote option IDs, anonymity policy. |
+| P0 | `create_audit_log_internal` | Audit | Not callable by normal users; redaction and authority snapshot. |
+| P1 | `send_contact_request` | Contact | Rate limit, required reason, allowed payload type, duplicate prevention. |
+| P1 | `accept_contact_request` / `reject_contact_request` / `report_contact_spam` | Contact | Recipient-only decision, 3-day status, notification, abuse queue. |
+| P1 | `request_authority_delegation` / `accept_authority_delegation` | Authority | Max 7 days, scope, no role-transfer, audit. |
+| P1 | `request_role_transfer` / `accept_role_transfer` / `apply_role_transfer` | Authority | Acceptance, previous-holder after-status, assignment transaction, audit. |
+
+## 6. Missing Or Future Tables
+
+| Table | Context | Reason |
+| --- | --- | --- |
+| `membership_applications` or explicit submitted columns | Member Registry | Separate join profile draft from submitted join request. |
+| `capability_assignments` or derived capability read model | Authority | Store/source capabilities with scope/source/expiry. |
+| `project_creation_requests` | Project | Approval request lifecycle before active project exists. |
+| `project_pre_members` | Project | Planned/pre-recruited participants before approval or join. |
+| `project_recruitment_cards` | Recruitment | Shareable recruitment page policy separate from project internals. |
+| `invitation_redemptions` | Invitation | Track successful/failed redemption attempts without raw code. |
+| `github_repository_connections` | GitHub | App installation/repository/branch/path/visibility. |
+| `readme_snapshots` | GitHub | Last successful README copy and fallback source. |
+| `readme_sync_attempts` | GitHub | Failure reason and freshness. |
+| `vote_eligibility_snapshots` | Voting | Fixed eligible voters when vote opens. |
+| `vote_result_snapshots` | Voting | Published aggregate result. |
+| `contact_abuse_cases` | Contact | Operator review of spam reports and sanctions. |
+| `rate_limit_events` | Contact / Security | Detect repeated/similar automated requests. |
+
+## 7. High-Risk Gaps
+
+| ID | Gap | Affected Question |
+| --- | --- | --- |
+| GAP-AUTH-001 | Auth hook function exists, but dashboard hook connection is not documented as verified. | `Q-AUTH-003` |
+| GAP-AUTH-002 | Login ID password sign-in may resolve non-active accounts. | `Q-AUTH-004` |
+| GAP-STATUS-001 | Frontend member statuses and DB status constraints can drift. | `Q-AUTH-002` |
+| GAP-AUTHZ-001 | `current_user_is_project_team_lead` grants lead-like power to maintainer/delegation. | `Q-AUTHZ-001` |
+| GAP-AUTHZ-002 | Broad `projects.manage`/`projects.read` can overreach private project scope. | `Q-AUTHZ-002`, `Q-PROJECT-001` |
+| GAP-AUDIT-001 | Active members can insert audit logs or call audit RPC. | `Q-AUDIT-001` |
+| GAP-AUDIT-002 | Audit payload redaction is not enforced. | `Q-AUDIT-002` |
+| GAP-INVITE-001 | Invitation redemption lacks atomic command and history. | `Q-INVITE-001`, `Q-INVITE-002` |
+| GAP-VOTE-001 | Vote ballot insert lacks command-level eligibility/status/max-choice checks. | `Q-VOTE-001`, `Q-VOTE-002` |
+| GAP-CONTACT-001 | Contact request update can bypass lifecycle. | `Q-CONTACT-001` |
+
+## 8. Security Design Rule
+
+Direct table updates are allowed only for low-risk profile/content edits.
+
+Use command RPCs for:
+
+- Approval
+- Rejection
+- Invitation redemption
+- Project membership changes
+- Role transfer
+- Temporary delegation
+- Contact request lifecycle
+- Vote lifecycle and ballot submission
+- Audit creation
+- Private visibility changes
+- Any operation that has audit, notification, or retention side effects

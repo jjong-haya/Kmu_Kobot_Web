@@ -1,174 +1,286 @@
-# 05. 기능 명세서
+# 05. Functional Specification Ledger
 
-## 1. 범위
+## 1. Purpose
 
-### 1.1 1차 목표
+This file is the cumulative DDD Step 10-11 functional ledger.
 
-KOBOT Web 1차 목표는 국민대 Google 계정으로 로그인한 사용자가 가입 요청서를 제출하고, 운영진 승인 후 Member Workspace에서 프로젝트/공지/자료/연락/투표의 기반 기능을 사용할 수 있는 상태를 만드는 것입니다.
+Each feature slice should reference the domain path in `02-domain-discovery.md`, commands in `03-event-storming.md`, data/RLS/RPC rules in `04-data-schema-and-security.md`, and active questions in `14-verification-question-ledger.md`.
 
-### 1.2 제외 또는 후순위
+## 2. Product Scope
 
-| 항목 | 이유 |
-| --- | --- |
-| GitHub App 실제 설치 자동화 | 별도 GitHub App 생성/권한/서버 함수 필요 |
-| 완전 암호학적 익명 투표 | DB 관리자에게도 익명인 구조는 2차 설계 필요 |
-| 이메일 발송 자동화 | 발신 주소/SMTP/학교 정책 확인 필요 |
-| 모든 mock 페이지 실데이터 연결 | 권한/스키마 안정화 후 순차 진행 |
+### 2.1 Public Showcase
 
-## 2. Auth & Onboarding 요구사항
+Public pages support presentation, portfolio, recruiting, and public information.
 
-### 2.1 사용자 스토리
+Acceptance:
 
-| ID | 스토리 | Acceptance Criteria |
-| --- | --- | --- |
-| AUTH-001 | 사용자는 국민대 Google 계정으로 최초 로그인한다 | Google OAuth 시작, `kookmin.ac.kr` 아닌 경우 제한 안내 |
-| AUTH-002 | 링크로 들어온 사용자는 로그인 후 원래 의도로 돌아간다 | `next` path 보존, callback 후 안전 경로로 이동 |
-| AUTH-003 | 신규 사용자는 가입 요청서를 작성한다 | `/member/join`에서 실명 자동 입력, 닉네임/ID/필수정보 입력 |
-| AUTH-004 | 가입 요청 제출 후 승인 대기 화면을 본다 | `/member/pending`에는 ID 생성/프로필 설정 CTA 없음 |
-| AUTH-005 | active 사용자는 워크스페이스로 간다 | `/member` 접근 허용 |
+- Guests can understand what KOBOT is without logging in.
+- Public project pages show only approved and public-safe project information.
+- Public recruit/contact flows do not accidentally become member join/contact-request flows.
+- Past recruitment dates are not shown as active deadlines.
 
-### 2.2 Negative Cases
+Active questions:
 
-| 케이스 | 기대 동작 |
-| --- | --- |
-| OAuth 취소 | raw error 대신 다시 로그인/문의 CTA |
-| localhost 시작 후 production callback | PKCE 설명을 사용자에게 노출하지 않고 재로그인 안내 |
-| pending 사용자가 `/member/profile` 직접 접근 | `/member/join` 또는 `/member/pending`으로 이동 |
-| suspended/rejected 사용자 | 상태 안내와 문의만 표시 |
+- `Q-PUBLIC-001`
+- `Q-PUBLIC-002`
+- `Q-CONTACT-003`
 
-## 3. Member Approval 요구사항
+### 2.2 Member Workspace
 
-### 3.1 기능
+Member workspace is the logged-in operational surface for active KOBOT members.
 
-| 기능 | 요구사항 |
-| --- | --- |
-| 가입자 목록 | 회장/부회장/공식 팀장이 범위에 따라 볼 수 있음 |
-| 승인/반려 | 누가, 언제, 어떤 자격으로 처리했는지 감사 로그 |
-| 참여 코드 | 미승인자가 코드 입력 시 코봇 멤버 또는 프로젝트 참여로 전환 |
-| 상태 변경 | pending/active/suspended/rejected/alumni/withdrawn/project_only 검토 |
+Acceptance:
 
-## 4. Project 요구사항
+- Active members can access workspace pages by capability.
+- Pending applicants see join/pending guidance, not full workspace.
+- Project-only participants do not gain full workspace access until their route model exists.
+- Sidebar/menu labels follow the canonical DDD terms.
 
-### 4.1 프로젝트 생성
+Active questions:
 
-| 요구사항 | 설명 |
-| --- | --- |
-| 팀 생성 자유 | 모든 active member 가능 |
-| 공식 팀 기반/개인 자율 선택 | 태그 색/표시로 구분 |
-| 승인 필요 | 공식 팀장/회장/부회장 정책 범위 |
-| 사전 팀원 모집 | 승인 전에도 참여 예정자 표시 가능 |
-| 승인 전 공개 | 전체 목록 미노출, 공유 페이지 접근 가능 |
+- `Q-AUTH-002`
+- `Q-AUTH-005`
+- `Q-DASH-001`
+- `Q-DASH-002`
+- `Q-UX-002`
 
-### 4.2 프로젝트 접근
+## 3. Identity And Access
 
-| 사용자 | 볼 수 있는 정보 |
-| --- | --- |
-| Guest | 공개 허용된 모집 페이지만 |
-| Login User | 로그인 필요 프로젝트 모집 페이지 |
-| Applicant | README/소개서/신청 상태 |
-| Project Member | 내부 자료/팀원 목록/일정 |
-| Project Lead | 참여 승인/초대/프로젝트 운영 |
-| Official Team Lead | 승인/검토 범위 정보 |
-| President/Vice | 전체 운영 정보 |
+### 3.1 Google First Login
 
-## 5. Invitation 요구사항
+User story:
 
-### 5.1 코드/링크 종류
+As a new user, I sign in first through Google so KOBOT can verify my school identity.
 
-| 종류 | 효과 | 기본 기한 |
-| --- | --- | --- |
-| KOBOT 멤버 인증 코드 | 코봇 활동 부원 전환 | 5일 |
-| 공식 팀 초대 | 공식 팀 소속 부여 | 5일 |
-| 프로젝트 참여 코드 | 특정 프로젝트 참여 | 5일 |
+Acceptance:
 
-### 5.2 Acceptance Criteria
+- Google OAuth is the primary first-login path.
+- OAuth request preserves safe `next` path.
+- Raw OAuth/Supabase errors are hidden from the user.
+- Non-school accounts see restricted guidance, not internal pages.
+- Supabase Auth Hook connection is verified before release.
 
-- 동일 코드 동시 사용 시 `max_uses`를 넘지 않는다.
-- 코드 사용은 감사 로그와 알림을 남긴다.
-- 프로젝트 코드는 코봇 정식 부원 권한을 주지 않는다.
+Negative cases:
 
-## 6. GitHub README 요구사항
+- OAuth cancellation shows retry/home actions.
+- Localhost callback mismatch shows safe retry guidance.
+- Non-school account does not create persistent member data unless explicitly allowed.
 
-### 6.1 1차 정책
+Active questions:
 
-| 항목 | 정책 |
-| --- | --- |
-| Organization | `Kmu-Kobot` 우선 |
-| 저장소 필수 여부 | 필수 아님 |
-| private repo | GitHub App/서버 조회 필요 |
-| 표시 방식 | 내부 소개서, GitHub README, 최신 날짜 자동 중 선택 |
-| 변경 요청 | 팀원이 요청, 프로젝트 팀장이 승인 |
-| 실패 fallback | 마지막 성공 snapshot, 없으면 내부 소개서 |
+- `Q-AUTH-003`
 
-## 7. Contact Request 요구사항
+### 3.2 Login ID Credential
 
-### 7.1 흐름
+User story:
 
-1. 요청자가 연락 사유와 자신이 공개 가능한 연락처를 첨부한다.
-2. 수신자는 수락/거절/대기 중 선택한다.
-3. 수락 시 수신자가 어떤 연락처를 넘길지 선택한다.
-4. 3일 미응답이면 자동 거절되고 사유는 `미응답`이다.
-5. 스팸 신고는 회장/부회장이 검토하고 경고/정지/제한 조치를 한다.
+As a member, I can create an ID/password login after school Google verification so later login is faster.
 
-### 7.2 자동화 방지
+Acceptance:
 
-- 짧은 시간 반복 요청 시 확인창 표시.
-- 서버 rate limit으로 API 직접 호출도 제한.
-- 동일/유사 내용 반복 탐지.
-- 제한 이벤트는 감사 로그에 기록.
+- Login ID is optional until created.
+- Login ID uses lowercase letters and numbers only.
+- Duplicate login ID is checked at field level and again before saving.
+- Anonymous users cannot enumerate login IDs.
+- ID/password login policy for pending/suspended/alumni users is explicitly decided.
 
-## 8. Voting 요구사항
+Active questions:
 
-### 8.1 회장 선거
+- `Q-AUTH-004`
+- `R-ID-001`
 
-| 항목 | 정책 |
-| --- | --- |
-| 임시회장 | 기존 정책에 따라 지정 |
-| 후보 모집 | 14일 동안 가능 |
-| 투표 오픈 | 15일째 |
-| 투표 기간 | 3일 |
-| 단일 후보 | 찬성/반대 |
-| 결과 공개 | 종료 후 공개 |
-| 당선자 수락 | 필요 |
-| 미수락/거절 | 재투표 |
+## 4. Member Registry And Profile
 
-### 8.2 일반 안건 투표
+### 4.1 Join Request
 
-- 참여자 범위 선택 가능.
-- 익명 여부 선택 가능.
-- 결과 공개 시점 선택 가능.
-- 투표 오픈 전에는 수정 가능, 오픈 후 수정 불가.
+User story:
 
-## 9. Acceptance Test 초안
+As a school Google user, I complete the join request information and wait for operator approval.
 
-### 9.1 Join/Pending
+Acceptance:
 
-```text
-Given pending 사용자가 가입 정보 미완성이다
-When /member/profile에 접근한다
-Then /member/join으로 이동한다
-```
+- Required fields are clear and field-level validation scrolls to the failing input.
+- Join profile draft and submitted join request are not confused.
+- Pending users cannot create projects, browse private data, vote, or contact members.
+- Approval/rejection is audited.
 
-### 9.2 Delegation Scope
+Required fields:
 
-```text
-Given 사용자가 review_join_requests scope만 위임받았다
-When GitHub 저장소 변경을 시도한다
-Then 거부된다
-```
+- Full name
+- Nickname
+- Student ID
+- Phone number
+- College
+- Department
+- Club affiliation policy pending final decision
 
-### 9.3 Invitation Race
+Active questions:
 
-```text
-Given max_uses=1 초대 코드가 있다
-When 두 사용자가 동시에 사용한다
-Then 한 명만 성공한다
-```
+- `Q-AUTH-001`
+- `Q-PROFILE-003`
 
-### 9.4 Anonymous Vote
+### 4.2 Profile Identity
 
-```text
-Given 익명 투표가 종료되었다
-When 운영진이 결과를 본다
-Then 집계 결과만 보이고 개별 선택은 보이지 않는다
-```
+Acceptance:
+
+- Internal project rosters prioritize real name with nickname.
+- Public contribution display defaults to anonymous unless user chooses otherwise.
+- Nickname does not allow `_` input; spaces are displayed as spaces and stored in slug form.
+- Nickname changes are rate-limited.
+- Hidden previous nickname policy is enforced by read model/RLS.
+
+Active questions:
+
+- `Q-PROFILE-001`
+- `Q-PROFILE-002`
+- `Q-PROFILE-004`
+
+## 5. Authority And Capability
+
+Acceptance:
+
+- President, vice president, official team lead, project lead, project operator, and temporary delegate are separate concepts.
+- Capability checks include status, source, scope, expiry, and command.
+- Project lead does not see global admin menus by default.
+- Temporary delegation lasts at most 7 days and cannot transfer lead authority.
+- Role transfer is request/accept/apply, not a direct table update.
+
+Active questions:
+
+- `Q-AUTHZ-001`
+- `Q-AUTHZ-002`
+
+## 6. Project Workspace
+
+### 6.1 Project Creation
+
+Acceptance:
+
+- Active members can request project creation.
+- Request can be official-team-based or autonomous/personal.
+- Approved projects appear in project catalog based on visibility.
+- Pending/rejected projects do not appear as approved projects.
+- Approver identity and authority source are audited.
+
+Active questions:
+
+- `Q-PROJECT-002`
+- `Q-PROJECT-003`
+
+### 6.2 Project Visibility And Internal Materials
+
+Acceptance:
+
+- Public users can only see public-approved intro/recruitment information.
+- Applicants can see intro/README, not internal materials.
+- Project members see roster/internal materials according to project membership.
+- Official team leads only see the private information their approval/review role requires.
+
+Active questions:
+
+- `Q-PROJECT-001`
+
+## 7. Invitation And Recruitment
+
+Acceptance:
+
+- Invite codes and links can target member activation, official team, or project team.
+- Default expiry is 5 days unless overridden by policy.
+- Redeeming a valid code immediately applies the target membership/participation effect and notifies the relevant lead.
+- Failed/expired/replayed redemptions are safely handled without exposing raw code.
+
+Active questions:
+
+- `Q-INVITE-001`
+- `Q-INVITE-002`
+
+## 8. GitHub README Integration
+
+Acceptance:
+
+- Project lead can connect a GitHub repository later.
+- Private repositories must be accessed server-side through GitHub App authorization.
+- KOBOT shows README/project intro without exposing repository internals.
+- Project lead chooses display source policy; members can request changes.
+- Sync failure falls back to last valid snapshot or internal intro.
+
+Active questions:
+
+- `Q-GITHUB-001`
+- `Q-GITHUB-002`
+
+## 9. Communication And Contact
+
+### 9.1 Contact Request
+
+Acceptance:
+
+- Requester sends reason and available contact payload.
+- Recipient chooses accept, reject, or report.
+- If accepted, recipient chooses which contact payload to disclose.
+- Pending requests auto-reject after 3 days with reason `No response`.
+- Repeated/similar automated requests are blocked server-side, not just by confirmation modal.
+
+Active questions:
+
+- `Q-CONTACT-001`
+- `Q-CONTACT-002`
+- `Q-CONTACT-004`
+
+### 9.2 Announcements / Q&A
+
+Acceptance:
+
+- Public notices and internal announcements have explicit visibility.
+- Q&A write/read/answer permissions are scoped.
+- Developer placeholder copy is not shown in production.
+
+Active questions:
+
+- `Q-NOTICE-001`
+- `Q-UX-001`
+
+## 10. Voting And Governance
+
+Acceptance:
+
+- Votes are draft before opening and immutable after opening except allowed cancellation/close commands.
+- Eligibility is snapshotted when vote opens.
+- Single-candidate president election uses yes/no.
+- If winner rejects, rerun vote rather than automatically offering next candidate.
+- Anonymous vote explains exactly who can or cannot see individual choices.
+
+Active questions:
+
+- `Q-VOTE-001`
+- `Q-VOTE-002`
+
+## 11. Audit, Notification, Retention
+
+Acceptance:
+
+- Important commands create audit logs with actor, target, authority source/scope, and redacted payload.
+- Normal active members cannot forge audit logs.
+- Notifications are generated by domain events.
+- Personal operational data defaults to 1-year retention unless product/legal policy says otherwise.
+
+Active questions:
+
+- `Q-AUDIT-001`
+- `Q-AUDIT-002`
+- `Q-LEGAL-001`
+
+## 12. Supporting Domains
+
+Study, resources, equipment, events, office hours, attendance, roadmap, retrospective, changelog, forms, and integrations are supporting domains.
+
+Acceptance:
+
+- They remain UI placeholders until each domain gets its own DDD slice.
+- No production UI should display developer-state wording such as `mock` or `DB 연결 전`.
+- When implemented, each must define ownership, visibility, status machine, commands, audit, and retention.
+
+Active questions:
+
+- `Q-SUPPORT-001`
+- `Q-UX-001`

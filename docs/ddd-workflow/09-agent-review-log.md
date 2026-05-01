@@ -135,3 +135,52 @@ The DDD loop is allowed to close only when all of these are true:
 The workflow-foundation loop can close for the skill update itself because the skill now encodes the restart rule, 3-reviewer rule, disagreement register, unresolved-question checklist, approved-assumption list, and closure decision artifact.
 
 Feature-specific loops do not inherit closure automatically. Each feature slice must run the loop again from Step 1.
+
+## 7. 2026-05-01 Review: Full Project DDD Restart
+
+### 7.1 Sub-Agent Reviewer Summary
+
+| Reviewer | Role | Scope | Approval Status | Key Findings |
+| --- | --- | --- | --- | --- |
+| Popper | Domain Reviewer | Domain tree, ubiquitous language, bounded contexts | needs-rework-before-feature-implementation | Domain split is correct, but active questions must track join submission, status mismatch, public attribution default, project approval authority, vote anonymity, invitation multi-use, and audit payload policy. |
+| Carver | Implementation / Data Security Reviewer | Supabase migrations, RLS/RPC, auth code, audit/security docs | needs-rework-before-feature-implementation | Current data model has P0 gaps: auth hook verification, non-active ID login resolution, broad project helpers, overbroad private project read, direct audit inserts, invitation/vote/contact direct table lifecycle gaps. |
+| Mill | UX / Product Reviewer | Routes, layouts, pages, copy, dashboard, member workspace UX | approved-with-ux-questions | Screen-domain map is clear, but dashboard MVP, project-only routes, public recruit vs join request, stale public dates, developer-state copy, and permission terminology must be resolved. |
+
+### 7.2 Integrated Domain Decision
+
+The project now uses cumulative ledgers:
+
+- `02-domain-discovery.md`: stable domain tree, terms, aggregates, invariants.
+- `03-event-storming.md`: cumulative command/event/policy/read-model map.
+- `04-data-schema-and-security.md`: current DB model, security boundaries, required RPC/RLS gaps.
+- `14-verification-question-ledger.md`: active verification queue.
+
+The DDD loop does not close for feature implementation yet. It closes only for this documentation restructuring pass.
+
+### 7.3 New Active Questions Added
+
+| Source | Question IDs Added |
+| --- | --- |
+| Popper | `Q-AUTH-001`, `Q-AUTH-002`, `Q-PROFILE-001`, `Q-AUTHZ-001`, `Q-PROJECT-001`, `Q-INVITE-001`, `Q-VOTE-001`, `Q-AUDIT-002` |
+| Carver | `Q-AUTH-003`, `Q-AUTH-004`, `Q-PROFILE-004`, `Q-AUDIT-001`, `Q-VOTE-002`, `Q-CONTACT-001` |
+| Mill | `Q-DASH-001`, `Q-DASH-002`, `Q-AUTH-005`, `Q-PUBLIC-001`, `Q-PUBLIC-002`, `Q-UX-001`, `Q-UX-002`, `Q-CONTACT-004` |
+
+### 7.4 Disagreement Register
+
+| ID | Disagreement | Evidence | Impact | Classification | Decision | Risk Owner |
+| --- | --- | --- | --- | --- | --- | --- |
+| DDD-DIS-003 | Should feature implementation continue after this DDD pass? | Reviewers found active P0 questions. | Implementing state transitions now risks permission/privacy bugs. | needs-rework | Do documentation foundation only; feature code waits for relevant P0 question resolution. | Codex / Product owner |
+| DDD-DIS-004 | Should all supporting pages get full DB design now? | UX review lists many placeholder domains. | Over-designing all pages slows P0 security fixes. | accepted | Treat support domains as known tree nodes but defer implementation until selected. | Codex |
+| DDD-DIS-005 | Should working specs be Korean or English? | User said working docs can be English if Korean summary exists. | Prevents encoding/context issues while keeping user-readable summary. | accepted | Working specs in English; `SUMMARY-ko.md` in Korean. | Codex |
+
+### 7.5 Closure Decision
+
+This DDD documentation restart can close because:
+
+- The full domain tree is now cumulative in `02-domain-discovery.md`.
+- Ubiquitous language and banned ambiguous terms are recorded.
+- Event-storming, data/security, functional, UX, and implementation ledgers were rebuilt around the domain tree.
+- Active questions were moved into `14-verification-question-ledger.md` rather than hidden.
+- Three independent sub-agent perspectives were integrated.
+
+Feature implementation cannot close yet. Any feature slice must pull its active questions from `14-verification-question-ledger.md`, answer them, and restart the loop from Step 1 for the affected domain path.

@@ -24,6 +24,7 @@ These files are primarily for AI agents and developers, so the working language 
 | 11 | `11-harness-engineering.md` | Windows, encoding, shell, deployment harness rules |
 | 12 | `12-supabase-migration-plan.md` | Supabase migration strategy |
 | 13 | `13-domain-risk-review-2026-05-01.md` | Working risk review for the current domain slice |
+| 14 | `14-verification-question-ledger.md` | Active verification question queue and resolved archive |
 | KO | `SUMMARY-ko.md` | Korean human-readable summary |
 
 ## 3. Working Rule
@@ -80,3 +81,17 @@ Minimum closure reviewer roles:
 Do not mix Korean summary prose into working specs unless the text is user-facing product copy.
 
 Use `SUMMARY-ko.md` for user-readable status, decisions, and next actions.
+
+## 6. Cumulative Versus Per-Run Artifacts
+
+Some DDD artifacts should grow over time. Do not rebuild them from zero unless the project direction changes.
+
+| Artifact Type | File | Update Rule |
+| --- | --- | --- |
+| Cumulative domain tree | `02-domain-discovery.md` | Add domains, terms, aggregates, value objects, and invariants as they are discovered. |
+| Cumulative event map | `03-event-storming.md` | Add commands/events/policies/read models under the owning domain. |
+| Cumulative data/security map | `04-data-schema-and-security.md` | Add tables, RLS/RPC rules, audit/privacy constraints, and known gaps. |
+| Active verification queue | `14-verification-question-ledger.md` | Keep active questions until answered, approved as assumptions, or converted to tasks. |
+| Per-run review evidence | `09-agent-review-log.md`, `10-verification-and-release.md` | Append review results and closure decisions for each significant DDD pass. |
+
+When a new domain appears during design or implementation, add it to the tree first, then add its questions to the active queue.
