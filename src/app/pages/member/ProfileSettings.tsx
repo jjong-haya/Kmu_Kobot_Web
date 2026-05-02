@@ -41,6 +41,7 @@ const NICKNAME_DISPLAY_PATTERN = /^[\uAC00-\uD7A3A-Za-z0-9 ]{2,12}$/u;
 const NICKNAME_SPECIAL_CHARACTER_PATTERN = /[^\uAC00-\uD7A3A-Za-z0-9 ]/u;
 const LOGIN_ID_ALLOWED_PATTERN = /^[a-z0-9]*$/;
 const LOGIN_ID_PATTERN = /^[a-z0-9]{4,20}$/;
+const INVITATION_CLUB_LOCK_VALUES = new Set(["1", "true", "yes", "y", "locked"]);
 
 type FieldKey =
   | "nicknameDisplay"
@@ -87,6 +88,38 @@ function formatPhoneNumber(value: string) {
 
 function normalizeLoginIdInput(value: string) {
   return value.normalize("NFKC").replace(/[A-Z]/g, (character) => character.toLowerCase());
+}
+
+function normalizeClubAffiliationInput(value: string | null | undefined) {
+  const normalized = value?.normalize("NFKC").trim().replace(/\s+/g, " ");
+
+  return normalized || null;
+}
+
+function getInvitationClubAffiliation(searchParams: URLSearchParams) {
+  const clubAffiliation = normalizeClubAffiliationInput(
+    searchParams.get("clubAffiliation") ??
+      searchParams.get("club") ??
+      searchParams.get("affiliation"),
+  );
+
+  if (!clubAffiliation) {
+    return null;
+  }
+
+  const lockValue = (
+    searchParams.get("lockClubAffiliation") ??
+    searchParams.get("lockClub") ??
+    searchParams.get("clubLocked") ??
+    ""
+  )
+    .trim()
+    .toLowerCase();
+
+  return {
+    clubAffiliation,
+    locked: INVITATION_CLUB_LOCK_VALUES.has(lockValue),
+  };
 }
 
 function getSafeProfileError(error: unknown) {
@@ -274,7 +307,14 @@ export default function ProfileSettings() {
     passwordConfirm.length > 0 && password !== passwordConfirm;
   const isJoinRequest = memberStatus === "pending" || memberStatus === null;
   const isJoinRoute = location.pathname === "/member/join";
-  const safeNextPath = getSafeInternalPath(new URLSearchParams(location.search).get("next"));
+  const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const safeNextPath = getSafeInternalPath(searchParams.get("next"));
+  const invitationClubAffiliation = useMemo(
+    () => getInvitationClubAffiliation(searchParams),
+    [searchParams],
+  );
+  const shouldShowClubAffiliation = Boolean(invitationClubAffiliation);
+  const isClubAffiliationLocked = invitationClubAffiliation?.locked ?? false;
   const isLoginIdLocked = !isJoinRequest && Boolean(authData.profile.loginId);
   const selectedCollege = findCollege(college);
   const departmentOptions =
@@ -311,7 +351,9 @@ export default function ProfileSettings() {
     setPhone(formatPhoneNumber(authData.profile.phone ?? ""));
     setCollege(nextCollege);
     setDepartment(normalizeDepartmentName(nextCollege, nextDepartmentSource));
-    setClubAffiliation(authData.profile.clubAffiliation ?? "");
+    setClubAffiliation(
+      invitationClubAffiliation?.clubAffiliation ?? authData.profile.clubAffiliation ?? "",
+    );
     setLoginId(authData.profile.loginId ?? "");
   }, [
     authData.profile.clubAffiliation,
@@ -323,6 +365,7 @@ export default function ProfileSettings() {
     authData.profile.nicknameDisplay,
     authData.profile.phone,
     authData.profile.studentId,
+    invitationClubAffiliation?.clubAffiliation,
   ]);
 
   useEffect(() => {
@@ -454,7 +497,6 @@ export default function ProfileSettings() {
       ["phone", phone.trim(), "전화번호를 입력해 주세요."],
       ["college", college.trim(), "단과대를 선택해 주세요."],
       ["department", department.trim(), "학과를 선택해 주세요."],
-      ["clubAffiliation", clubAffiliation.trim(), "동아리를 입력해 주세요."],
     ];
     const missingField = requiredFields.find(([, value]) => !value);
 
@@ -519,7 +561,9 @@ export default function ProfileSettings() {
         phone,
         college,
         department,
-        clubAffiliation: clubAffiliation.trim(),
+        clubAffiliation: shouldShowClubAffiliation
+          ? normalizeClubAffiliationInput(clubAffiliation)
+          : authData.profile.clubAffiliation,
         publicCreditNameMode: isJoinRequest
           ? "anonymous"
           : (authData.profile.publicCreditNameMode ?? "anonymous"),
@@ -722,28 +766,33 @@ export default function ProfileSettings() {
               ) : null}
             </FieldShell>
 
-            <FieldShell htmlFor="club-affiliation" label="동아리" required>
-              <div className="relative">
-                <ShieldCheck className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <Input
-                  id="club-affiliation"
-                  aria-invalid={Boolean(fieldErrors.clubAffiliation)}
-                  className={cn(
-                    "pl-10",
-                    inputStateClass("clubAffiliation", Boolean(fieldErrors.clubAffiliation)),
-                  )}
-                  placeholder="KOBOT"
-                  value={clubAffiliation}
-                  onChange={(event) => {
-                    setClubAffiliation(event.target.value);
-                    clearFieldError("clubAffiliation");
-                  }}
-                />
-              </div>
-              {fieldErrors.clubAffiliation ? (
-                <p className="text-xs font-medium text-red-600">{fieldErrors.clubAffiliation}</p>
-              ) : null}
-            </FieldShell>
+            {shouldShowClubAffiliation ? (
+              <FieldShell htmlFor="club-affiliation" label="초대 소속">
+                <div className="relative">
+                  <ShieldCheck className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <Input
+                    id="club-affiliation"
+                    aria-invalid={Boolean(fieldErrors.clubAffiliation)}
+                    className={cn(
+                      "pl-10 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500",
+                      inputStateClass("clubAffiliation", Boolean(fieldErrors.clubAffiliation)),
+                    )}
+                    disabled={isClubAffiliationLocked}
+                    value={clubAffiliation}
+                    onChange={(event) => {
+                      setClubAffiliation(event.target.value);
+                      clearFieldError("clubAffiliation");
+                    }}
+                  />
+                </div>
+                {isClubAffiliationLocked ? (
+                  <p className="text-xs font-medium text-slate-500">초대 링크로 고정된 소속입니다.</p>
+                ) : null}
+                {fieldErrors.clubAffiliation ? (
+                  <p className="text-xs font-medium text-red-600">{fieldErrors.clubAffiliation}</p>
+                ) : null}
+              </FieldShell>
+            ) : null}
           </div>
         </FormSection>
 

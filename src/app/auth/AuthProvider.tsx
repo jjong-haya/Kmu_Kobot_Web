@@ -784,7 +784,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     const phone = requireTrimmed(input.phone, "전화번호");
     const college = requireTrimmed(input.college, "단과대");
     const department = requireTrimmed(input.department, "학과");
-    const clubAffiliation = requireTrimmed(input.clubAffiliation ?? "", "동아리");
+    const clubAffiliation = normalizeString(input.clubAffiliation);
     const publicCreditNameMode = normalizePublicCreditNameMode(input.publicCreditNameMode);
     const techTags = normalizeTechTags(input.techTags);
     const normalizedLoginId = input.loginId?.trim().toLowerCase() || null;
@@ -866,27 +866,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
       throw new Error(safeMessage);
     }
 
-    if (password || nicknameDisplay || fullName) {
-      const updatePayload: {
-        password?: string;
-        data?: Record<string, string>;
-      } = {};
-
-      if (password) {
-        updatePayload.password = password;
-      }
-
-      const metadata: Record<string, string> = {
-        display_name: nicknameDisplay,
-        nickname_display: nicknameDisplay,
-        full_name: fullName,
-      };
-
-      if (Object.keys(metadata).length > 0) {
-        updatePayload.data = metadata;
-      }
-
-      const { error: authUpdateError } = await supabase.auth.updateUser(updatePayload);
+    if (password) {
+      const { error: authUpdateError } = await supabase.auth.updateUser({ password });
 
       if (authUpdateError) {
         throw new Error(

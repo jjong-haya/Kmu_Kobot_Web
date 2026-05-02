@@ -13,8 +13,7 @@ export function isJoinRequestComplete(authData: AuthorizationContextData) {
     hasText(profile.studentId) &&
     hasText(profile.phone) &&
     hasText(profile.college) &&
-    hasText(profile.department) &&
-    hasText(profile.clubAffiliation)
+    hasText(profile.department)
   );
 }
 
