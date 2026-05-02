@@ -25,6 +25,14 @@ import {
   SelectValue,
 } from "../../components/ui/select";
 import { cn } from "../../components/ui/utils";
+import {
+  KOOKMIN_COLLEGES,
+  findCollege,
+  findCollegeByDepartment,
+  inferAcademicPlacementFromProfileName,
+  normalizeCollegeName,
+  normalizeDepartmentName,
+} from "../../auth/kookminAcademic";
 import { useAuth } from "../../auth/useAuth";
 import type { MemberStatus } from "../../auth/types";
 import { getSafeInternalPath, withNextPath } from "../../auth/redirects";
@@ -59,148 +67,8 @@ const FIELD_ELEMENT_IDS: Record<FieldKey, string> = {
   passwordConfirm: "confirm-password",
 };
 
-interface CollegeOption {
-  label: string;
-  aliases: string[];
-  departments: string[];
-}
-
-const KOOKMIN_COLLEGES: CollegeOption[] = [
-  {
-    label: "글로벌인문·지역대학",
-    aliases: ["글인대", "인문대", "글로벌인문지역대학"],
-    departments: [
-      "한국어문학부",
-      "글로벌한국어전공",
-      "영어영문학부",
-      "영미어문전공",
-      "중국학부",
-      "중국어문전공",
-      "한국역사학과",
-    ],
-  },
-  {
-    label: "사회과학대학",
-    aliases: ["사과대", "사회대"],
-    departments: [
-      "행정학과",
-      "정치외교학과",
-      "사회학과",
-      "미디어·광고학부",
-      "미디어전공",
-      "광고홍보학전공",
-      "교육학과",
-    ],
-  },
-  {
-    label: "법과대학",
-    aliases: ["법대"],
-    departments: ["법학부", "법학전공"],
-  },
-  {
-    label: "경상대학",
-    aliases: ["경상대"],
-    departments: ["경제학과", "국제통상학과"],
-  },
-  {
-    label: "경영대학",
-    aliases: ["경영대"],
-    departments: ["경영학부", "경영학전공", "경영정보학부", "AI빅데이터융합경영학과"],
-  },
-  {
-    label: "창의공과대학",
-    aliases: ["공대", "창공대", "공과대학"],
-    departments: [
-      "신소재공학부",
-      "기계공학부",
-      "건설시스템공학부",
-      "전자공학부",
-      "지능전자공학전공",
-      "전자시스템공학전공",
-    ],
-  },
-  {
-    label: "자동차융합대학",
-    aliases: ["자융대", "자동차대"],
-    departments: ["자동차공학과", "자동차IT융합학과", "미래자동차학부"],
-  },
-  {
-    label: "소프트웨어융합대학",
-    aliases: ["소융대", "소프트웨어대학", "소프트웨어융합대", "SW융합대학"],
-    departments: ["소프트웨어학부", "소프트웨어전공", "인공지능학부", "인공지능전공"],
-  },
-  {
-    label: "과학기술대학",
-    aliases: ["과기대", "과학기술대"],
-    departments: [
-      "산림환경시스템학과",
-      "임산생명공학과",
-      "나노전자물리학과",
-      "응용화학부",
-      "나노소재전공",
-      "바이오의약전공",
-      "식품영양학과",
-      "정보보안암호수학과",
-      "바이오발효융합학과",
-      "융합바이오공학과",
-    ],
-  },
-  {
-    label: "건축대학",
-    aliases: ["건축대"],
-    departments: ["건축학부", "건축설계전공", "건축시스템전공"],
-  },
-  {
-    label: "조형대학",
-    aliases: ["조형대", "디자인대"],
-    departments: [
-      "공업디자인학과",
-      "시각디자인학과",
-      "금속공예학과",
-      "도자공예학과",
-      "의상디자인학과",
-      "공간디자인학과",
-      "영상디자인학과",
-      "자동차·운송디자인학과",
-      "AI디자인학과",
-    ],
-  },
-  {
-    label: "예술대학",
-    aliases: ["예대"],
-    departments: [
-      "음악학부",
-      "성악전공",
-      "피아노전공",
-      "관현악전공",
-      "작곡전공",
-      "미술학부",
-      "회화전공",
-      "입체미술전공",
-      "공연예술학부",
-      "연극전공",
-      "영화전공",
-      "무용전공",
-    ],
-  },
-  {
-    label: "체육대학",
-    aliases: ["체대"],
-    departments: ["스포츠교육학과", "스포츠산업레저학과", "스포츠건강재활학과"],
-  },
-  {
-    label: "미래융합대학",
-    aliases: ["미융대", "미래융합대"],
-    departments: ["인문기술융합학부", "자유전공", "미래융합전공"],
-  },
-];
-
 function normalizeNicknameDisplay(value: string) {
   return value.normalize("NFKC").trim().replace(/\s+/g, " ");
-}
-
-function normalizeLookupText(value: string) {
-  return value.normalize("NFKC").toLocaleLowerCase("ko-KR").replace(/\s+/g, "");
 }
 
 function formatPhoneNumber(value: string) {
@@ -217,51 +85,8 @@ function formatPhoneNumber(value: string) {
   return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
 }
 
-function findCollege(value: string | null | undefined) {
-  if (!value) {
-    return null;
-  }
-
-  const normalizedValue = normalizeLookupText(value);
-
-  return (
-    KOOKMIN_COLLEGES.find((college) => {
-      const searchableValues = [college.label, ...college.aliases];
-
-      return searchableValues.some((candidate) => normalizeLookupText(candidate) === normalizedValue);
-    }) ?? null
-  );
-}
-
-function normalizeCollegeName(value: string | null | undefined) {
-  return findCollege(value)?.label ?? "";
-}
-
-function normalizeDepartmentName(collegeLabel: string, departmentValue: string | null | undefined) {
-  if (!departmentValue) {
-    return "";
-  }
-
-  const college = findCollege(collegeLabel);
-  const normalizedDepartment = normalizeLookupText(departmentValue);
-
-  return (
-    college?.departments.find(
-      (department) => normalizeLookupText(department) === normalizedDepartment,
-    ) ?? ""
-  );
-}
-
 function normalizeLoginIdInput(value: string) {
   return value.normalize("NFKC").replace(/[A-Z]/g, (character) => character.toLowerCase());
-}
-
-function extractKookminRealName(value: string | null | undefined) {
-  if (!value) {
-    return "";
-  }
-
-  return value.replace(/\s*\([^)]*\)\s*$/u, "").trim();
 }
 
 function getSafeProfileError(error: unknown) {
@@ -376,20 +201,32 @@ function ProfileSelect({
       </SelectTrigger>
       <SelectContent
         align="start"
-        className="z-[80] max-h-72 w-[var(--radix-select-trigger-width)] rounded-2xl border-slate-200 p-1 shadow-xl"
+        className="z-[80] max-h-72 w-[var(--radix-select-trigger-width)] rounded-2xl border-[#D8E0F0] bg-[#FBFCFF] p-1.5 shadow-[0_18px_45px_rgba(15,23,42,0.10)]"
       >
         <SelectGroup>
           {options.map((option) => (
             <SelectItem
               key={option.label}
               value={option.label}
-              className="min-h-11 rounded-xl px-3 py-2.5"
+              className={cn(
+                "relative min-h-12 rounded-xl py-3 pl-4 pr-10 text-slate-700 transition-colors duration-150",
+                "before:absolute before:bottom-2.5 before:left-2 before:top-2.5 before:w-0.5 before:rounded-full before:bg-transparent before:transition-colors",
+                "hover:bg-[#F4F7FC] hover:text-slate-950",
+                "focus:bg-[#EEF3FF] focus:text-[#0F2B68]",
+                "data-[highlighted]:bg-[#EEF3FF] data-[highlighted]:text-[#0F2B68] data-[highlighted]:before:bg-[#9FB2DF]",
+                "data-[state=checked]:bg-[#E8EEFF] data-[state=checked]:text-[#103078] data-[state=checked]:before:bg-[#103078]",
+                "[&>span:first-child]:right-3 [&>span:first-child]:text-[#103078]",
+                "[&_[data-option-description]]:text-slate-500 data-[highlighted]:[&_[data-option-description]]:text-[#58709E] data-[state=checked]:[&_[data-option-description]]:text-[#4F67A2]",
+              )}
             >
               <span className="min-w-0">
                 <span className="block truncate font-semibold text-slate-900">{option.label}</span>
-                {option.description || option.aliases?.length ? (
-                  <span className="mt-0.5 block truncate text-xs text-slate-500">
-                    {option.description ?? option.aliases?.join(", ")}
+                {option.description ? (
+                  <span
+                    className="mt-0.5 block truncate text-xs transition-colors"
+                    data-option-description
+                  >
+                    {option.description}
                   </span>
                 ) : null}
               </span>
@@ -458,15 +295,22 @@ export default function ProfileSettings() {
   );
 
   useEffect(() => {
-    setNicknameDisplay(authData.profile.nicknameDisplay ?? "");
-    setFullName(
-      extractKookminRealName(authData.profile.fullName ?? authData.profile.displayName),
+    const inferredAcademic = inferAcademicPlacementFromProfileName(
+      authData.profile.fullName ?? authData.profile.displayName,
     );
+    const nextDepartmentSource = authData.profile.department ?? inferredAcademic.department;
+    const nextCollege =
+      normalizeCollegeName(authData.profile.college) ||
+      findCollegeByDepartment(nextDepartmentSource)?.label ||
+      inferredAcademic.college ||
+      "";
+
+    setNicknameDisplay(authData.profile.nicknameDisplay ?? "");
+    setFullName(inferredAcademic.fullName ?? "");
     setStudentId(authData.profile.studentId ?? "");
     setPhone(formatPhoneNumber(authData.profile.phone ?? ""));
-    const nextCollege = normalizeCollegeName(authData.profile.college);
     setCollege(nextCollege);
-    setDepartment(normalizeDepartmentName(nextCollege, authData.profile.department));
+    setDepartment(normalizeDepartmentName(nextCollege, nextDepartmentSource));
     setClubAffiliation(authData.profile.clubAffiliation ?? "");
     setLoginId(authData.profile.loginId ?? "");
   }, [
@@ -846,10 +690,6 @@ export default function ProfileSettings() {
                 value={college}
                 options={KOOKMIN_COLLEGES.map((collegeOption) => ({
                   label: collegeOption.label,
-                  aliases: collegeOption.aliases,
-                  description: collegeOption.aliases.length
-                    ? `검색어: ${collegeOption.aliases.join(", ")}`
-                    : undefined,
                 }))}
                 placeholder="단과대를 선택해 주세요"
                 invalid={Boolean(fieldErrors.college)}

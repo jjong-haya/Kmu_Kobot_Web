@@ -13,6 +13,10 @@ import {
   getSupabaseBrowserClient,
   isSupabaseConfigured,
 } from "./supabase";
+import {
+  findCollegeByDepartment,
+  inferAcademicPlacementFromProfileName,
+} from "./kookminAcademic";
 
 const LOGIN_ID_PATTERN = /^[a-z0-9]{4,20}$/;
 const NICKNAME_DISPLAY_PATTERN = /^[\uAC00-\uD7A3A-Za-z0-9 ]{2,12}$/u;
@@ -164,16 +168,6 @@ function createNicknameSlug(value: string) {
   return normalizeNicknameDisplay(value).toLocaleLowerCase("ko-KR").replace(/\s+/g, "_");
 }
 
-function extractKookminRealName(value: string | null | undefined) {
-  if (!value) {
-    return null;
-  }
-
-  const realName = value.replace(/\s*\([^)]*\)\s*$/u, "").trim();
-
-  return realName || null;
-}
-
 function normalizeTechTags(value: unknown) {
   const rawTags = Array.isArray(value)
     ? value
@@ -233,6 +227,10 @@ function normalizeAuthorizationContext(data: unknown): AuthorizationContextData 
   const nicknameDisplay = readProfileString(profile, "nicknameDisplay", "nickname_display");
   const displayName =
     nicknameDisplay ?? readProfileString(profile, "displayName", "display_name");
+  const rawFullName = readProfileString(profile, "fullName", "full_name");
+  const inferredAcademic = inferAcademicPlacementFromProfileName(rawFullName ?? displayName);
+  const profileDepartment = readProfileString(profile, "department", "department");
+  const profileCollege = readProfileString(profile, "college", "college");
 
   return {
     profile: {
@@ -241,11 +239,14 @@ function normalizeAuthorizationContext(data: unknown): AuthorizationContextData 
       displayName,
       nicknameDisplay,
       nicknameSlug: readProfileString(profile, "nicknameSlug", "nickname_slug"),
-      fullName: extractKookminRealName(readProfileString(profile, "fullName", "full_name")),
+      fullName: inferredAcademic.fullName ?? rawFullName,
       studentId: readProfileString(profile, "studentId", "student_id"),
       phone: readProfileString(profile, "phone", "phone"),
-      college: readProfileString(profile, "college", "college"),
-      department: readProfileString(profile, "department", "department"),
+      college:
+        profileCollege ??
+        findCollegeByDepartment(profileDepartment)?.label ??
+        inferredAcademic.college,
+      department: profileDepartment ?? inferredAcademic.department,
       clubAffiliation: readProfileString(
         profile,
         "clubAffiliation",
@@ -439,8 +440,8 @@ async function buildNonActiveAuthorizationFallback(
       nicknameDisplay: normalizeString(profileRecord.nickname_display),
       nicknameSlug: normalizeString(profileRecord.nickname_slug),
       fullName:
-        extractKookminRealName(normalizeString(profileRecord.full_name)) ??
-        extractKookminRealName(readUserMetadataString(user, "full_name", "name")),
+        normalizeString(profileRecord.full_name) ??
+        readUserMetadataString(user, "full_name", "name"),
       studentId: normalizeString(profileRecord.student_id),
       phone: normalizeString(profileRecord.phone),
       college: normalizeString(profileRecord.college),
@@ -493,7 +494,7 @@ async function buildSessionOnlyAuthorizationFallback(
       displayName,
       nicknameDisplay: null,
       nicknameSlug: null,
-      fullName: extractKookminRealName(readUserMetadataString(user, "full_name", "name")),
+      fullName: readUserMetadataString(user, "full_name", "name"),
       studentId: null,
       phone: null,
       college: null,
