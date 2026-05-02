@@ -1,5 +1,4 @@
 import {
-  BadgeCheck,
   Check,
   GraduationCap,
   IdCard,
@@ -12,7 +11,6 @@ import type { FormEvent, ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router";
 import { toast } from "sonner";
-import { Alert, AlertDescription, AlertTitle } from "../../components/ui/alert";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
@@ -631,16 +629,6 @@ export default function ProfileSettings() {
             </p>
           </div>
         </section>
-      )}
-
-      {!authData.account.hasLoginPassword && authData.profile.loginId && (
-        <Alert>
-          <BadgeCheck className="h-4 w-4" />
-          <AlertTitle>아이디는 있지만 비밀번호가 아직 없습니다</AlertTitle>
-          <AlertDescription>
-            현재 ID는 저장되어 있지만 비밀번호가 없어 아이디 로그인이 아직 동작하지 않습니다. 비밀번호를 함께 등록해 주세요.
-          </AlertDescription>
-        </Alert>
       )}
 
       <form
