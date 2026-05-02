@@ -1,92 +1,96 @@
 import {
   AlertCircle,
+  CheckCircle2,
   Clock3,
   LogOut,
   Mail,
   RefreshCw,
-  ShieldCheck,
 } from "lucide-react";
 import { useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router";
-import { Alert, AlertDescription, AlertTitle } from "../../components/ui/alert";
-import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "../../components/ui/card";
 import { useAuth } from "../../auth/useAuth";
 import type { MemberStatus } from "../../auth/types";
 import { getPostAuthMemberPath, isJoinRequestComplete } from "../../auth/onboarding";
 import { getSafeInternalPath, withNextPath } from "../../auth/redirects";
 
-const STATUS_COPY: Record<Exclude<MemberStatus, null>, {
-  badge: string;
-  title: string;
-  description: string;
-  tone: string;
-}> = {
-  pending: {
-    badge: "승인 대기",
-    title: "운영진 승인을 기다리고 있습니다",
-    description:
-      "Google 로그인은 완료됐지만 아직 KOBOT 내부 멤버 권한이 열리지 않았습니다. 회장, 부회장 또는 공식 팀장이 가입 정보를 확인한 뒤 승인합니다.",
-    tone: "border-amber-200 bg-amber-50 text-amber-700",
-  },
-  suspended: {
-    badge: "일시 제한",
-    title: "계정 사용이 일시 제한되었습니다",
-    description:
-      "현재 계정은 운영진 조치로 KOBOT 멤버 공간 접근이 제한되어 있습니다. 제한 사유와 해제 가능 여부는 운영진에게 문의해 주세요.",
-    tone: "border-red-200 bg-red-50 text-red-700",
-  },
-  rejected: {
-    badge: "승인 거절",
-    title: "가입 승인이 완료되지 않았습니다",
-    description:
-      "가입 대상 여부를 다시 확인해야 합니다. 입력한 계정이 맞는지 확인하고, 필요하면 운영진에게 재검토를 요청해 주세요.",
-    tone: "border-red-200 bg-red-50 text-red-700",
-  },
-  alumni: {
-    badge: "졸업/비활동",
-    title: "현재 계정은 alumni 상태입니다",
-    description:
-      "일부 기록 확인만 가능하거나 내부 기능 접근이 제한될 수 있습니다. 활동 상태 전환이 필요하면 운영진에게 요청해 주세요.",
-    tone: "border-slate-200 bg-slate-100 text-slate-700",
-  },
-  active: {
-    badge: "승인 완료",
-    title: "멤버 승인이 완료되었습니다",
-    description: "KOBOT 멤버 공간으로 이동합니다.",
-    tone: "border-emerald-200 bg-emerald-50 text-emerald-700",
-  },
-  project_only: {
-    badge: "프로젝트 참여",
-    title: "프로젝트 참여 계정입니다",
-    description:
-      "KOBOT 정회원 권한은 아니지만 승인된 프로젝트 범위 안에서 필요한 정보만 이용할 수 있습니다. 프로젝트 접근이 열리지 않았다면 프로젝트 팀장에게 문의해 주세요.",
-    tone: "border-blue-200 bg-blue-50 text-blue-700",
-  },
-  withdrawn: {
-    badge: "탈퇴 처리",
-    title: "탈퇴 처리된 계정입니다",
-    description:
-      "현재 계정은 활동이 종료되어 내부 기능 접근이 제한됩니다. 재가입이나 기록 확인이 필요하면 운영진에게 문의해 주세요.",
-    tone: "border-slate-200 bg-slate-100 text-slate-700",
-  },
-};
-
 const STATUS_LABELS: Record<Exclude<MemberStatus, null>, string> = {
   active: "승인 완료",
   pending: "승인 대기",
-  suspended: "일시 제한",
-  rejected: "승인 거절",
-  alumni: "졸업/비활동",
+  suspended: "이용 제한",
+  rejected: "승인 보류",
+  alumni: "비활동",
   project_only: "프로젝트 참여",
   withdrawn: "탈퇴 처리",
+};
+
+const STATUS_COPY: Record<
+  Exclude<MemberStatus, null>,
+  {
+    eyebrow: string;
+    title: string;
+    description: string;
+    note: string;
+    accentClassName: string;
+    icon: typeof AlertCircle;
+  }
+> = {
+  pending: {
+    eyebrow: "가입 요청 접수",
+    title: "승인 대기 중입니다",
+    description: "운영진이 가입 정보를 확인하면 KOBOT 멤버 공간이 열립니다.",
+    note: "승인 전에는 자료실, 장비 대여, 프로젝트, 투표 메뉴를 사용할 수 없습니다.",
+    accentClassName: "bg-[#103078]",
+    icon: Clock3,
+  },
+  suspended: {
+    eyebrow: "계정 확인 필요",
+    title: "이용이 잠시 제한되었습니다",
+    description: "계정 상태 확인이 필요합니다. 운영진 안내를 확인해 주세요.",
+    note: "제한 사유를 확인해야 한다면 kobot@kookmin.ac.kr로 문의해 주세요.",
+    accentClassName: "bg-red-500",
+    icon: AlertCircle,
+  },
+  rejected: {
+    eyebrow: "재확인 필요",
+    title: "가입 승인이 보류되었습니다",
+    description: "입력한 정보나 가입 대상 여부를 다시 확인해야 합니다.",
+    note: "재검토가 필요하면 운영진에게 문의해 주세요.",
+    accentClassName: "bg-red-500",
+    icon: AlertCircle,
+  },
+  alumni: {
+    eyebrow: "활동 상태",
+    title: "현재 비활동 계정입니다",
+    description: "내부 기능 접근이 제한되어 있습니다.",
+    note: "활동 상태 전환이 필요하면 운영진에게 요청해 주세요.",
+    accentClassName: "bg-slate-400",
+    icon: AlertCircle,
+  },
+  active: {
+    eyebrow: "승인 완료",
+    title: "멤버 승인이 완료되었습니다",
+    description: "KOBOT 멤버 공간으로 이동합니다.",
+    note: "잠시만 기다려 주세요.",
+    accentClassName: "bg-emerald-500",
+    icon: CheckCircle2,
+  },
+  project_only: {
+    eyebrow: "프로젝트 참여",
+    title: "프로젝트 참여 계정입니다",
+    description: "승인된 프로젝트 범위 안에서 필요한 기능만 사용할 수 있습니다.",
+    note: "프로젝트 접근이 보이지 않으면 프로젝트 팀장에게 문의해 주세요.",
+    accentClassName: "bg-blue-500",
+    icon: CheckCircle2,
+  },
+  withdrawn: {
+    eyebrow: "활동 종료",
+    title: "탈퇴 처리된 계정입니다",
+    description: "현재 계정으로는 내부 기능을 사용할 수 없습니다.",
+    note: "재가입이나 기록 확인이 필요하면 운영진에게 문의해 주세요.",
+    accentClassName: "bg-slate-400",
+    icon: AlertCircle,
+  },
 };
 
 export default function ApprovalPending() {
@@ -105,6 +109,7 @@ export default function ApprovalPending() {
   }
 
   const copy = STATUS_COPY[memberStatus ?? "pending"];
+  const StatusIcon = copy.icon;
 
   async function handleRefresh() {
     setIsRefreshing(true);
@@ -141,102 +146,75 @@ export default function ApprovalPending() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      <section className="rounded-[2rem] border border-[#103078]/10 bg-[radial-gradient(circle_at_top_left,_rgba(16,48,120,0.12),_transparent_32%),linear-gradient(135deg,_#ffffff_0%,_#f3f7fb_100%)] p-6 shadow-sm sm:p-8">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="space-y-3">
-            <Badge className={copy.tone} variant="outline">
-              {copy.badge}
-            </Badge>
-            <div>
-              <h1 className="text-2xl font-black tracking-[-0.04em] text-slate-950 sm:text-3xl">
-                {copy.title}
-              </h1>
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600 sm:text-base">
-                {copy.description}
-              </p>
-            </div>
-          </div>
-          <div className="rounded-2xl border border-[#103078]/10 bg-white/75 p-3 text-[#103078]">
-            <ShieldCheck className="h-7 w-7" />
-          </div>
-        </div>
-      </section>
+    <main className="mx-auto flex min-h-[calc(100vh-11rem)] max-w-5xl flex-col justify-center px-1 py-8 sm:px-0">
+      <section className="relative overflow-hidden border-y border-slate-200 py-10 sm:py-14">
+        <div
+          className={`absolute left-0 top-0 h-1 w-28 rounded-full ${copy.accentClassName}`}
+          aria-hidden="true"
+        />
 
-      <Card className="border-[#103078]/15 shadow-sm">
-        <CardHeader>
-          <CardTitle>지금 할 수 있는 것</CardTitle>
-          <CardDescription>
-            가입 요청 정보는 접수되었습니다. 이제 운영진 승인이 완료될 때까지 기다리면 됩니다.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-5">
-          <Alert className="border-[#103078]/20 bg-[#103078]/5">
-            <Clock3 className="h-4 w-4 text-[#103078]" />
-            <AlertTitle>승인 대기 중입니다</AlertTitle>
-            <AlertDescription className="leading-6">
-              운영진이 가입자 명단에서 이름, 학교 계정, 소속 정보를 확인한 뒤 권한을 부여합니다.
-              승인이 완료되면 다시 로그인하거나 아래 새로고침 버튼을 눌렀을 때 KOBOT 멤버 공간이 열립니다.
-            </AlertDescription>
-          </Alert>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="rounded-2xl border border-gray-200 bg-white p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">
-                로그인 계정
-              </p>
-              <p className="mt-2 break-all text-sm font-medium text-gray-900">
-                {authData.profile.email ?? "확인되지 않음"}
-              </p>
-            </div>
-            <div className="rounded-2xl border border-gray-200 bg-white p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">
-                현재 상태
-              </p>
-              <p className="mt-2 text-sm font-medium text-gray-900">
-                {STATUS_LABELS[memberStatus ?? "pending"]}
-              </p>
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4 text-sm leading-6 text-amber-950">
-            <p className="font-semibold">승인 전 제한</p>
-            <p className="mt-1">
-              승인 전에는 자료실, 장비 대여, 프로젝트 팀, 투표 같은 내부 기능에 접근할 수 없습니다.
-              가입 요청 정보를 다시 수정해야 한다면 운영진에게 문의해 주세요.
+        <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-end">
+          <div>
+            <p className="text-sm font-semibold text-[#103078]">{copy.eyebrow}</p>
+            <h1 className="mt-4 max-w-2xl text-4xl font-semibold tracking-[-0.055em] text-slate-950 sm:text-5xl">
+              {copy.title}
+            </h1>
+            <p className="mt-5 max-w-2xl text-base leading-8 text-slate-600">
+              {copy.description}
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-3">
+          <dl className="space-y-5 text-sm">
+            <div className="border-b border-slate-200 pb-4">
+              <dt className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                계정
+              </dt>
+              <dd className="mt-2 break-all font-medium text-slate-950">
+                {authData.profile.email ?? "확인되지 않음"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                상태
+              </dt>
+              <dd className="mt-2 inline-flex items-center gap-2 font-medium text-slate-950">
+                <StatusIcon className="h-4 w-4 text-[#103078]" />
+                {STATUS_LABELS[memberStatus ?? "pending"]}
+              </dd>
+            </div>
+          </dl>
+        </div>
+
+        <div className="mt-10 border-t border-slate-200 pt-6">
+          <p className="max-w-2xl text-sm leading-7 text-slate-500">{copy.note}</p>
+
+          <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:items-center">
             <Button
-              className="bg-[#103078] hover:bg-[#2048A0]"
+              className="h-11 bg-[#103078] px-5 text-white hover:bg-[#2048A0]"
               disabled={isRefreshing}
               onClick={() => void handleRefresh()}
             >
               <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
-              {isRefreshing ? "확인 중..." : "승인 상태 새로고침"}
+              {isRefreshing ? "확인 중" : "상태 확인"}
             </Button>
-            <Button variant="outline" asChild>
-              <a href="mailto:kobot@kookmin.ac.kr?subject=KOBOT%20%EA%B0%80%EC%9E%85%20%EC%8A%B9%EC%9D%B8%20%EB%AC%B8%EC%9D%98">
-                <Mail className="h-4 w-4" />
-                운영진에게 문의
-              </a>
-            </Button>
-            <Button variant="ghost" onClick={handleSignOut}>
+            <Button className="h-11 px-5" variant="ghost" onClick={handleSignOut}>
               <LogOut className="h-4 w-4" />
               로그아웃
             </Button>
+            <a
+              className="inline-flex h-11 items-center gap-2 px-3 text-sm font-medium text-slate-500 transition-colors hover:text-[#103078]"
+              href="mailto:kobot@kookmin.ac.kr?subject=KOBOT%20%EA%B0%80%EC%9E%85%20%EC%8A%B9%EC%9D%B8%20%EB%AC%B8%EC%9D%98"
+            >
+              <Mail className="h-4 w-4" />
+              kobot@kookmin.ac.kr
+            </a>
           </div>
-        </CardContent>
-      </Card>
+        </div>
 
-      <Alert>
-        <AlertCircle className="h-4 w-4" />
-        <AlertTitle>다른 계정으로 로그인했다면</AlertTitle>
-        <AlertDescription className="leading-6">
-          로그아웃 후 국민대학교 Google 계정으로 다시 로그인해 주세요. 계속 같은 화면이 보이면 운영진에게 계정 확인을 요청해 주세요.
-        </AlertDescription>
-      </Alert>
-    </div>
+        <p className="mt-8 max-w-2xl text-xs leading-6 text-slate-400">
+          다른 계정으로 로그인했다면 로그아웃 후 국민대학교 Google 계정으로 다시 로그인하세요.
+        </p>
+      </section>
+    </main>
   );
 }
