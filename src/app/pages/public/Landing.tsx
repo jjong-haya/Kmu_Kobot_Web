@@ -41,6 +41,12 @@ import { useState, useEffect } from "react";
 import { motion } from "motion/react";
 import { useAuth } from "../../auth/useAuth";
 import { getPostAuthMemberPath } from "../../auth/onboarding";
+import {
+  useLandingData,
+  formatRelativeTime,
+  formatShortDate,
+  trimTime,
+} from "../../hooks/useLandingData";
 
 export default function Landing() {
   const { authData, isInitializing, memberStatus, session } = useAuth();
@@ -48,6 +54,9 @@ export default function Landing() {
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [selectedTrack, setSelectedTrack] = useState<string | null>(null);
   const memberEntryPath = getPostAuthMemberPath(authData, memberStatus);
+
+  // Live DB data — replaces hardcoded mock notices/events/stats below.
+  const live = useLandingData();
   const memberActionLabel = !session
     ? "로그인"
     : isInitializing
@@ -99,7 +108,7 @@ export default function Landing() {
       title: "대표 프로젝트",
       subtitle: "자율주행 로봇 개발",
       description: "SLAM 기반 실내 네비게이션 시스템으로 대회 금상 수상",
-      image: "https://images.unsplash.com/photo-1563968743333-044cef800494?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxyb2JvdCUyMGFybSUyMG1hbnVmYWN0dXJpbmd8ZW58MXx8fHwxNzcxMTUwMDU2fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      image: "",
       link: "/projects",
     },
     {
@@ -116,22 +125,45 @@ export default function Landing() {
     {
       size: "medium",
       title: "최근 업데이트",
-      updates: [
-        { type: "공지", title: "신입 부원 모집 시작", time: "2시간 전", detail: "2026 봄학기 모집", color: "red" },
-        { type: "스터디", title: "ROS Navigation 세미나", time: "5시간 전", detail: "310호 오후 2시", color: "blue" },
-        { type: "회의", title: "프로젝트 중간 발표", time: "1일 전", detail: "팀별 진행상황", color: "green" },
-      ],
+      // Real published notices (most recent 3). Empty state handled in render.
+      updates:
+        live.notices.length > 0
+          ? live.notices.slice(0, 3).map((n) => ({
+              type: "공지",
+              title: n.title,
+              time: formatRelativeTime(n.created_at),
+              detail: (n.body ?? "").split("\n")[0].slice(0, 40) || "—",
+              color: "red" as const,
+            }))
+          : live.loading
+            ? []
+            : [
+                {
+                  type: "안내",
+                  title: "곧 새 공지가 등록됩니다",
+                  time: "—",
+                  detail: "",
+                  color: "blue" as const,
+                },
+              ],
     },
     {
       size: "small",
       title: "다음 일정",
       subtitle: "이번 주 일정",
       icon: Calendar,
-      items: [
-        { title: "ROS 워크샵", date: "2/18", time: "19:00", location: "310호" },
-        { title: "프로젝트 발표", date: "2/20", time: "14:00", location: "대강당" },
-        { title: "신입 환영회", date: "2/22", time: "18:00", location: "310호" },
-      ],
+      // Real upcoming bookings (next 3 within 14 days).
+      items:
+        live.upcomingBookings.length > 0
+          ? live.upcomingBookings.slice(0, 3).map((b) => ({
+              title: b.title,
+              date: formatShortDate(b.booking_date),
+              time: trimTime(b.start_time),
+              location: "복지관 B128-1호",
+            }))
+          : live.loading
+            ? []
+            : [],
     },
     {
       size: "small",
@@ -144,9 +176,9 @@ export default function Landing() {
       size: "small",
       title: "최근 활동",
       images: [
-        "https://images.unsplash.com/photo-1755053757912-a63da9d6e0e2?w=400",
-        "https://images.unsplash.com/photo-1723730741656-6333f4840ecf?w=400",
-        "https://images.unsplash.com/photo-1638202677704-b74690bb8fa9?w=400",
+        "",
+        "",
+        "",
       ],
     },
   ];
@@ -339,98 +371,98 @@ export default function Landing() {
       title: "자율주행 로봇",
       description: "SLAM 기반 실내 네비게이션 시스템",
       achievement: "금상",
-      image: "https://images.unsplash.com/photo-1563968743333-044cef800494?w=600",
+      image: "",
       tags: ["ROS", "SLAM"],
     },
     {
       title: "로봇팔 제어",
       description: "역기구학 기반 정밀 제어 시스템",
       achievement: "논문",
-      image: "https://images.unsplash.com/photo-1723730741656-6333f4840ecf?w=600",
+      image: "",
       tags: ["C++", "Kinematics"],
     },
     {
       title: "드론 자동착륙",
       description: "컴퓨터 비전 기반 자율 착륙",
       achievement: "특허",
-      image: "https://images.unsplash.com/photo-1697122171927-c79709030f1d?w=600",
+      image: "",
       tags: ["Vision", "AI"],
     },
     {
       title: "물체 인식 시스템",
       description: "실시간 객체 탐지 및 분류",
       achievement: "산학협력",
-      image: "https://images.unsplash.com/photo-1649877508777-1554357604eb?w=600",
+      image: "",
       tags: ["YOLO", "TensorFlow"],
     },
     {
       title: "다중 로봇 협업",
       description: "멀티 에이전트 시스템 구현",
       achievement: "국제대회",
-      image: "https://images.unsplash.com/photo-1553408226-42ecf81a214c?w=600",
+      image: "",
       tags: ["Multi-Agent", "ROS2"],
     },
     {
       title: "휴머노이드 보행",
       description: "이족 보행 제어 알고리즘",
       achievement: "우수상",
-      image: "https://images.unsplash.com/photo-1582192904915-d89c7250b235?w=600",
+      image: "",
       tags: ["Control", "Simulation"],
     },
     {
       title: "스마트 팩토리",
       description: "IoT 기반 공정 자동화",
       achievement: "기업 프로젝트",
-      image: "https://images.unsplash.com/photo-1638202677704-b74690bb8fa9?w=600",
+      image: "",
       tags: ["IoT", "Automation"],
     },
     {
       title: "의료 로봇 보조",
       description: "AI 기반 진단 보조 시스템",
       achievement: "연구비",
-      image: "https://images.unsplash.com/photo-1755053757912-a63da9d6e0e2?w=600",
+      image: "",
       tags: ["Medical", "AI"],
     },
   ];
 
   const galleryImages = [
     {
-      url: "https://images.unsplash.com/photo-1755053757912-a63da9d6e0e2?w=400",
+      url: "",
       caption: "임베디드 스터디",
       date: "2026.02",
       description: "Arduino 센서 제어 실습",
       tag: "임베디드",
     },
     {
-      url: "https://images.unsplash.com/photo-1723730741656-6333f4840ecf?w=400",
+      url: "",
       caption: "ROS 세미나",
       date: "2026.01",
       description: "Navigation Stack 세팅",
       tag: "ROS",
     },
     {
-      url: "https://images.unsplash.com/photo-1638202677704-b74690bb8fa9?w=400",
+      url: "",
       caption: "해커톤 준비",
       date: "2025.12",
       description: "팀 빌딩 및 기획",
       tag: "해커톤",
     },
     {
-      url: "https://images.unsplash.com/photo-1582192904915-d89c7250b235?w=400",
+      url: "",
       caption: "데모데이",
       date: "2025.11",
       description: "최종 프로젝트 발표",
       tag: "프로젝트",
     },
     {
-      url: "https://images.unsplash.com/photo-1563968743333-044cef800494?w=400",
+      url: "",
       caption: "로봇 조립",
       date: "2025.10",
       description: "하드웨어 제작 및 테스트",
       tag: "제작",
     },
     {
-      url: "https://images.unsplash.com/photo-1697122171927-c79709030f1d?w=400",
+      url: "",
       caption: "드론 테스트",
       date: "2025.09",
       description: "자율비행 알고리즘 검증",
@@ -523,17 +555,30 @@ export default function Landing() {
     legendBg: string;
   }
 
-  const events: CalendarEvent[] = [
-    { id: 1, title: '데모데이', startDate: 5, endDate: 5, startTime: '09:00', endTime: '18:00', duration: 1, location: '대강당', description: '학기 말 최종 프로젝트 발표 및 시연', bgColor: 'bg-red-100/30', textColor: 'text-red-700', legendBg: 'bg-red-200' },
-    { id: 2, title: '모닝 스탠드업', startDate: 10, endDate: 10, startTime: '09:00', endTime: '09:30', duration: 1, location: '310호', description: '주간 진행사항 공유 및 계획 수립', bgColor: 'bg-amber-100/30', textColor: 'text-amber-700', legendBg: 'bg-amber-200' },
-    { id: 3, title: '팀 회의', startDate: 10, endDate: 11, startTime: '10:00', endTime: '12:00', duration: 2, location: '310호', description: '프로젝트 팀별 정기 회의', bgColor: 'bg-orange-100/30', textColor: 'text-orange-700', legendBg: 'bg-orange-200' },
-    { id: 4, title: '코드 리뷰', startDate: 10, endDate: 11, startTime: '14:00', endTime: '16:00', duration: 2, location: '온라인', description: 'PR 리뷰 및 코드 품질 개선', bgColor: 'bg-teal-100/30', textColor: 'text-teal-700', legendBg: 'bg-teal-200' },
-    { id: 5, title: '디자인 싱크', startDate: 10, endDate: 10, startTime: '16:00', endTime: '17:00', duration: 1, location: '310호', description: 'UI/UX 디자인 검토 및 피드백', bgColor: 'bg-cyan-100/30', textColor: 'text-cyan-700', legendBg: 'bg-cyan-200' },
-    { id: 6, title: 'ROS 워크샵', startDate: 12, endDate: 13, startTime: '10:00', endTime: '17:00', duration: 2, location: '실습실', description: 'ROS Navigation Stack 실습', bgColor: 'bg-purple-100/30', textColor: 'text-purple-700', legendBg: 'bg-purple-200' },
-    { id: 7, title: '프로젝트 스프린트', startDate: 18, endDate: 20, startTime: '09:00', endTime: '18:00', duration: 3, location: '310호', description: '집중 개발 기간 및 중간 점검', bgColor: 'bg-blue-100/30', textColor: 'text-blue-700', legendBg: 'bg-blue-200' },
-    { id: 8, title: '신입 환영회', startDate: 22, endDate: 22, startTime: '18:00', endTime: '21:00', duration: 1, location: '공학관 310호', description: '신입 부원 환영 및 네트워킹', bgColor: 'bg-pink-100/30', textColor: 'text-pink-700', legendBg: 'bg-pink-200' },
-    { id: 9, title: '해커톤 위크', startDate: 25, endDate: 28, startTime: '08:00', endTime: '22:00', duration: 4, location: '전체 동아리실', description: '아이디어 기획부터 구현까지', bgColor: 'bg-green-100/30', textColor: 'text-green-700', legendBg: 'bg-green-200' },
-  ];
+  // Real bookings → Calendar events. Empty if no DB data yet.
+  const TYPE_COLORS: Record<string, { bg: string; text: string; legend: string }> = {
+    meeting: { bg: "bg-blue-100/30", text: "text-blue-700", legend: "bg-blue-200" },
+    study: { bg: "bg-green-100/30", text: "text-green-700", legend: "bg-green-200" },
+    personal: { bg: "bg-purple-100/30", text: "text-purple-700", legend: "bg-purple-200" },
+  };
+  const events: CalendarEvent[] = live.upcomingBookings.map((b, idx) => {
+    const day = parseInt(b.booking_date.slice(8, 10), 10) || 1;
+    const color = TYPE_COLORS[b.type] ?? TYPE_COLORS.meeting;
+    return {
+      id: idx + 1,
+      title: b.title,
+      startDate: day,
+      endDate: day,
+      startTime: trimTime(b.start_time),
+      endTime: trimTime(b.end_time),
+      duration: 1,
+      location: "복지관 B128-1호",
+      description: "",
+      bgColor: color.bg,
+      textColor: color.text,
+      legendBg: color.legend,
+    };
+  });
 
   // Helper to get events for a specific day
   const getEventsForDay = (day: number) => {
@@ -766,54 +811,65 @@ export default function Landing() {
                         })}
                       </div>
 
-                      {/* Upcoming Events List */}
+                      {/* Upcoming Events List — real bookings */}
                       <div className="mt-4 pt-3 border-t border-gray-200">
                         <div className="text-xs font-semibold text-gray-600 mb-2">임박한 일정</div>
                         <div className="space-y-1.5">
-                          {/* Project Sprint - 18일 */}
-                          <div className="flex items-start justify-between p-2 rounded-lg bg-blue-50/50 hover:bg-blue-50 transition-colors">
-                            <div className="flex items-start gap-2 flex-1">
-                              <div className="w-1.5 h-1.5 rounded-full bg-blue-400 mt-1" />
-                              <div className="flex-1">
-                                <div className="text-[11px] font-medium text-gray-900">프로젝트 스프린트</div>
-                                <div className="text-[9px] text-gray-600">2/18 - 2/20</div>
-                                <div className="text-[8px] text-gray-500 mt-0.5">09:00 시작</div>
-                              </div>
+                          {live.upcomingBookings.length === 0 ? (
+                            <div className="rounded-lg bg-gray-50 px-3 py-4 text-[11px] text-gray-500 text-center">
+                              {live.loading
+                                ? "불러오는 중..."
+                                : "임박한 일정이 없습니다."}
                             </div>
-                            <div className="text-[9px] font-medium text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded">
-                              D-3
-                            </div>
-                          </div>
-
-                          {/* Welcome Party - 22일 */}
-                          <div className="flex items-start justify-between p-2 rounded-lg bg-pink-50/50 hover:bg-pink-50 transition-colors">
-                            <div className="flex items-start gap-2 flex-1">
-                              <div className="w-1.5 h-1.5 rounded-full bg-pink-400 mt-1" />
-                              <div className="flex-1">
-                                <div className="text-[11px] font-medium text-gray-900">신입 환영회</div>
-                                <div className="text-[9px] text-gray-600">2/22 18:00</div>
-                                <div className="text-[8px] text-gray-500 mt-0.5">장소: 공학관 310호</div>
-                              </div>
-                            </div>
-                            <div className="text-[9px] font-medium text-pink-700 bg-pink-100 px-1.5 py-0.5 rounded">
-                              D-7
-                            </div>
-                          </div>
-
-                          {/* Hackathon Week - 25일 */}
-                          <div className="flex items-start justify-between p-2 rounded-lg bg-green-50/50 hover:bg-green-50 transition-colors">
-                            <div className="flex items-start gap-2 flex-1">
-                              <div className="w-1.5 h-1.5 rounded-full bg-green-400 mt-1" />
-                              <div className="flex-1">
-                                <div className="text-[11px] font-medium text-gray-900">해커톤 위크</div>
-                                <div className="text-[9px] text-gray-600">2/25 - 2/28</div>
-                                <div className="text-[8px] text-gray-500 mt-0.5">대상: 전체 부원</div>
-                              </div>
-                            </div>
-                            <div className="text-[9px] font-medium text-green-700 bg-green-100 px-1.5 py-0.5 rounded">
-                              D-10
-                            </div>
-                          </div>
+                          ) : (
+                            live.upcomingBookings.slice(0, 3).map((b) => {
+                              const today = new Date();
+                              today.setHours(0, 0, 0, 0);
+                              const target = new Date(b.booking_date);
+                              const dDay = Math.max(
+                                0,
+                                Math.round(
+                                  (target.getTime() - today.getTime()) /
+                                    (24 * 3600 * 1000),
+                                ),
+                              );
+                              const tone =
+                                b.type === "study"
+                                  ? "green"
+                                  : b.type === "personal"
+                                    ? "purple"
+                                    : "blue";
+                              return (
+                                <div
+                                  key={b.id}
+                                  className={`flex items-start justify-between p-2 rounded-lg bg-${tone}-50/50 hover:bg-${tone}-50 transition-colors`}
+                                >
+                                  <div className="flex items-start gap-2 flex-1 min-w-0">
+                                    <div
+                                      className={`w-1.5 h-1.5 rounded-full bg-${tone}-400 mt-1`}
+                                    />
+                                    <div className="flex-1 min-w-0">
+                                      <div className="text-[11px] font-medium text-gray-900 truncate">
+                                        {b.title}
+                                      </div>
+                                      <div className="text-[9px] text-gray-600">
+                                        {formatShortDate(b.booking_date)}{" "}
+                                        {trimTime(b.start_time)}
+                                      </div>
+                                      <div className="text-[8px] text-gray-500 mt-0.5">
+                                        복지관 B128-1호
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div
+                                    className={`text-[9px] font-medium text-${tone}-700 bg-${tone}-100 px-1.5 py-0.5 rounded shrink-0 ml-1`}
+                                  >
+                                    {dDay === 0 ? "오늘" : `D-${dDay}`}
+                                  </div>
+                                </div>
+                              );
+                            })
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1024,7 +1080,12 @@ export default function Landing() {
                     })}
                   </div>
                   <div className="text-xs text-gray-500 mt-4 pt-3 border-t border-gray-200 text-center">
-                    총 4트랙 · 37명 참여
+                    총 4트랙 ·{" "}
+                    {live.loading
+                      ? "—"
+                      : live.stats.activeMembers > 0
+                        ? `${live.stats.activeMembers}명 참여`
+                        : "참여 인원 집계 중"}
                   </div>
                 </CardContent>
               </Card>
@@ -1582,10 +1643,29 @@ export default function Landing() {
             {/* Stats with dividers */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mt-6 relative">
               {[
-                { value: "32+", label: "현재 회원" },
-                { value: "24+", label: "누적 프로젝트" },
-                { value: "8회", label: "대회 수상" },
-                { value: "50+", label: "누적 스터디 세션" },
+                {
+                  value: live.loading
+                    ? "—"
+                    : `${live.stats.activeMembers}명`,
+                  label: "현재 회원",
+                },
+                {
+                  value: live.loading
+                    ? "—"
+                    : live.stats.totalProjects > 0
+                      ? `${live.stats.totalProjects}건`
+                      : "준비 중",
+                  label: "진행 프로젝트",
+                },
+                {
+                  value: live.loading
+                    ? "—"
+                    : live.stats.cumulativeAlumni > 0
+                      ? `${live.stats.cumulativeAlumni}명`
+                      : "—",
+                  label: "누적 졸업생",
+                },
+                { value: "2018~", label: "활동 시작" },
               ].map((stat, idx) => (
                 <div key={idx} className="relative">
 
