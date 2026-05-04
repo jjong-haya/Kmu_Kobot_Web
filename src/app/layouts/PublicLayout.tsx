@@ -1,6 +1,7 @@
 import { Outlet, Link, useLocation } from "react-router";
 import logo from "@/assets/mainLogo.png";
 import { ScrollToTop } from "../components/ScrollToTop";
+import { APP_VERSION_LABEL } from "../utils/version";
 
 export default function PublicLayout() {
   const location = useLocation();
@@ -82,6 +83,12 @@ export default function PublicLayout() {
           </div>
           <div className="mt-6 text-center text-sm text-gray-500">
             © 2026 Kookmin Robot. All rights reserved.
+          </div>
+          <div
+            className="mt-2 text-center text-[11px] font-mono text-gray-400"
+            title="빌드 버전"
+          >
+            {APP_VERSION_LABEL}
           </div>
         </div>
       </footer>

@@ -50,6 +50,7 @@ import {
   NOTIFICATIONS_CHANGED_EVENT,
 } from "../api/notifications";
 import wordLogo from "@/assets/wordLogo.png";
+import { APP_VERSION_LABEL } from "../utils/version";
 
 type NavigationItem = {
   name: string;
@@ -647,6 +648,15 @@ export default function MemberLayout() {
               </div>
             )}
           </div>
+          {!collapsed && (
+            <div
+              className="px-6 pb-3 text-[10px] font-mono"
+              style={{ color: "rgba(255,255,255,0.25)" }}
+              title="빌드 버전"
+            >
+              {APP_VERSION_LABEL}
+            </div>
+          )}
         </div>
       </aside>
 
