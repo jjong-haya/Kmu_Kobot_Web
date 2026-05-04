@@ -19,4 +19,15 @@ export default defineConfig({
 
   // File types to support raw imports. Never add .css, .tsx, or .ts files to this.
   assetsInclude: ['**/*.svg', '**/*.csv'],
+
+  build: {
+    // SECURITY: don't ship source maps to production — leaks internal source paths
+    sourcemap: false,
+    minify: 'esbuild',
+    // Strip all console/debugger statements in production builds.
+    target: 'es2020',
+  },
+  esbuild: {
+    drop: process.env.NODE_ENV === 'production' ? ['console', 'debugger'] : [],
+  },
 })

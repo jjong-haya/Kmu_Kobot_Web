@@ -10,7 +10,7 @@ import {
   FolderKanban,
   FolderOpen,
   GitBranch,
-  HelpCircle,
+  IdCard,
   LayoutDashboard,
   Link2,
   ListChecks,
@@ -20,8 +20,10 @@ import {
   Package,
   Presentation,
   Search,
+  PanelLeftClose,
+  PanelLeftOpen,
   Settings,
-  Sparkles,
+  ShieldCheck,
   Target,
   User,
   Users,
@@ -43,6 +45,7 @@ import {
 import { Input } from "../components/ui/input";
 import { ScrollToTop } from "../components/ScrollToTop";
 import { useAuth } from "../auth/useAuth";
+import { UNREAD_COUNT } from "../pages/member/Notifications";
 import wordLogo from "@/assets/wordLogo.png";
 
 type NavigationItem = {
@@ -59,7 +62,7 @@ type NavigationSection = {
 
 const NAVIGATION: NavigationSection[] = [
   {
-    name: "내 활동",
+    name: "부원",
     items: [
       {
         name: "대시보드",
@@ -74,106 +77,91 @@ const NAVIGATION: NavigationSection[] = [
         permissions: ["notifications.read"],
       },
       {
+        name: "공지",
+        href: "/member/announcements",
+        icon: Megaphone,
+        permissions: ["announcements.read"],
+      },
+      {
         name: "연락 요청",
         href: "/member/contact-requests",
         icon: MessageSquare,
       },
-    ],
-  },
-  {
-    name: "소통",
-    items: [
-      {
-        name: "공지",
-        href: "/member/announcements",
-        icon: Megaphone,
-        permissions: ["announcements.read", "announcements.manage"],
-      },
-      { name: "Q&A", href: "/member/qna", icon: HelpCircle },
-    ],
-  },
-  {
-    name: "학습",
-    items: [
       { name: "스터디 기록", href: "/member/study-log", icon: BookOpen },
       {
         name: "스터디 플레이리스트",
         href: "/member/study-playlist",
         icon: ListChecks,
       },
-      { name: "동료 리뷰", href: "/member/peer-review", icon: MessageSquare },
-    ],
-  },
-  {
-    name: "프로젝트",
-    items: [
       {
         name: "프로젝트",
         href: "/member/projects",
         icon: FolderKanban,
-        permissions: ["projects.read", "projects.manage"],
+        permissions: ["projects.read"],
       },
-      {
-        name: "쇼케이스",
-        href: "/member/showcase",
-        icon: Presentation,
-        permissions: ["projects.read", "projects.manage"],
-      },
-    ],
-  },
-  {
-    name: "행사와 사람",
-    items: [
       {
         name: "행사",
         href: "/member/events",
         icon: Calendar,
-        permissions: ["events.read", "events.manage"],
+        permissions: ["events.read"],
       },
-      { name: "오피스 아워", href: "/member/office-hours", icon: Clock },
       {
         name: "멤버",
         href: "/member/members",
         icon: Users,
-        permissions: ["members.read", "members.manage"],
+        permissions: ["members.read"],
       },
-    ],
-  },
-  {
-    name: "자료",
-    items: [
       {
         name: "자료실",
         href: "/member/resources",
         icon: FileText,
-        permissions: ["resources.read", "resources.manage"],
+        permissions: ["resources.read"],
+      },
+      { name: "공간 예약", href: "/member/space-booking", icon: Clock },
+      {
+        name: "장비 대여",
+        href: "/member/equipment",
+        icon: Package,
+        permissions: ["resources.read"],
+      },
+      { name: "투표", href: "/member/votes", icon: Vote },
+    ],
+  },
+  {
+    name: "공식팀장",
+    items: [
+      { name: "동료 리뷰", href: "/member/peer-review", icon: MessageSquare },
+      {
+        name: "쇼케이스",
+        href: "/member/showcase",
+        icon: Presentation,
+        permissions: ["projects.manage"],
       },
       {
         name: "템플릿",
         href: "/member/templates",
         icon: FolderOpen,
-        permissions: ["resources.read", "resources.manage"],
-      },
-      {
-        name: "장비 대여",
-        href: "/member/equipment",
-        icon: Package,
-        permissions: ["resources.read", "resources.manage"],
+        permissions: ["resources.manage"],
       },
     ],
   },
   {
-    name: "운영",
+    name: "부회장",
     items: [
       { name: "로드맵", href: "/member/roadmap", icon: Target },
       { name: "회고", href: "/member/retro", icon: MessageSquare },
       { name: "변경 기록", href: "/member/changelog", icon: GitBranch },
-      { name: "투표", href: "/member/votes", icon: Vote },
     ],
   },
   {
-    name: "전체 운영",
+    name: "회장",
     items: [
+      {
+        name: "초대 코드",
+        href: "/member/invite-codes",
+        icon: IdCard,
+        permissions: ["members.manage"],
+      },
       {
         name: "신청/폼",
         href: "/member/forms",
@@ -227,6 +215,8 @@ function getMemberStatusLabel(status: string | null) {
       return "졸업/비활동";
     case "project_only":
       return "프로젝트 참여";
+    case "course_member":
+      return "KOSS";
     case "withdrawn":
       return "탈퇴 처리";
     default:
@@ -234,16 +224,34 @@ function getMemberStatusLabel(status: string | null) {
   }
 }
 
+/**
+ * Sidebar items visible to course members (limited tier).
+ * Anything not in this set is hidden when memberStatus === "course_member".
+ */
+const COURSE_MEMBER_ALLOWED_PATHS = new Set([
+  "/member",
+  "/member/notifications",
+  "/member/announcements",
+  "/member/contact-requests",
+  "/member/members",
+  // account pages (everyone can view their own)
+  "/member/profile",
+  "/member/security",
+  "/member/account-info",
+]);
+
 function NavigationLinks({
   sections,
   pathname,
   onNavigate,
-  hasPermission,
+  collapsed = false,
+  showSectionHeaders = true,
 }: {
   sections: NavigationSection[];
   pathname: string;
   onNavigate?: () => void;
-  hasPermission: (...codes: string[]) => boolean;
+  collapsed?: boolean;
+  showSectionHeaders?: boolean;
 }) {
   const isActive = (path: string) => {
     if (path === "/member") {
@@ -253,64 +261,50 @@ function NavigationLinks({
     return pathname.startsWith(path);
   };
 
-  function canAccess(item: NavigationItem) {
-    if (!item.permissions || item.permissions.length === 0) return true;
-    return hasPermission(...item.permissions);
-  }
-
   return (
     <>
       {sections.map((section) => (
-        <div key={section.name} className="mb-6">
-          <h3 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-gray-500">
-            {section.name}
-          </h3>
-          <div className="space-y-1">
+        <div key={section.name} className="mb-4">
+          {!collapsed && showSectionHeaders && (
+            <h3
+              className="mb-2 px-6 text-[12px] font-semibold uppercase"
+              style={{ color: "rgba(255,255,255,0.38)", letterSpacing: "0.08em" }}
+            >
+              {section.name}
+            </h3>
+          )}
+          {collapsed && (
+            <div
+              className="mx-3 mb-1.5"
+              style={{ height: 1, background: "rgba(255,255,255,0.08)" }}
+            />
+          )}
+          <div>
             {section.items.map((item) => {
               const Icon = item.icon;
-              const allowed = canAccess(item);
-              const active = allowed && isActive(item.href);
-
-              if (!allowed) {
-                return (
-                  <div
-                    key={item.href}
-                    className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-gray-400 cursor-not-allowed select-none"
-                    title="권한이 필요한 메뉴입니다"
-                    aria-disabled="true"
-                  >
-                    <Icon className="h-4 w-4 opacity-50" />
-                    <span className="opacity-70">{item.name}</span>
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      className="ml-auto h-3 w-3 opacity-60"
-                    >
-                      <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
-                      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                    </svg>
-                  </div>
-                );
-              }
+              const active = isActive(item.href);
 
               return (
                 <Link
                   key={item.href}
                   to={item.href}
-                  className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
-                    active
-                      ? "bg-[#103078] text-white"
-                      : "text-gray-700 hover:bg-gray-100"
+                  title={collapsed ? item.name : undefined}
+                  className={`flex items-center transition-colors ${
+                    collapsed ? "justify-center px-2 py-3" : "gap-3.5 px-6 py-[9px]"
                   }`}
+                  style={{
+                    color: active ? "#0a0a0a" : "rgba(255,255,255,0.78)",
+                    background: active ? "#fff" : "transparent",
+                    fontWeight: active ? 600 : 400,
+                    fontSize: 15,
+                    borderLeft: collapsed
+                      ? "0"
+                      : `3px solid ${active ? "#fff" : "transparent"}`,
+                  }}
                   onClick={onNavigate}
                 >
-                  <Icon className="h-4 w-4" />
-                  {item.name}
+                  <Icon className="h-[18px] w-[18px]" style={{ opacity: active ? 1 : 0.7, flexShrink: 0 }} />
+                  {!collapsed && <span>{item.name}</span>}
                 </Link>
               );
             })}
@@ -337,7 +331,23 @@ export default function MemberLayout() {
   const { authData, hasPermission, memberStatus, signOut } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
-  const isActiveMember = memberStatus === "active";
+  const [collapsed, setCollapsed] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem("kb-sidebar-collapsed") === "1";
+  });
+  const toggleCollapsed = () => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("kb-sidebar-collapsed", next ? "1" : "0");
+      }
+      return next;
+    });
+  };
+  const sidebarWidthClass = collapsed ? "md:w-16" : "md:w-72";
+  const mainPaddingClass = collapsed ? "md:pl-16" : "md:pl-72";
+  const isActiveMember =
+    memberStatus === "active" || memberStatus === "course_member";
 
   const displayName =
     authData.profile.displayName ??
@@ -350,9 +360,21 @@ export default function MemberLayout() {
     (memberStatus ? memberStatus.toUpperCase() : "MEMBER");
   const initials = getInitials(displayName);
 
-  // SHOW all sections to all members for consistent UX. Items the user lacks
-  // permission for are rendered as disabled (lock icon) inside NavigationLinks.
-  const visibleSections = NAVIGATION;
+  const visibleSections = NAVIGATION.map((section) => ({
+      ...section,
+      items: section.items.filter((item) => {
+        // course members see only a limited set of pages
+        if (memberStatus === "course_member") {
+          return COURSE_MEMBER_ALLOWED_PATHS.has(item.href);
+        }
+
+        if (!item.permissions || item.permissions.length === 0) {
+          return true;
+        }
+
+        return hasPermission(...item.permissions);
+      }),
+    })).filter((section) => section.items.length > 0);
 
   async function handleSignOut() {
     try {
@@ -362,17 +384,25 @@ export default function MemberLayout() {
     }
   }
 
-  function renderAccountDropdown() {
+  function renderAccountDropdown({ compact = false }: { compact?: boolean } = {}) {
     return (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button className="flex w-full items-center gap-3 rounded-lg p-2 hover:bg-gray-100">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#103078] text-sm font-semibold text-white">
+          <button
+            className={
+              compact
+                ? "flex items-center gap-2.5 rounded-lg p-1.5 pr-2.5 hover:bg-[var(--kb-paper-3)] transition-colors"
+                : "flex w-full items-center gap-3 rounded-lg p-2 hover:bg-[var(--kb-paper-3)]"
+            }
+          >
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--kb-navy-800)] text-sm font-semibold text-white">
               {initials}
             </div>
-            <div className="min-w-0 flex-1 text-left">
-              <p className="truncate text-sm font-medium text-gray-900">{displayName}</p>
-              <p className="truncate text-xs text-gray-500">{roleLabel}</p>
+            <div className={compact ? "hidden text-left lg:block" : "min-w-0 flex-1 text-left"}>
+              <p className="truncate text-[13px] font-medium leading-tight text-[var(--kb-ink-900)]">
+                {displayName}
+              </p>
+              <p className="truncate text-[11px] leading-tight text-[var(--kb-ink-500)]">{roleLabel}</p>
             </div>
           </button>
         </DropdownMenuTrigger>
@@ -381,8 +411,17 @@ export default function MemberLayout() {
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={() => navigate("/member/profile")}>
             <User className="mr-2 h-4 w-4" />
-            프로필 설정
+            프로필
           </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => navigate("/member/security")}>
+            <ShieldCheck className="mr-2 h-4 w-4" />
+            계정 보안
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => navigate("/member/account-info")}>
+            <IdCard className="mr-2 h-4 w-4" />
+            회원 정보
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={() => navigate("/member/pending")}>
             <Award className="mr-2 h-4 w-4" />
             멤버 상태 확인
@@ -424,52 +463,180 @@ export default function MemberLayout() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <aside className="hidden md:fixed md:inset-y-0 md:flex md:w-64 md:flex-col">
-        <div className="flex min-h-full flex-1 flex-col border-r border-gray-200 bg-white">
-          <div className="flex h-16 items-center border-b border-gray-200 px-6">
-            <Link to="/member" className="flex items-center">
-              <KobotWordmark />
-            </Link>
+    <div className="kb-root min-h-screen" style={{ background: "#ffffff" }}>
+      <aside
+        className={`hidden md:fixed md:inset-y-0 md:flex md:flex-col transition-[width] duration-200 ease-out ${sidebarWidthClass}`}
+      >
+        <div
+          className="flex min-h-full flex-1 flex-col"
+          style={{ background: "#0a0a0a", color: "#fff" }}
+        >
+          <div
+            className={`flex items-center ${collapsed ? "flex-col gap-3 px-2 py-3" : "px-6"}`}
+            style={{
+              borderBottom: "1px solid rgba(255,255,255,0.08)",
+              minHeight: 68,
+            }}
+          >
+            {collapsed ? (
+              <>
+                <Link
+                  to="/member"
+                  className="kb-display inline-flex h-[28px] w-[28px] items-center justify-center rounded-lg"
+                  style={{ background: "#2a52a3", color: "#fff", fontWeight: 800, fontSize: 15 }}
+                >
+                  K
+                </Link>
+                <button
+                  type="button"
+                  onClick={toggleCollapsed}
+                  aria-label="사이드바 펼치기"
+                  className="inline-flex h-7 w-7 items-center justify-center rounded transition-colors hover:bg-white/10"
+                  style={{ color: "rgba(255,255,255,0.7)" }}
+                >
+                  <PanelLeftOpen className="h-4 w-4" />
+                </button>
+              </>
+            ) : (
+              <>
+                <Link to="/member" className="flex items-center mr-auto">
+                  <img src={wordLogo} alt="Kobot" style={{ height: 26, filter: "brightness(0) invert(1)" }} />
+                </Link>
+                <button
+                  type="button"
+                  onClick={toggleCollapsed}
+                  aria-label="사이드바 접기"
+                  className="ml-1 inline-flex h-7 w-7 items-center justify-center rounded transition-colors hover:bg-white/10"
+                  style={{ color: "rgba(255,255,255,0.7)" }}
+                >
+                  <PanelLeftClose className="h-4 w-4" />
+                </button>
+              </>
+            )}
           </div>
 
-          <nav className="flex-1 overflow-y-auto px-3 py-4">
-            <NavigationLinks sections={visibleSections} pathname={location.pathname} hasPermission={hasPermission} />
+          <nav className="kb-no-scrollbar flex-1 overflow-y-auto py-4">
+            <NavigationLinks sections={visibleSections} pathname={location.pathname} collapsed={collapsed} />
           </nav>
 
-          <div className="border-t border-gray-200 p-4">{renderAccountDropdown()}</div>
+          <div
+            className={`flex items-center ${collapsed ? "justify-center px-2 py-3" : "gap-3 px-6 py-5"}`}
+            style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}
+          >
+            <span
+              title={collapsed ? `${displayName} · ${roleLabel}` : undefined}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[13px] font-semibold"
+              style={{ background: "#fff", color: "#0a0a0a", flexShrink: 0 }}
+            >
+              {initials}
+            </span>
+            {!collapsed && (
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[14px] font-medium" style={{ color: "#fff" }}>
+                  {displayName}
+                </div>
+                <div className="truncate text-[12.5px]" style={{ color: "rgba(255,255,255,0.45)" }}>
+                  {roleLabel}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </aside>
 
-      {sidebarOpen && (
-        <div className="fixed inset-0 z-50 md:hidden">
-          <div
-            className="fixed inset-0 bg-black/50"
-            onClick={() => setSidebarOpen(false)}
-          />
-          <div className="fixed inset-y-0 left-0 w-72 bg-white shadow-xl">
-            <div className="flex h-full flex-col">
-              <div className="flex h-16 items-center justify-between border-b border-gray-200 px-6">
+      <div
+        className={`fixed inset-0 z-50 md:hidden ${
+          sidebarOpen ? "" : "pointer-events-none"
+        }`}
+        aria-hidden={!sidebarOpen}
+      >
+        <div
+          className={`fixed inset-0 bg-black/50 transition-opacity duration-200 ease-out ${
+            sidebarOpen ? "opacity-100" : "opacity-0"
+          }`}
+          onClick={() => setSidebarOpen(false)}
+        />
+        <div
+          className={`fixed inset-y-0 left-0 w-72 shadow-2xl transition-transform duration-300 ease-out ${
+            sidebarOpen ? "translate-x-0" : "-translate-x-full"
+          }`}
+          style={{ background: "#0a0a0a", color: "#fff" }}
+        >
+          <div className="flex h-full flex-col">
+              <div
+                className="flex items-center justify-between px-5 py-5"
+                style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}
+              >
                 <Link to="/member" className="flex items-center" onClick={() => setSidebarOpen(false)}>
-                  <KobotWordmark className="w-[188px]" />
+                  <img src={wordLogo} alt="Kobot" style={{ height: 22, filter: "brightness(0) invert(1)" }} />
                 </Link>
                 <button onClick={() => setSidebarOpen(false)}>
-                  <X className="h-6 w-6" />
+                  <X className="h-6 w-6" style={{ color: "#fff" }} />
                 </button>
               </div>
-              <nav className="flex-1 overflow-y-auto px-3 py-4">
+              <nav className="kb-no-scrollbar flex-1 overflow-y-auto py-4">
                 <NavigationLinks
                   sections={visibleSections}
                   pathname={location.pathname}
-                  hasPermission={hasPermission}
                   onNavigate={() => setSidebarOpen(false)}
                 />
               </nav>
-              <div className="border-t border-gray-200 p-4">{renderAccountDropdown()}</div>
+              <div
+                className="px-5 py-4"
+                style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}
+              >
+                <div className="flex items-center gap-2.5 mb-3">
+                  <span
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[13px] font-semibold"
+                    style={{ background: "#fff", color: "#0a0a0a" }}
+                  >
+                    {initials}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[14px] font-medium" style={{ color: "#fff" }}>
+                      {displayName}
+                    </div>
+                    <div className="truncate text-[12px]" style={{ color: "rgba(255,255,255,0.5)" }}>
+                      {roleLabel}
+                    </div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSidebarOpen(false);
+                      navigate("/member/profile");
+                    }}
+                    className="flex items-center justify-center gap-1.5 rounded-lg py-2.5 text-[13px] font-medium transition-colors"
+                    style={{
+                      background: "rgba(255,255,255,0.08)",
+                      color: "rgba(255,255,255,0.9)",
+                    }}
+                  >
+                    <User className="h-3.5 w-3.5" />
+                    프로필
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSidebarOpen(false);
+                      void handleSignOut();
+                    }}
+                    className="flex items-center justify-center gap-1.5 rounded-lg py-2.5 text-[13px] font-medium transition-colors"
+                    style={{
+                      background: "rgba(220,38,38,0.15)",
+                      color: "#fca5a5",
+                    }}
+                  >
+                    <LogOut className="h-3.5 w-3.5" />
+                    로그아웃
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
-      )}
 
       {searchOpen && (
         <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 pt-20">
@@ -510,8 +677,8 @@ export default function MemberLayout() {
         </div>
       )}
 
-      <div className="flex min-h-screen flex-col md:pl-64">
-        <header className="sticky top-0 z-40 border-b border-gray-200 bg-white">
+      <div className={`flex min-h-screen flex-col transition-[padding] duration-200 ease-out ${mainPaddingClass}`}>
+        <header className="sticky top-0 z-40 border-b border-[var(--kb-hairline)] bg-[var(--kb-paper)]">
           <div className="flex h-16 items-center gap-4 px-6">
             <button className="md:hidden" onClick={() => setSidebarOpen(true)}>
               <Menu className="h-6 w-6" />
@@ -520,55 +687,36 @@ export default function MemberLayout() {
             <div className="max-w-lg flex-1">
               <button
                 onClick={() => setSearchOpen(true)}
-                className="flex w-full items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-4 py-2 text-sm text-gray-500 transition-colors hover:border-gray-300"
+                className="flex w-full items-center gap-2 rounded-lg border border-[var(--kb-hairline)] bg-[var(--kb-paper-2)] px-4 py-2 text-sm text-[var(--kb-ink-500)] transition-colors hover:border-[var(--kb-ink-300)]"
               >
                 <Search className="h-4 w-4" />
-                <span>전체 검색...</span>
-                <kbd className="ml-auto rounded border border-gray-200 bg-white px-2 py-0.5 text-xs">
-                  /
-                </kbd>
+                <span>Search everywhere…</span>
               </button>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="ml-auto flex items-center gap-2">
               {hasPermission("notifications.read") && (
                 <Button variant="ghost" size="icon" className="relative" asChild>
                   <Link to="/member/notifications">
                     <Bell className="h-5 w-5" />
-                    <Badge
-                      variant="destructive"
-                      className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center p-0 text-xs"
-                    >
-                      3
-                    </Badge>
+                    {UNREAD_COUNT > 0 && (
+                      <Badge
+                        variant="destructive"
+                        className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center p-0 text-xs"
+                      >
+                        {UNREAD_COUNT}
+                      </Badge>
+                    )}
                   </Link>
                 </Button>
               )}
-              <div className="hidden md:block">{renderAccountDropdown()}</div>
+              <div className="hidden md:block">{renderAccountDropdown({ compact: true })}</div>
             </div>
           </div>
         </header>
 
-        <main className="flex-1 p-6">
+        <main className="flex-1 p-8">
           <ScrollToTop />
-          <div className="mb-6 flex flex-wrap items-center gap-3 rounded-2xl border border-[#103078]/10 bg-white px-4 py-3">
-            <Badge className="bg-[#103078] text-white hover:bg-[#103078]">
-              {roleLabel}
-            </Badge>
-            {authData.teamMemberships.slice(0, 2).map((membership) => (
-              <Badge key={membership.teamId} variant="outline">
-                {membership.teamName}
-                {membership.roleName ? ` · ${membership.roleName}` : ""}
-              </Badge>
-            ))}
-            {authData.teamMemberships.length > 2 && (
-              <Badge variant="outline">+{authData.teamMemberships.length - 2}팀</Badge>
-            )}
-            <div className="ml-auto hidden items-center gap-2 text-sm text-gray-500 lg:flex">
-              <Sparkles className="h-4 w-4 text-[#103078]" />
-              로그인 사용자: {displayName}
-            </div>
-          </div>
           <Outlet />
         </main>
       </div>

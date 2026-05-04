@@ -65,7 +65,7 @@ export default function PeerReview() {
   ];
 
   return (
-    <div className="max-w-6xl">
+    <div className="max-w-7xl">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold mb-1">Peer Review</h1>
@@ -138,7 +138,7 @@ export default function PeerReview() {
                           </h3>
                           <div className="flex items-center gap-2 text-sm text-gray-500">
                             <div className="flex items-center gap-1">
-                              <div className="w-6 h-6 rounded-full bg-[#103078] flex items-center justify-center text-white text-[10px]">
+                              <div className="w-6 h-6 rounded-full bg-[#103078] flex items-center justify-center text-white text-[12px]">
                                 {request.authorAvatar}
                               </div>
                               <span>{request.author}</span>

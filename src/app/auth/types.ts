@@ -7,6 +7,7 @@ export type MemberStatus =
   | "rejected"
   | "alumni"
   | "project_only"
+  | "course_member"
   | "withdrawn"
   | null;
 

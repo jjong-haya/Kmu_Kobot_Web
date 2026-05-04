@@ -1,0 +1,80 @@
+/* === Kobot Unified Design System — Foundation tokens === */
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&family=Geist:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&family=Instrument+Serif&display=swap');
+
+:root {
+  /* Brand Navy */
+  --kb-navy-950: #050d24;
+  --kb-navy-900: #082058;
+  --kb-navy-800: #103078;
+  --kb-navy-700: #1c3f8a;
+  --kb-navy-600: #2a52a3;
+  --kb-navy-500: #3b6bc4;
+  --kb-navy-100: #e8eef9;
+  --kb-navy-50:  #f4f7fc;
+
+  /* Paper / Ink — warm neutral */
+  --kb-paper:    #ffffff;
+  --kb-paper-2:  #fafaf9;
+  --kb-paper-3:  #f4f4f2;
+  --kb-hairline: #e7e7e3;
+  --kb-hairline-2: #ececea;
+  --kb-rule:     #1a1a1a;
+
+  --kb-ink-900:  #0a0a0a;
+  --kb-ink-800:  #1a1a1a;
+  --kb-ink-700:  #303030;
+  --kb-ink-500:  #6a6a6a;
+  --kb-ink-400:  #9a9a98;
+  --kb-ink-300:  #b8b8b5;
+
+  /* Type stacks */
+  --kb-font-display: 'Nunito', 'Pretendard', system-ui, sans-serif;
+  --kb-font-body:    'Nunito', 'Pretendard', system-ui, sans-serif;
+  --kb-font-mono:    'JetBrains Mono', ui-monospace, monospace;
+  --kb-font-serif:   'Instrument Serif', 'Pretendard', serif;
+}
+
+/* Reset block scoped under .kb-root */
+.kb-root, .kb-root * { box-sizing: border-box; }
+.kb-root {
+  font-family: var(--kb-font-body);
+  color: var(--kb-ink-900);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+.kb-root img { display: block; max-width: 100%; }
+
+.kb-mono { font-family: var(--kb-font-mono); font-feature-settings: "ss01"; }
+.kb-display { font-family: var(--kb-font-display); letter-spacing: -0.02em; }
+.kb-serif { font-family: var(--kb-font-serif); }
+
+@keyframes kb-blink { 50% { opacity: 0; } }
+.kb-cursor::after {
+  content: '█';
+  display: inline-block;
+  margin-left: 4px;
+  color: var(--kb-navy-800);
+  animation: kb-blink 1s steps(2) infinite;
+}
+
+@keyframes kb-tab-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes kb-marquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+@keyframes kb-fade-up {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.kb-fade-up { animation: kb-fade-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+/* hide scrollbars in horizontal carousels */
+.kb-no-scrollbar { scrollbar-width: none; }
+.kb-no-scrollbar::-webkit-scrollbar { display: none; }

@@ -22,7 +22,7 @@ export function getPostAuthMemberPath(
   memberStatus: MemberStatus,
   activePath = "/member",
 ) {
-  if (memberStatus === "active") {
+  if (memberStatus === "active" || memberStatus === "course_member") {
     return activePath;
   }
 
@@ -31,7 +31,8 @@ export function getPostAuthMemberPath(
   }
 
   if (memberStatus === "pending" || memberStatus === null) {
-    return isJoinRequestComplete(authData) ? "/member/pending" : "/member/join";
+    // brand-new account → ask about course invite first, then info form
+    return isJoinRequestComplete(authData) ? "/member/pending" : "/member/welcome";
   }
 
   return "/member/pending";

@@ -47,6 +47,123 @@ import {
   formatShortDate,
   trimTime,
 } from "../../hooks/useLandingData";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "../../components/ui/dropdown-menu";
+import {
+  LayoutDashboard,
+  LogOut,
+  User as UserIcon,
+  ShieldCheck,
+  IdCard,
+} from "lucide-react";
+
+function LandingAccountDropdown() {
+  const navigate = useNavigate();
+  const { authData, memberStatus, signOut } = useAuth();
+  const profile = authData.profile;
+  const displayName =
+    profile.nicknameDisplay ??
+    profile.fullName ??
+    profile.displayName ??
+    profile.email?.split("@")[0] ??
+    "Kobot member";
+  const roleLabel =
+    authData.orgPositions[0]?.name ??
+    authData.teamMemberships[0]?.roleName ??
+    (memberStatus ? memberStatus.toUpperCase() : "MEMBER");
+  const initials = (profile.fullName ?? profile.displayName ?? displayName)
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p: string) => p[0]?.toUpperCase() ?? "")
+    .join("") || "K";
+  const avatar = profile.avatarUrl;
+  const isUrlSafe =
+    typeof avatar === "string" &&
+    (avatar.startsWith("https://") ||
+      avatar.startsWith("http://") ||
+      avatar.startsWith("/") ||
+      avatar.startsWith("data:image/") ||
+      avatar.startsWith("blob:"));
+
+  async function handleSignOut() {
+    try {
+      await signOut();
+    } finally {
+      navigate("/", { replace: true });
+    }
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className="flex items-center gap-2.5 rounded-lg p-1.5 pr-2.5 hover:bg-[var(--kb-paper-3)] transition-colors"
+        >
+          <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-[var(--kb-navy-800)] text-sm font-semibold text-white">
+            {isUrlSafe ? (
+              <img
+                src={avatar}
+                alt={displayName}
+                referrerPolicy="no-referrer"
+                className="h-full w-full object-cover"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = "none";
+                }}
+              />
+            ) : (
+              initials
+            )}
+          </div>
+          <div className="hidden text-left lg:block">
+            <p className="truncate text-[13px] font-medium leading-tight text-[var(--kb-ink-900)]">
+              {displayName}
+            </p>
+            <p className="truncate text-[11px] leading-tight text-[var(--kb-ink-500)]">
+              {roleLabel}
+            </p>
+          </div>
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-64">
+        <DropdownMenuLabel>내 계정</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={() => navigate("/member")}>
+          <LayoutDashboard className="mr-2 h-4 w-4" />
+          대시보드
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={() => navigate("/member/profile")}>
+          <UserIcon className="mr-2 h-4 w-4" />
+          프로필
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => navigate("/member/security")}>
+          <ShieldCheck className="mr-2 h-4 w-4" />
+          계정 보안
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => navigate("/member/account-info")}>
+          <IdCard className="mr-2 h-4 w-4" />
+          회원 정보
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          className="text-red-600"
+          onSelect={() => void handleSignOut()}
+        >
+          <LogOut className="mr-2 h-4 w-4" />
+          로그아웃
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
 
 export default function Landing() {
   const { authData, isInitializing, memberStatus, session } = useAuth();
@@ -628,53 +745,7 @@ export default function Landing() {
 
           {/* Right Actions */}
           <div className="flex items-center gap-3">
-            {session ? (
-              (() => {
-                const profile = authData.profile;
-                const displayName =
-                  profile.nicknameDisplay ?? profile.fullName ?? profile.displayName ?? "Kobot";
-                const initials = (profile.fullName ?? profile.displayName ?? "K")
-                  .split(/\s+/)
-                  .filter(Boolean)
-                  .slice(0, 2)
-                  .map((p) => p[0]?.toUpperCase() ?? "")
-                  .join("") || "K";
-                const avatar = profile.avatarUrl;
-                const isUrlSafe =
-                  typeof avatar === "string" &&
-                  (avatar.startsWith("https://") ||
-                    avatar.startsWith("http://") ||
-                    avatar.startsWith("/") ||
-                    avatar.startsWith("data:image/") ||
-                    avatar.startsWith("blob:"));
-                return (
-                  <Link
-                    to={memberEntryPath}
-                    className="inline-flex items-center gap-2.5 rounded-full border border-[#103078]/15 bg-white pl-1 pr-3.5 py-1 text-sm font-semibold text-[#103078] hover:bg-[#103078]/5 transition-colors"
-                  >
-                    <span className="relative inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#103078] text-white text-[11px] font-bold overflow-hidden">
-                      {isUrlSafe ? (
-                        <img
-                          src={avatar}
-                          alt={displayName}
-                          referrerPolicy="no-referrer"
-                          className="h-full w-full object-cover"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).style.display = "none";
-                          }}
-                        />
-                      ) : (
-                        initials
-                      )}
-                      <span
-                        className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full ring-2 ring-white ${memberIndicatorClass}`}
-                      />
-                    </span>
-                    <span className="max-w-[120px] truncate">{displayName}</span>
-                  </Link>
-                );
-              })()
-            ) : (
+            {session ? <LandingAccountDropdown /> : (
               <Link
                 to="/login?next=%2Fmember"
                 className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-semibold text-gray-700 hover:text-[#103078] transition-colors"
