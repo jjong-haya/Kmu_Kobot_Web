@@ -628,17 +628,60 @@ export default function Landing() {
 
           {/* Right Actions */}
           <div className="flex items-center gap-3">
-            <Link
-              to={session ? memberEntryPath : "/login?next=%2Fmember"}
-              className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-semibold transition-colors ${
-                session
-                  ? "border border-[#103078]/15 bg-[#103078]/5 text-[#103078] hover:bg-[#103078]/10"
-                  : "text-gray-700 hover:text-[#103078]"
-              }`}
-            >
-              {session ? <span className={`h-2 w-2 rounded-full ${memberIndicatorClass}`} /> : null}
-              {memberActionLabel}
-            </Link>
+            {session ? (
+              (() => {
+                const profile = authData.profile;
+                const displayName =
+                  profile.nicknameDisplay ?? profile.fullName ?? profile.displayName ?? "Kobot";
+                const initials = (profile.fullName ?? profile.displayName ?? "K")
+                  .split(/\s+/)
+                  .filter(Boolean)
+                  .slice(0, 2)
+                  .map((p) => p[0]?.toUpperCase() ?? "")
+                  .join("") || "K";
+                const avatar = profile.avatarUrl;
+                const isUrlSafe =
+                  typeof avatar === "string" &&
+                  (avatar.startsWith("https://") ||
+                    avatar.startsWith("http://") ||
+                    avatar.startsWith("/") ||
+                    avatar.startsWith("data:image/") ||
+                    avatar.startsWith("blob:"));
+                return (
+                  <Link
+                    to={memberEntryPath}
+                    className="inline-flex items-center gap-2.5 rounded-full border border-[#103078]/15 bg-white pl-1 pr-3.5 py-1 text-sm font-semibold text-[#103078] hover:bg-[#103078]/5 transition-colors"
+                  >
+                    <span className="relative inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#103078] text-white text-[11px] font-bold overflow-hidden">
+                      {isUrlSafe ? (
+                        <img
+                          src={avatar}
+                          alt={displayName}
+                          referrerPolicy="no-referrer"
+                          className="h-full w-full object-cover"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = "none";
+                          }}
+                        />
+                      ) : (
+                        initials
+                      )}
+                      <span
+                        className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full ring-2 ring-white ${memberIndicatorClass}`}
+                      />
+                    </span>
+                    <span className="max-w-[120px] truncate">{displayName}</span>
+                  </Link>
+                );
+              })()
+            ) : (
+              <Link
+                to="/login?next=%2Fmember"
+                className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-semibold text-gray-700 hover:text-[#103078] transition-colors"
+              >
+                {memberActionLabel}
+              </Link>
+            )}
           </div>
         </div>
       </motion.header>
