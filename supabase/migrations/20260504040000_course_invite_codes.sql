@@ -3,6 +3,24 @@
 -- AuthCallback이 redeem_course_invite(code) RPC 호출 → status=course_member 부여 +
 -- profile.club_affiliation = invite.club_affiliation 자동 세팅.
 
+alter table public.member_accounts
+  drop constraint if exists member_accounts_status_check;
+
+alter table public.member_accounts
+  add constraint member_accounts_status_check
+  check (
+    status in (
+      'pending',
+      'active',
+      'suspended',
+      'rejected',
+      'alumni',
+      'project_only',
+      'course_member',
+      'withdrawn'
+    )
+  );
+
 create table if not exists public.course_invite_codes (
   id uuid primary key default gen_random_uuid(),
   code text not null unique,
@@ -57,15 +75,15 @@ drop policy if exists "ops can read invite codes"
 create policy "ops can read invite codes"
   on public.course_invite_codes
   for select
-  using (public.has_permission('members.manage'));
+  using (public.current_user_has_permission('members.manage'));
 
 drop policy if exists "ops can manage invite codes"
   on public.course_invite_codes;
 create policy "ops can manage invite codes"
   on public.course_invite_codes
   for all
-  using (public.has_permission('members.manage'))
-  with check (public.has_permission('members.manage'));
+  using (public.current_user_has_permission('members.manage'))
+  with check (public.current_user_has_permission('members.manage'));
 
 drop policy if exists "members can read own redemptions"
   on public.course_invite_redemptions;
@@ -79,7 +97,7 @@ drop policy if exists "ops can read all redemptions"
 create policy "ops can read all redemptions"
   on public.course_invite_redemptions
   for select
-  using (public.has_permission('members.manage'));
+  using (public.current_user_has_permission('members.manage'));
 
 -- ============================================================
 -- Brute force throttle: 1분당 5회, 실패 포함 카운트
@@ -96,7 +114,7 @@ alter table public.invite_redeem_attempts enable row level security;
 
 -- ============================================================
 -- RPC: redeem an invite code (called by AuthCallback / Welcome page)
--- Returns success / failure + sets profile.account_status + club_affiliation
+-- Returns success / failure + sets member_accounts.status + profile.club_affiliation
 -- ============================================================
 create or replace function public.redeem_course_invite(invite_code text)
 returns table (
@@ -161,11 +179,15 @@ begin
     select 1 from public.course_invite_redemptions
       where invite_code_id = v_code.id and redeemed_by = v_caller
   ) then
+    update public.member_accounts
+      set status = 'course_member', updated_at = now()
+      where user_id = v_caller and status not in ('active', 'project_only');
+
     update public.profiles
-      set account_status = 'course_member',
-          club_affiliation = coalesce(v_code.club_affiliation, club_affiliation),
+      set club_affiliation = coalesce(v_code.club_affiliation, club_affiliation),
           updated_at = now()
-      where id = v_caller and account_status not in ('active', 'project_only');
+      where id = v_caller;
+
     return query select true, 'course_member'::text, '이미 적용된 초대입니다.'::text;
     return;
   end if;
@@ -178,11 +200,14 @@ begin
     where id = v_code.id;
 
   -- 동아리 affiliation도 같이 세팅. 이미 active/project_only인 사용자는 status는 안 바꿈.
+  update public.member_accounts
+    set status = 'course_member', updated_at = now()
+    where user_id = v_caller and status not in ('active', 'project_only');
+
   update public.profiles
-    set account_status = 'course_member',
-        club_affiliation = coalesce(v_code.club_affiliation, club_affiliation),
+    set club_affiliation = coalesce(v_code.club_affiliation, club_affiliation),
         updated_at = now()
-    where id = v_caller and account_status not in ('active', 'project_only');
+    where id = v_caller;
 
   return query select true, 'course_member'::text, '가입이 완료되었습니다.'::text;
 end;
@@ -190,5 +215,4 @@ $$;
 
 grant execute on function public.redeem_course_invite(text) to authenticated;
 
--- NOTE: profiles.account_status & profiles.club_affiliation 컬럼 존재 가정.
--- enum 타입이면 alter type ... add value 필요할 수 있음.
+-- NOTE: profiles.club_affiliation 컬럼 존재 가정.

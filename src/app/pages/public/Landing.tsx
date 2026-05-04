@@ -1,4 +1,4 @@
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 import {
   ArrowRight,
   Code,
@@ -105,9 +105,10 @@ function LandingAccountDropdown() {
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="flex items-center gap-2.5 rounded-lg p-1.5 pr-2.5 hover:bg-[var(--kb-paper-3)] transition-colors"
+          className="flex items-center gap-2.5 rounded-lg p-1.5 pr-3 hover:bg-[var(--kb-paper-3)] transition-colors"
         >
-          <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-[var(--kb-navy-800)] text-sm font-semibold text-white">
+          {/* avatar circle — desktop only */}
+          <div className="hidden lg:flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-[var(--kb-navy-800)] text-sm font-semibold text-white">
             {isUrlSafe ? (
               <img
                 src={avatar}
@@ -122,11 +123,12 @@ function LandingAccountDropdown() {
               initials
             )}
           </div>
-          <div className="hidden text-left lg:block">
+          {/* name + role — always visible */}
+          <div className="text-left">
             <p className="truncate text-[13px] font-medium leading-tight text-[var(--kb-ink-900)]">
               {displayName}
             </p>
-            <p className="truncate text-[11px] leading-tight text-[var(--kb-ink-500)]">
+            <p className="hidden lg:block truncate text-[11px] leading-tight text-[var(--kb-ink-500)]">
               {roleLabel}
             </p>
           </div>

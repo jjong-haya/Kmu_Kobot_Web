@@ -31,7 +31,7 @@ import {
   X,
   Megaphone,
 } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import {
@@ -45,7 +45,10 @@ import {
 import { Input } from "../components/ui/input";
 import { ScrollToTop } from "../components/ScrollToTop";
 import { useAuth } from "../auth/useAuth";
-import { UNREAD_COUNT } from "../pages/member/Notifications";
+import {
+  getUnreadNotificationsCount,
+  NOTIFICATIONS_CHANGED_EVENT,
+} from "../api/notifications";
 import wordLogo from "@/assets/wordLogo.png";
 
 type NavigationItem = {
@@ -55,9 +58,19 @@ type NavigationItem = {
   permissions?: string[];
 };
 
+type NavigationRoleLevel = "member" | "teamLead" | "vicePresident" | "president";
+
 type NavigationSection = {
   name: string;
   items: NavigationItem[];
+  minimumRole?: NavigationRoleLevel;
+};
+
+const NAVIGATION_ROLE_RANK: Record<NavigationRoleLevel, number> = {
+  member: 0,
+  teamLead: 1,
+  vicePresident: 2,
+  president: 3,
 };
 
 const NAVIGATION: NavigationSection[] = [
@@ -129,6 +142,7 @@ const NAVIGATION: NavigationSection[] = [
   },
   {
     name: "공식팀장",
+    minimumRole: "teamLead",
     items: [
       { name: "동료 리뷰", href: "/member/peer-review", icon: MessageSquare },
       {
@@ -147,6 +161,7 @@ const NAVIGATION: NavigationSection[] = [
   },
   {
     name: "부회장",
+    minimumRole: "vicePresident",
     items: [
       { name: "로드맵", href: "/member/roadmap", icon: Target },
       { name: "회고", href: "/member/retro", icon: MessageSquare },
@@ -155,6 +170,7 @@ const NAVIGATION: NavigationSection[] = [
   },
   {
     name: "회장",
+    minimumRole: "president",
     items: [
       {
         name: "초대 코드",
@@ -228,6 +244,31 @@ function getMemberStatusLabel(status: string | null) {
  * Sidebar items visible to course members (limited tier).
  * Anything not in this set is hidden when memberStatus === "course_member".
  */
+function getMembershipDisplayLabel(status: string | null, clubAffiliation?: string | null) {
+  const normalizedClub = clubAffiliation?.trim();
+
+  switch (status) {
+    case "active":
+      return normalizedClub || "KOBOT";
+    case "course_member":
+      return normalizedClub || "KOSS";
+    default:
+      return getMemberStatusLabel(status);
+  }
+}
+
+function getRoleDisplayLabel(slug?: string | null, name?: string | null) {
+  const normalizedSlug = slug?.trim().toLocaleLowerCase("ko-KR");
+  const normalizedName = name?.trim().toLocaleLowerCase("ko-KR");
+
+  if (normalizedSlug === "president" || normalizedName === "president") return "회장";
+  if (normalizedSlug === "vice-president" || normalizedName === "vice president") return "부회장";
+  if (normalizedSlug === "team-lead" || normalizedName === "team lead") return "팀장";
+  if (normalizedSlug === "team-member" || normalizedName === "team member") return "팀원";
+
+  return name?.trim() || null;
+}
+
 const COURSE_MEMBER_ALLOWED_PATHS = new Set([
   "/member",
   "/member/notifications",
@@ -328,9 +369,10 @@ function KobotWordmark({ className = "" }: { className?: string }) {
 export default function MemberLayout() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { authData, hasPermission, memberStatus, signOut } = useAuth();
+  const { authData, hasPermission, memberStatus, signOut, user } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
   const [collapsed, setCollapsed] = useState(() => {
     if (typeof window === "undefined") return false;
     return window.localStorage.getItem("kb-sidebar-collapsed") === "1";
@@ -348,6 +390,36 @@ export default function MemberLayout() {
   const mainPaddingClass = collapsed ? "md:pl-16" : "md:pl-72";
   const isActiveMember =
     memberStatus === "active" || memberStatus === "course_member";
+  const canReadNotifications = hasPermission("notifications.read");
+
+  const refreshUnreadNotificationCount = useCallback(async () => {
+    if (!user || !canReadNotifications) {
+      setUnreadNotificationCount(0);
+      return;
+    }
+
+    try {
+      setUnreadNotificationCount(await getUnreadNotificationsCount(user.id));
+    } catch {
+      setUnreadNotificationCount(0);
+    }
+  }, [canReadNotifications, user?.id]);
+
+  useEffect(() => {
+    void refreshUnreadNotificationCount();
+
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    window.addEventListener(NOTIFICATIONS_CHANGED_EVENT, refreshUnreadNotificationCount);
+    return () => {
+      window.removeEventListener(
+        NOTIFICATIONS_CHANGED_EVENT,
+        refreshUnreadNotificationCount,
+      );
+    };
+  }, [refreshUnreadNotificationCount]);
 
   const displayName =
     authData.profile.displayName ??
@@ -355,26 +427,56 @@ export default function MemberLayout() {
     authData.profile.email?.split("@")[0] ??
     "Kobot member";
   const roleLabel =
-    authData.orgPositions[0]?.name ??
-    authData.teamMemberships[0]?.roleName ??
-    (memberStatus ? memberStatus.toUpperCase() : "MEMBER");
+    getRoleDisplayLabel(authData.orgPositions[0]?.slug, authData.orgPositions[0]?.name) ??
+    getRoleDisplayLabel(authData.teamMemberships[0]?.roleSlug, authData.teamMemberships[0]?.roleName) ??
+    getMembershipDisplayLabel(memberStatus, authData.profile.clubAffiliation);
   const initials = getInitials(displayName);
 
-  const visibleSections = NAVIGATION.map((section) => ({
+  const orgPositionSlugs = new Set(authData.orgPositions.map((position) => position.slug));
+  const teamRoleSlugs = new Set(
+    authData.teamMemberships
+      .map((membership) => membership.roleSlug)
+      .filter((roleSlug): roleSlug is string => roleSlug !== null),
+  );
+  const viewerRoleLevel: NavigationRoleLevel = hasPermission("permissions.manage") ||
+    orgPositionSlugs.has("president")
+    ? "president"
+    : hasPermission("members.manage") || orgPositionSlugs.has("vice-president")
+      ? "vicePresident"
+      : hasPermission("projects.manage", "resources.manage") || teamRoleSlugs.has("team-lead")
+        ? "teamLead"
+        : "member";
+  const viewerRoleRank = NAVIGATION_ROLE_RANK[viewerRoleLevel];
+
+  const visibleSections = NAVIGATION.map((section) => {
+    if (memberStatus === "course_member") {
+      if (section.minimumRole && section.minimumRole !== "member") {
+        return { ...section, items: [] };
+      }
+
+      return {
+        ...section,
+        items: section.items.filter((item) => COURSE_MEMBER_ALLOWED_PATHS.has(item.href)),
+      };
+    }
+
+    const requiredRank = NAVIGATION_ROLE_RANK[section.minimumRole ?? "member"];
+
+    if (requiredRank > viewerRoleRank) {
+      return { ...section, items: [] };
+    }
+
+    return {
       ...section,
       items: section.items.filter((item) => {
-        // course members see only a limited set of pages
-        if (memberStatus === "course_member") {
-          return COURSE_MEMBER_ALLOWED_PATHS.has(item.href);
-        }
-
         if (!item.permissions || item.permissions.length === 0) {
           return true;
         }
 
         return hasPermission(...item.permissions);
       }),
-    })).filter((section) => section.items.length > 0);
+    };
+  }).filter((section) => section.items.length > 0);
 
   async function handleSignOut() {
     try {
@@ -516,7 +618,11 @@ export default function MemberLayout() {
           </div>
 
           <nav className="kb-no-scrollbar flex-1 overflow-y-auto py-4">
-            <NavigationLinks sections={visibleSections} pathname={location.pathname} collapsed={collapsed} />
+            <NavigationLinks
+              sections={visibleSections}
+              pathname={location.pathname}
+              collapsed={collapsed}
+            />
           </nav>
 
           <div
@@ -695,16 +801,16 @@ export default function MemberLayout() {
             </div>
 
             <div className="ml-auto flex items-center gap-2">
-              {hasPermission("notifications.read") && (
+              {canReadNotifications && (
                 <Button variant="ghost" size="icon" className="relative" asChild>
                   <Link to="/member/notifications">
                     <Bell className="h-5 w-5" />
-                    {UNREAD_COUNT > 0 && (
+                    {unreadNotificationCount > 0 && (
                       <Badge
                         variant="destructive"
                         className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center p-0 text-xs"
                       >
-                        {UNREAD_COUNT}
+                        {unreadNotificationCount}
                       </Badge>
                     )}
                   </Link>

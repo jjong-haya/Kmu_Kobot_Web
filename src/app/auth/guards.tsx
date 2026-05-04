@@ -45,7 +45,13 @@ export function RequireSession({ children }: { children?: ReactNode }) {
   return children ?? <Outlet />;
 }
 
-export function RequireActiveMember({ children }: { children?: ReactNode }) {
+export function RequireActiveMember({
+  allowCourseMember = false,
+  children,
+}: {
+  allowCourseMember?: boolean;
+  children?: ReactNode;
+}) {
   const { authData, isInitializing, session, memberStatus } = useAuth();
 
   if (isInitializing) {
@@ -61,7 +67,11 @@ export function RequireActiveMember({ children }: { children?: ReactNode }) {
     return <Navigate to="/login" replace />;
   }
 
-  if (memberStatus !== "active") {
+  const canAccess =
+    memberStatus === "active" ||
+    (allowCourseMember && memberStatus === "course_member");
+
+  if (!canAccess) {
     return <Navigate to={getPostAuthMemberPath(authData, memberStatus)} replace />;
   }
 
@@ -69,10 +79,12 @@ export function RequireActiveMember({ children }: { children?: ReactNode }) {
 }
 
 export function RequirePermission({
+  allowCourseMember = false,
   anyOf,
   fallbackTo = "/member",
   children,
 }: {
+  allowCourseMember?: boolean;
   anyOf: string[];
   fallbackTo?: string;
   children?: ReactNode;
@@ -90,6 +102,10 @@ export function RequirePermission({
 
   if (!session) {
     return <Navigate to="/login" replace />;
+  }
+
+  if (allowCourseMember && memberStatus === "course_member") {
+    return children ?? <Outlet />;
   }
 
   if (memberStatus !== "active") {

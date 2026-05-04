@@ -35,6 +35,21 @@ const MEMBER_STATUSES: Exclude<MemberStatus, null>[] = [
   "course_member",
   "withdrawn",
 ];
+const ACTIVE_MEMBER_BASE_PERMISSIONS = [
+  "dashboard.read",
+  "notifications.read",
+  "announcements.read",
+  "members.read",
+  "projects.read",
+  "resources.read",
+  "events.read",
+];
+const COURSE_MEMBER_BASE_PERMISSIONS = [
+  "dashboard.read",
+  "notifications.read",
+  "announcements.read",
+  "members.read",
+];
 
 export const AuthContext = createContext<AuthContextValue | null>(null);
 
@@ -926,6 +941,16 @@ export function AuthProvider({ children }: PropsWithChildren) {
     setAuthError(null);
   }
 
+  const implicitPermissions =
+    authData.account.status === "active"
+      ? ACTIVE_MEMBER_BASE_PERMISSIONS
+      : authData.account.status === "course_member"
+        ? COURSE_MEMBER_BASE_PERMISSIONS
+        : [];
+  const effectivePermissions = Array.from(
+    new Set([...authData.permissions, ...implicitPermissions]),
+  );
+
   const value: AuthContextValue = {
     isConfigured: configured,
     isInitializing,
@@ -933,14 +958,14 @@ export function AuthProvider({ children }: PropsWithChildren) {
     user,
     authData,
     memberStatus: authData.account.status,
-    permissions: authData.permissions,
+    permissions: effectivePermissions,
     authError,
     hasPermission: (...codes: string[]) => {
       if (authData.account.isBootstrapAdmin) {
         return true;
       }
 
-      return codes.some((code) => authData.permissions.includes(code));
+      return codes.some((code) => effectivePermissions.includes(code));
     },
     refreshAuthData,
     signInWithGoogle,

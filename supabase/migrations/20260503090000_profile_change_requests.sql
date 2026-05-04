@@ -69,11 +69,11 @@ create policy "members can withdraw own pending request"
   with check (auth.uid() = requester_id and status in ('pending', 'withdrawn'));
 
 -- ops can read & manage all (reuse existing permission check fn if available)
--- Replace `public.has_permission(text)` with whatever rbac helper exists.
+-- Uses the same RBAC helper as the rest of the workspace policies.
 drop policy if exists "ops can manage change requests"
   on public.profile_change_requests;
 create policy "ops can manage change requests"
   on public.profile_change_requests
   for all
-  using (public.has_permission('members.manage'))
-  with check (public.has_permission('members.manage'));
+  using (public.current_user_has_permission('members.manage'))
+  with check (public.current_user_has_permission('members.manage'));

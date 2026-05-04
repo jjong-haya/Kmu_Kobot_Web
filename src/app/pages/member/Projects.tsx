@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { Link } from "react-router";
 import {
@@ -6,530 +6,329 @@ import {
   ChevronRight,
   CircleDot,
   FolderKanban,
-  Plus,
-  Star,
+  RefreshCw,
+  Search,
+  ShieldCheck,
+  Users,
 } from "lucide-react";
+import { listProjects, type ProjectStatus, type ProjectSummary } from "../../api/projects";
+import {
+  filterProjects,
+  getProjectDetailPath,
+  getProjectStatusLabel,
+  PROJECT_FILTERS,
+} from "../../api/project-policy.js";
+import { useAuth } from "../../auth/useAuth";
+import { sanitizeUserError } from "../../utils/sanitize-error";
 
-/* ───── types & data ───── */
+type FilterKey = "all" | "mine" | "active" | "pending" | "archived";
 
-type ProjectStatus = "active" | "review" | "archived";
+const FILTERS = PROJECT_FILTERS as { key: FilterKey; label: string }[];
 
-type ProjectSummary = {
-  id: string;
-  slug: string;
-  prefix: string;
-  name: string;
-  description: string;
-  role: string;
-  status: ProjectStatus;
-  members: number;
-  progress: number;
-  updatedAt: string;
-  starred: boolean;
+const PAGE_STYLE: CSSProperties = {
+  minHeight: "calc(100vh - 4rem)",
+  margin: -32,
+  padding: 32,
+  background: "#ffffff",
 };
-
-const STATUS_META: Record<
-  ProjectStatus,
-  { label: string; bg: string; fg: string; dot: string }
-> = {
-  active: {
-    label: "진행중",
-    bg: "#e3ecfb",
-    fg: "#163b86",
-    dot: "var(--kb-navy-800)",
-  },
-  review: {
-    label: "리뷰중",
-    bg: "#fef3c7",
-    fg: "#92400e",
-    dot: "#d97706",
-  },
-  archived: {
-    label: "종료",
-    bg: "#f3f3f1",
-    fg: "#6a6a6a",
-    dot: "#9a9a98",
-  },
-};
-
-const PROJECTS: ProjectSummary[] = [
-  {
-    id: "1",
-    slug: "auto-driving-robot",
-    prefix: "ADR",
-    name: "자율주행 로봇 개발",
-    description:
-      "ROS2 기반 SLAM·Costmap 통합 자율주행 플랫폼. 학기 내 야외 주행 데모 목표.",
-    role: "리더",
-    status: "active",
-    members: 5,
-    progress: 65,
-    updatedAt: "2시간 전",
-    starred: true,
-  },
-  {
-    id: "2",
-    slug: "deep-learning-vision",
-    prefix: "DLV",
-    name: "딥러닝 비전 인식",
-    description:
-      "OpenCV + PyTorch로 객체 인식·세그멘테이션 모델 학습 및 배포 파이프라인 구성.",
-    role: "팀원",
-    status: "active",
-    members: 4,
-    progress: 42,
-    updatedAt: "어제",
-    starred: false,
-  },
-  {
-    id: "3",
-    slug: "robot-arm-pickplace",
-    prefix: "RAP",
-    name: "로봇 팔 픽 앤 플레이스",
-    description: "6축 로봇 팔과 비전 시스템을 결합한 자동 분류 데모.",
-    role: "팀원",
-    status: "review",
-    members: 3,
-    progress: 88,
-    updatedAt: "3일 전",
-    starred: true,
-  },
-  {
-    id: "4",
-    slug: "drone-swarm",
-    prefix: "DSW",
-    name: "드론 군집 비행",
-    description: "다중 드론 동기화 및 군집 알고리즘 시뮬레이션 — 졸업 프로젝트.",
-    role: "옵저버",
-    status: "archived",
-    members: 6,
-    progress: 100,
-    updatedAt: "2주 전",
-    starred: false,
-  },
-];
-
-/* ───── filter ───── */
-
-type FilterKey = "all" | "active" | "review" | "archived" | "starred";
-
-const FILTERS: { key: FilterKey; label: string }[] = [
-  { key: "all", label: "전체" },
-  { key: "starred", label: "즐겨찾기" },
-  { key: "active", label: "진행중" },
-  { key: "review", label: "리뷰중" },
-  { key: "archived", label: "종료" },
-];
-
-function filterProjects(items: ProjectSummary[], key: FilterKey) {
-  if (key === "all") return items;
-  if (key === "starred") return items.filter((p) => p.starred);
-  return items.filter((p) => p.status === key);
-}
-
-/* ───── shared container ───── */
 
 const CONTAINER_STYLE: CSSProperties = {
   background: "#ffffff",
   border: "1px solid #e8e8e4",
-  borderRadius: 16,
-  boxShadow: "0 2px 8px rgba(0, 0, 0, 0.06), 0 0 1px rgba(0, 0, 0, 0.08)",
+  borderRadius: 8,
+  boxShadow: "0 2px 8px rgba(0, 0, 0, 0.05), 0 0 1px rgba(0, 0, 0, 0.08)",
 };
 
-/* ───── project row ───── */
+const STATUS_META: Record<ProjectStatus, { bg: string; fg: string; dot: string }> = {
+  active: {
+    bg: "#e7efff",
+    fg: "#183b80",
+    dot: "var(--kb-navy-800)",
+  },
+  pending: {
+    bg: "#fff3d8",
+    fg: "#855600",
+    dot: "#d97706",
+  },
+  rejected: {
+    bg: "#fee2e2",
+    fg: "#991b1b",
+    dot: "#dc2626",
+  },
+  archived: {
+    bg: "#eeeeec",
+    fg: "#55514c",
+    dot: "#9a9a98",
+  },
+};
 
-function ProjectRow({ p }: { p: ProjectSummary }) {
-  const meta = STATUS_META[p.status];
+function formatRelativeDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "업데이트 없음";
+
+  const diffMs = Date.now() - date.getTime();
+  const day = 24 * 60 * 60 * 1000;
+
+  if (diffMs < 60 * 1000) return "방금 전";
+  if (diffMs < 60 * 60 * 1000) return `${Math.floor(diffMs / (60 * 1000))}분 전`;
+  if (diffMs < day) return `${Math.floor(diffMs / (60 * 60 * 1000))}시간 전`;
+  if (diffMs < day * 7) return `${Math.floor(diffMs / day)}일 전`;
+
+  return date.toLocaleDateString("ko-KR", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function filterCount(projects: ProjectSummary[], key: FilterKey) {
+  return filterProjects(projects, key).length;
+}
+
+function matchesSearch(project: ProjectSummary, keyword: string) {
+  if (!keyword) return true;
+
+  return [
+    project.name,
+    project.slug,
+    project.summary,
+    project.description,
+    project.lead?.displayName,
+    project.myRoleLabel,
+  ]
+    .filter(Boolean)
+    .some((value) => value!.toLocaleLowerCase("ko-KR").includes(keyword));
+}
+
+function ProjectRow({ project }: { project: ProjectSummary }) {
+  const meta = STATUS_META[project.status] ?? STATUS_META.pending;
 
   return (
     <Link
-      to={`/member/projects/${p.slug}`}
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 20,
-        padding: "20px 28px",
-        borderTop: "1px solid #f1ede4",
-        textDecoration: "none",
-        color: "inherit",
-        transition: "background 120ms",
-        position: "relative",
-      }}
-      className="hover:bg-[#fafaf6]"
+      to={getProjectDetailPath(project.slug)}
+      className="relative flex gap-4 border-t border-[#f1ede4] px-5 py-5 text-inherit no-underline transition-colors hover:bg-[#fafaf6] sm:px-7"
     >
-      {/* prefix badge */}
       <div
+        className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md text-[13px] font-bold"
         style={{
-          width: 52,
-          height: 52,
-          borderRadius: 10,
-          background: p.status === "archived" ? "#f1ede4" : "#0a0a0a",
-          color: p.status === "archived" ? "var(--kb-ink-500)" : "#fff",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: 14,
-          fontWeight: 700,
-          letterSpacing: "0.04em",
-          flexShrink: 0,
+          background: project.status === "archived" ? "#f1ede4" : "#0a0a0a",
+          color: project.status === "archived" ? "var(--kb-ink-500)" : "#fff",
           fontFamily: "var(--kb-font-mono)",
+          letterSpacing: "0.04em",
         }}
       >
-        {p.prefix}
+        {project.prefix}
       </div>
 
-      {/* main content */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        {/* title row */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            marginBottom: 4,
-          }}
-        >
-          <span
-            style={{
-              fontSize: 17,
-              fontWeight: 700,
-              color: "var(--kb-ink-900)",
-            }}
-          >
-            {p.name}
+      <div className="min-w-0 flex-1">
+        <div className="mb-1.5 flex flex-wrap items-center gap-2">
+          <span className="text-[17px] font-semibold text-[var(--kb-ink-900)]">
+            {project.name}
           </span>
-          {p.starred && (
-            <Star
-              style={{
-                width: 14,
-                height: 14,
-                color: "#f59e0b",
-                fill: "#f59e0b",
-              }}
-            />
+          <span
+            className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[12px] font-semibold"
+            style={{ background: meta.bg, color: meta.fg }}
+          >
+            <span className="h-1.5 w-1.5 rounded-full" style={{ background: meta.dot }} />
+            {getProjectStatusLabel(project.status)}
+          </span>
+          {project.isMember && (
+            <span className="rounded-full border border-[#e8e8e4] bg-[#fafaf6] px-2.5 py-1 text-[12px] font-semibold text-[var(--kb-ink-700)]">
+              {project.myRoleLabel}
+            </span>
           )}
-          <span
-            style={{
-              fontSize: 12.5,
-              fontWeight: 600,
-              padding: "2px 10px",
-              borderRadius: 4,
-              background: meta.bg,
-              color: meta.fg,
-            }}
-          >
-            {meta.label}
-          </span>
-          <span
-            style={{
-              fontSize: 12.5,
-              fontWeight: 500,
-              padding: "2px 10px",
-              borderRadius: 4,
-              background: "#f7f5f0",
-              color: "var(--kb-ink-700)",
-              border: "1px solid #ebe8e0",
-            }}
-          >
-            {p.role}
-          </span>
         </div>
 
-        {/* description */}
-        <div
-          style={{
-            fontSize: 14.5,
-            color: "var(--kb-ink-500)",
-            lineHeight: 1.5,
-            marginBottom: 8,
-            display: "-webkit-box",
-            WebkitLineClamp: 1,
-            WebkitBoxOrient: "vertical",
-            overflow: "hidden",
-          }}
-        >
-          {p.description}
+        <p className="m-0 line-clamp-2 text-[14.5px] leading-6 text-[var(--kb-ink-500)]">
+          {project.summary ?? project.description ?? "프로젝트 설명이 없습니다."}
+        </p>
+
+        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px] text-[var(--kb-ink-400)]">
+          <span className="inline-flex items-center gap-1.5">
+            <Users className="h-3.5 w-3.5" />
+            멤버 {project.memberCount}명
+          </span>
+          {project.lead && <span>리드 {project.lead.displayName}</span>}
+          <span>{formatRelativeDate(project.updatedAt)}</span>
+          <span>{project.visibility === "public" ? "공개" : "비공개"}</span>
         </div>
 
-        {/* meta + progress bar */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 16,
-            fontSize: 13,
-            color: "var(--kb-ink-400)",
-          }}
-        >
-          <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-            <CircleDot style={{ width: 12, height: 12 }} />팀원 {p.members}명
-          </span>
-          <span style={{ color: "#ddd" }}>·</span>
-          <span>{p.updatedAt}</span>
-          <span style={{ color: "#ddd" }}>·</span>
-          {/* inline progress */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, maxWidth: 240 }}>
-            <div
-              style={{
-                flex: 1,
-                height: 5,
-                background: "#f1ede4",
-                borderRadius: 3,
-                overflow: "hidden",
-              }}
-            >
+        {project.progress !== null && (
+          <div className="mt-3 flex max-w-[320px] items-center gap-2">
+            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[#f1ede4]">
               <div
-                style={{
-                  width: `${p.progress}%`,
-                  height: "100%",
-                  background:
-                    p.status === "archived"
-                      ? "var(--kb-ink-400)"
-                      : "var(--kb-navy-800)",
-                  transition: "width 200ms",
-                }}
+                className="h-full rounded-full bg-[var(--kb-navy-800)]"
+                style={{ width: `${project.progress}%` }}
               />
             </div>
-            <span
-              style={{
-                fontSize: 12.5,
-                fontWeight: 600,
-                color: "var(--kb-ink-700)",
-                minWidth: 32,
-                textAlign: "right",
-              }}
-            >
-              {p.progress}%
+            <span className="w-9 text-right text-[12px] font-semibold text-[var(--kb-ink-700)]">
+              {project.progress}%
             </span>
           </div>
-        </div>
+        )}
       </div>
 
-      {/* chevron */}
-      <ChevronRight
-        style={{
-          width: 18,
-          height: 18,
-          color: "var(--kb-ink-300)",
-          flexShrink: 0,
-        }}
-      />
+      <ChevronRight className="mt-4 h-4 w-4 shrink-0 text-[var(--kb-ink-300)]" />
     </Link>
   );
 }
 
-/* ───── page ───── */
-
 export default function Projects() {
+  const { user } = useAuth();
+  const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [activeFilter, setActiveFilter] = useState<FilterKey>("all");
-  const filtered = filterProjects(PROJECTS, activeFilter);
+  const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const activeCount = PROJECTS.filter((p) => p.status === "active").length;
-  const myProjectCount = PROJECTS.filter((p) => p.role !== "옵저버").length;
+  const keyword = search.trim().toLocaleLowerCase("ko-KR");
+  const filtered = useMemo(
+    () =>
+      (filterProjects(projects, activeFilter) as ProjectSummary[]).filter((project) =>
+        matchesSearch(project, keyword),
+      ),
+    [activeFilter, keyword, projects],
+  );
+  const activeCount = useMemo(
+    () => projects.filter((project) => project.status === "active").length,
+    [projects],
+  );
+  const myProjectCount = useMemo(
+    () => projects.filter((project) => project.isMember).length,
+    [projects],
+  );
+
+  async function refresh() {
+    if (!user) {
+      setProjects([]);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      setProjects(await listProjects(user.id));
+    } catch (requestError) {
+      setError(sanitizeUserError(requestError, "프로젝트를 불러오지 못했습니다."));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void refresh();
+  }, [user?.id]);
 
   return (
-    <div
-      className="kb-root"
-      style={{
-        minHeight: "calc(100vh - 4rem)",
-        margin: -32,
-        padding: 32,
-        background: "#ffffff",
-      }}
-    >
-      <div
-        style={{
-          margin: "0 auto",
-          display: "flex",
-          flexDirection: "column",
-          gap: 20,
-          maxWidth: 1100,
-        }}
-      >
-        {/* ─── page header ─── */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "flex-end",
-            justifyContent: "space-between",
-            gap: 16,
-            flexWrap: "wrap",
-            paddingBottom: 4,
-          }}
-        >
+    <div className="kb-root" style={PAGE_STYLE}>
+      <div className="mx-auto flex max-w-[1120px] flex-col gap-5">
+        <div className="flex flex-wrap items-end justify-between gap-4 pb-1">
           <div>
             <div
-              className="kb-mono"
-              style={{
-                fontSize: 13,
-                color: "var(--kb-ink-500)",
-                letterSpacing: "0.14em",
-                textTransform: "uppercase",
-                marginBottom: 8,
-              }}
+              className="kb-mono mb-2 text-[13px] uppercase text-[var(--kb-ink-500)]"
+              style={{ letterSpacing: "0.14em" }}
             >
               Projects
             </div>
             <h1
-              className="kb-display"
-              style={{
-                fontSize: 30,
-                fontWeight: 600,
-                letterSpacing: "-0.02em",
-                margin: 0,
-                lineHeight: 1.2,
-                color: "#0a0a0a",
-              }}
+              className="kb-display m-0 text-[30px] font-semibold leading-tight text-[#0a0a0a]"
+              style={{ letterSpacing: 0 }}
             >
-              내 프로젝트
-              <span
-                style={{
-                  color: "var(--kb-ink-500)",
-                  fontWeight: 400,
-                  marginLeft: 12,
-                  fontSize: 17,
-                }}
-              >
-                · 진행중 {activeCount}건 / 참여 {myProjectCount}건
+              프로젝트
+              <span className="ml-3 text-[17px] font-normal text-[var(--kb-ink-500)]">
+                진행중 {activeCount}건 / 참여 {myProjectCount}건
               </span>
             </h1>
           </div>
 
           <button
             type="button"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 8,
-              padding: "12px 22px",
-              background: "#0a0a0a",
-              color: "#fff",
-              border: "none",
-              borderRadius: 10,
-              fontSize: 15,
-              fontWeight: 600,
-              cursor: "pointer",
-              fontFamily: "inherit",
-            }}
+            onClick={() => void refresh()}
+            className="inline-flex items-center gap-2 rounded-md border border-[#ebe8e0] bg-white px-4 py-2.5 text-[14px] font-medium text-[var(--kb-ink-700)] hover:border-[var(--kb-ink-300)]"
           >
-            <Plus style={{ width: 15, height: 15 }} />새 프로젝트
+            <RefreshCw className="h-4 w-4" />
+            새로고침
           </button>
         </div>
 
-        {/* ─── list container ─── */}
-        <div style={{ ...CONTAINER_STYLE, padding: 0, overflow: "hidden" }}>
-          {/* filter pills */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              padding: "18px 28px",
-              borderBottom: "1px solid #f1ede4",
-              flexWrap: "wrap",
-            }}
-          >
-            {FILTERS.map((f) => {
-              const count =
-                f.key === "all"
-                  ? PROJECTS.length
-                  : f.key === "starred"
-                    ? PROJECTS.filter((p) => p.starred).length
-                    : PROJECTS.filter((p) => p.status === f.key).length;
-              const isActive = activeFilter === f.key;
-              return (
-                <button
-                  key={f.key}
-                  type="button"
-                  onClick={() => setActiveFilter(f.key)}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 6,
-                    padding: "8px 16px",
-                    borderRadius: 8,
-                    border: isActive
-                      ? "1px solid #0a0a0a"
-                      : "1px solid #ebe8e0",
-                    background: isActive ? "#0a0a0a" : "#fff",
-                    color: isActive ? "#fff" : "var(--kb-ink-700)",
-                    fontSize: 14.5,
-                    fontWeight: isActive ? 600 : 500,
-                    cursor: "pointer",
-                    fontFamily: "inherit",
-                    transition: "all 150ms",
-                  }}
-                  className={isActive ? "" : "hover:border-[var(--kb-ink-300)]"}
-                >
-                  {f.key === "starred" && !isActive && (
-                    <Star style={{ width: 12, height: 12 }} />
-                  )}
-                  {f.key === "archived" && !isActive && (
-                    <Archive style={{ width: 12, height: 12 }} />
-                  )}
-                  {f.label}
-                  <span
+        <section style={{ ...CONTAINER_STYLE, overflow: "hidden" }}>
+          <div className="flex flex-col gap-3 border-b border-[#f1ede4] px-5 py-4 sm:px-7">
+            <div className="relative max-w-md">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--kb-ink-400)]" />
+              <input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="프로젝트 검색"
+                className="w-full rounded-md border border-[#e8e8e4] bg-white py-2.5 pl-9 pr-3 text-[14px] outline-none"
+              />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {FILTERS.map((filter) => {
+                const active = activeFilter === filter.key;
+                return (
+                  <button
+                    key={filter.key}
+                    type="button"
+                    onClick={() => setActiveFilter(filter.key)}
+                    className="inline-flex items-center gap-2 rounded-full border px-4 py-2 text-[14px] font-medium transition-colors"
                     style={{
-                      fontSize: 12.5,
-                      fontWeight: 700,
-                      opacity: isActive ? 0.8 : 0.5,
+                      borderColor: active ? "#0a0a0a" : "#ebe8e0",
+                      background: active ? "#0a0a0a" : "#fff",
+                      color: active ? "#fff" : "var(--kb-ink-700)",
                     }}
                   >
-                    {count}
-                  </span>
-                </button>
-              );
-            })}
+                    {filter.key === "archived" && <Archive className="h-3.5 w-3.5" />}
+                    {filter.label}
+                    <span className="text-[12px]" style={{ opacity: active ? 0.8 : 0.55 }}>
+                      {filterCount(projects, filter.key)}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
-          {/* rows */}
-          {filtered.length === 0 ? (
-            <div
-              style={{
-                padding: "56px 28px",
-                textAlign: "center",
-                color: "var(--kb-ink-500)",
-                fontSize: 15.5,
-              }}
-            >
-              <FolderKanban
-                style={{
-                  width: 32,
-                  height: 32,
-                  margin: "0 auto 12px",
-                  color: "var(--kb-ink-300)",
-                }}
-              />
-              해당 필터에 프로젝트가 없습니다.
+          {error && (
+            <div className="border-b border-red-100 bg-red-50 px-5 py-3 text-[14px] text-red-700 sm:px-7">
+              {error}
+            </div>
+          )}
+
+          {loading ? (
+            <div className="flex items-center justify-center gap-2 px-5 py-16 text-[15px] text-[var(--kb-ink-500)]">
+              <RefreshCw className="h-4 w-4 animate-spin" />
+              프로젝트를 불러오는 중입니다.
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="px-5 py-16 text-center text-[15px] text-[var(--kb-ink-500)]">
+              <FolderKanban className="mx-auto mb-3 h-8 w-8 text-[var(--kb-ink-300)]" />
+              실제 DB에 표시할 프로젝트가 없습니다.
             </div>
           ) : (
             <div>
-              {filtered.map((p) => (
-                <ProjectRow key={p.id} p={p} />
+              {filtered.map((project) => (
+                <ProjectRow key={project.id} project={project} />
               ))}
             </div>
           )}
 
-          {/* footer */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              padding: "14px 28px",
-              borderTop: "1px solid #f1ede4",
-              fontSize: 13.5,
-              color: "var(--kb-ink-500)",
-            }}
-          >
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#f1ede4] px-5 py-3 text-[13px] text-[var(--kb-ink-500)] sm:px-7">
             <span>
-              {filtered.length} / {PROJECTS.length} 건
+              {filtered.length} / {projects.length}건
             </span>
-            <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <FolderKanban style={{ width: 13, height: 13 }} />
-              프로젝트를 선택하면 태스크·문서·멤버 관리에 접근합니다.
+            <span className="inline-flex items-center gap-1.5">
+              <CircleDot className="h-3.5 w-3.5" />
+              실제 프로젝트 테이블 기준
             </span>
           </div>
+        </section>
+
+        <div className="flex items-center gap-2 rounded-md bg-[#f8f9fc] px-4 py-3 text-[14px] text-[var(--kb-ink-500)]">
+          <ShieldCheck className="h-4 w-4 shrink-0 text-[var(--kb-navy-800)]" />
+          프로젝트 생성과 태스크 관리는 별도 데이터 모델이 붙을 때 활성화됩니다.
         </div>
       </div>
     </div>

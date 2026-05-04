@@ -84,5 +84,5 @@ drop policy if exists "ops can manage all bookings"
 create policy "ops can manage all bookings"
   on public.space_bookings
   for all
-  using (public.has_permission('members.manage'))
-  with check (public.has_permission('members.manage'));
+  using (public.current_user_has_permission('members.manage'))
+  with check (public.current_user_has_permission('members.manage'));

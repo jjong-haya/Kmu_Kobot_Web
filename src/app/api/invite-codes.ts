@@ -1,10 +1,14 @@
 import { getSupabaseBrowserClient } from "../auth/supabase";
+import { sanitizeUserError } from "../utils/sanitize-error";
+
+const FALLBACK = "초대 코드 처리 중 문제가 발생했습니다.";
 
 export type InviteCodeRow = {
   id: string;
   code: string;
   label: string | null;
   club_affiliation: string | null;
+  default_tags: string[];
   max_uses: number | null;
   uses: number;
   expires_at: string | null;
@@ -13,23 +17,75 @@ export type InviteCodeRow = {
   created_by: string | null;
 };
 
-const SELECT_COLUMNS =
+const BASE_SELECT_COLUMNS =
   "id, code, label, club_affiliation, max_uses, uses, expires_at, is_active, created_at, created_by";
+const EXTENDED_SELECT_COLUMNS =
+  "id, code, label, club_affiliation, default_tags, max_uses, uses, expires_at, is_active, created_at, created_by";
+
+function isMissingSchemaError(error: { code?: string; message?: string } | null) {
+  const message = error?.message?.toLowerCase() ?? "";
+  return (
+    error?.code === "42703" ||
+    error?.code === "PGRST204" ||
+    message.includes("does not exist") ||
+    message.includes("could not find") ||
+    message.includes("schema cache")
+  );
+}
+
+export function normalizeInviteTags(value: unknown) {
+  const rawTags = Array.isArray(value)
+    ? value
+    : typeof value === "string"
+      ? value.split(/[,\n]+/)
+      : [];
+  const seen = new Set<string>();
+  const tags: string[] = [];
+
+  for (const raw of rawTags) {
+    if (typeof raw !== "string") continue;
+    const tag = raw.normalize("NFKC").trim().replace(/^#+/, "").replace(/\s+/g, " ");
+    const key = tag.toLocaleLowerCase("ko-KR");
+    if (!tag || seen.has(key)) continue;
+    seen.add(key);
+    tags.push(tag.slice(0, 32));
+    if (tags.length >= 12) break;
+  }
+
+  return tags;
+}
+
+function withDefaultTags(row: Partial<InviteCodeRow>): InviteCodeRow {
+  return {
+    ...(row as InviteCodeRow),
+    default_tags: normalizeInviteTags(row.default_tags).length > 0 ? normalizeInviteTags(row.default_tags) : ["KOSS"],
+  };
+}
 
 export async function listInviteCodes(): Promise<InviteCodeRow[]> {
   const supabase = getSupabaseBrowserClient();
-  const { data, error } = await supabase
+  const extended = await supabase
     .from("course_invite_codes")
-    .select(SELECT_COLUMNS)
+    .select(EXTENDED_SELECT_COLUMNS)
     .order("created_at", { ascending: false });
-  if (error) throw new Error(error.message);
-  return data ?? [];
+
+  if (!extended.error) return (extended.data ?? []).map((row) => withDefaultTags(row));
+  if (!isMissingSchemaError(extended.error)) throw new Error(sanitizeUserError(extended.error, FALLBACK));
+
+  const fallback = await supabase
+    .from("course_invite_codes")
+    .select(BASE_SELECT_COLUMNS)
+    .order("created_at", { ascending: false });
+
+  if (fallback.error) throw new Error(sanitizeUserError(fallback.error, FALLBACK));
+  return (fallback.data ?? []).map((row) => withDefaultTags(row));
 }
 
 export type CreateInviteCodeInput = {
   code: string;
   label?: string | null;
   clubAffiliation?: string | null;
+  defaultTags?: string[] | null;
   maxUses?: number | null;
   expiresAt?: string | null; // ISO timestamp
 };
@@ -38,7 +94,24 @@ export async function createInviteCode(
   input: CreateInviteCodeInput,
 ): Promise<InviteCodeRow> {
   const supabase = getSupabaseBrowserClient();
-  const { data, error } = await supabase
+  const defaultTags = normalizeInviteTags(input.defaultTags ?? ["KOSS"]);
+  const extended = await supabase
+    .from("course_invite_codes")
+    .insert({
+      code: input.code,
+      label: input.label ?? null,
+      club_affiliation: input.clubAffiliation ?? null,
+      default_tags: defaultTags.length > 0 ? defaultTags : ["KOSS"],
+      max_uses: input.maxUses ?? null,
+      expires_at: input.expiresAt ?? null,
+    })
+    .select(EXTENDED_SELECT_COLUMNS)
+    .single();
+
+  if (!extended.error) return withDefaultTags(extended.data);
+  if (!isMissingSchemaError(extended.error)) throw new Error(sanitizeUserError(extended.error, FALLBACK));
+
+  const fallback = await supabase
     .from("course_invite_codes")
     .insert({
       code: input.code,
@@ -47,11 +120,12 @@ export async function createInviteCode(
       max_uses: input.maxUses ?? null,
       expires_at: input.expiresAt ?? null,
     })
-    .select(SELECT_COLUMNS)
+    .select(BASE_SELECT_COLUMNS)
     .single();
-  if (error) throw new Error(error.message);
-  if (!data) throw new Error("저장 실패");
-  return data;
+
+  if (fallback.error) throw new Error(sanitizeUserError(fallback.error, FALLBACK));
+  if (!fallback.data) throw new Error("저장 실패");
+  return withDefaultTags(fallback.data);
 }
 
 export async function setInviteCodeActive(
@@ -63,7 +137,7 @@ export async function setInviteCodeActive(
     .from("course_invite_codes")
     .update({ is_active: active })
     .eq("id", id);
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(sanitizeUserError(error, FALLBACK));
 }
 
 /**

@@ -1,205 +1,183 @@
-import { useState, useMemo } from "react";
-import type { CSSProperties, ReactNode } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { CSSProperties } from "react";
+import { useNavigate } from "react-router";
 import {
+  Archive,
   Bell,
   Check,
   Handshake,
-  KeyRound,
   MailOpen,
+  Megaphone,
+  RefreshCw,
   ShieldCheck,
+  UserPlus,
   Vote,
 } from "lucide-react";
+import { useAuth } from "../../auth/useAuth";
+import {
+  dismissNotification,
+  listNotifications,
+  markAllNotificationsRead,
+  markNotificationRead,
+  type NotificationCategory,
+  type NotificationItem,
+} from "../../api/notifications";
+import {
+  filterNotifications,
+  getUnreadNotificationCount,
+  NOTIFICATION_FILTERS,
+} from "../../api/notification-policy.js";
 
-/* ───── types & data ───── */
+type FilterKey = "all" | "unread" | "member" | "contact" | "vote" | "approval" | "system";
 
-type NotificationCategory = "contact" | "vote" | "project" | "permission";
-
-type Notification = {
-  id: number;
-  category: NotificationCategory;
-  title: string;
-  message: string;
-  time: string;
-  unread: boolean;
-  status: string;
-};
+const FILTERS = NOTIFICATION_FILTERS as { key: FilterKey; label: string }[];
 
 const CATEGORY_META: Record<
   NotificationCategory,
-  { label: string; icon: typeof Bell; chipBg: string; chipFg: string; dot: string }
+  {
+    label: string;
+    icon: typeof Bell;
+    chipBg: string;
+    chipFg: string;
+    iconBg: string;
+    iconFg: string;
+  }
 > = {
+  member: {
+    label: "회원",
+    icon: UserPlus,
+    chipBg: "#e7efff",
+    chipFg: "#183b80",
+    iconBg: "#dce8ff",
+    iconFg: "#183b80",
+  },
   contact: {
     label: "연락 요청",
     icon: Handshake,
-    chipBg: "#e3ecfb",
-    chipFg: "#163b86",
-    dot: "var(--kb-navy-800)",
+    chipBg: "#e6f5ef",
+    chipFg: "#116149",
+    iconBg: "#d9f0e8",
+    iconFg: "#116149",
   },
   vote: {
     label: "투표",
     icon: Vote,
-    chipBg: "#fef3c7",
-    chipFg: "#92400e",
-    dot: "#d97706",
+    chipBg: "#fff3d8",
+    chipFg: "#855600",
+    iconBg: "#ffe8a8",
+    iconFg: "#855600",
+  },
+  approval: {
+    label: "승인/권한",
+    icon: ShieldCheck,
+    chipBg: "#f0e7ff",
+    chipFg: "#5d2aa1",
+    iconBg: "#e6d7ff",
+    iconFg: "#5d2aa1",
   },
   project: {
-    label: "프로젝트 승인",
+    label: "프로젝트",
     icon: ShieldCheck,
-    chipBg: "#dff4e2",
-    chipFg: "#15602e",
-    dot: "#15803d",
+    chipBg: "#e5f1ff",
+    chipFg: "#15548a",
+    iconBg: "#d6eaff",
+    iconFg: "#15548a",
   },
-  permission: {
-    label: "권한 양도",
-    icon: KeyRound,
-    chipBg: "#f3e8ff",
-    chipFg: "#6b21a8",
-    dot: "#9333ea",
+  announcement: {
+    label: "공지",
+    icon: Megaphone,
+    chipBg: "#f4eadf",
+    chipFg: "#71451e",
+    iconBg: "#ead8c6",
+    iconFg: "#71451e",
+  },
+  system: {
+    label: "시스템",
+    icon: Bell,
+    chipBg: "#eeeeec",
+    chipFg: "#44403c",
+    iconBg: "#e8e5e0",
+    iconFg: "#44403c",
   },
 };
-
-const NOTIFICATIONS: Notification[] = [
-  {
-    id: 1,
-    category: "contact",
-    title: "김하린 님이 연락을 요청했습니다",
-    message:
-      "SLAM 스터디 참여 전 준비 자료와 첫 모임 장소를 확인하고 싶다는 요청입니다.",
-    time: "10분 전",
-    unread: true,
-    status: "응답 대기",
-  },
-  {
-    id: 2,
-    category: "vote",
-    title: "회장 보궐 선거 결선 투표가 시작되었습니다",
-    message:
-      "1차 투표에서 과반 후보가 없어 상위 2인 결선 투표가 진행 중입니다.",
-    time: "1시간 전",
-    unread: true,
-    status: "참여 필요",
-  },
-  {
-    id: 3,
-    category: "project",
-    title: "자율주행 프로젝트 참여가 승인되었습니다",
-    message:
-      "운영진 승인으로 프로젝트 멤버 권한이 부여되었습니다. 온보딩 자료를 확인해 주세요.",
-    time: "어제",
-    unread: false,
-    status: "승인 완료",
-  },
-  {
-    id: 4,
-    category: "permission",
-    title: "장비 관리 권한 양도 요청이 도착했습니다",
-    message:
-      "기존 담당자가 다음 학기 장비 대여 관리 권한을 양도하려고 합니다.",
-    time: "2일 전",
-    unread: true,
-    status: "수락 필요",
-  },
-  {
-    id: 5,
-    category: "vote",
-    title: "정기 세미나 요일 변경 안건이 마감되었습니다",
-    message:
-      "결과 공개 시점 설정에 따라 운영진 검토 후 결과가 공개될 예정입니다.",
-    time: "3일 전",
-    unread: false,
-    status: "마감",
-  },
-  {
-    id: 6,
-    category: "contact",
-    title: "반복 연락 요청 경고가 기록되었습니다",
-    message:
-      "동일한 대상에게 짧은 시간 안에 유사한 요청이 반복되어 자동화 차단 정책 안내가 발송되었습니다.",
-    time: "4일 전",
-    unread: false,
-    status: "정책 안내",
-  },
-  {
-    id: 7,
-    category: "project",
-    title: "딥러닝 프로젝트 중간 점검 결과 안내",
-    message:
-      "프로젝트 중간 평가에서 A등급을 받았습니다. 상세 피드백을 확인하세요.",
-    time: "5일 전",
-    unread: false,
-    status: "확인 완료",
-  },
-];
-
-/* ───── filter definitions ───── */
-
-type FilterKey = "all" | "unread" | "contact" | "vote" | "approval";
-
-const FILTERS: { key: FilterKey; label: string }[] = [
-  { key: "all", label: "전체" },
-  { key: "unread", label: "읽지 않음" },
-  { key: "contact", label: "연락 요청" },
-  { key: "vote", label: "투표" },
-  { key: "approval", label: "승인/권한" },
-];
-
-function filterNotifications(items: Notification[], key: FilterKey): Notification[] {
-  switch (key) {
-    case "all":
-      return items;
-    case "unread":
-      return items.filter((n) => n.unread);
-    case "contact":
-      return items.filter((n) => n.category === "contact");
-    case "vote":
-      return items.filter((n) => n.category === "vote");
-    case "approval":
-      return items.filter((n) => n.category === "project" || n.category === "permission");
-  }
-}
-
-function countForFilter(items: Notification[], key: FilterKey): number {
-  return filterNotifications(items, key).length;
-}
-
-/** Exported so MemberLayout can import to show badge count */
-export const UNREAD_COUNT = NOTIFICATIONS.filter((n) => n.unread).length;
-
-/* ───── shared primitives (same as Dashboard) ───── */
 
 const CARD_STYLE: CSSProperties = {
   background: "#ffffff",
   border: "1px solid #e8e8e4",
-  borderRadius: 16,
-  boxShadow: "0 2px 8px rgba(0, 0, 0, 0.06), 0 0 1px rgba(0, 0, 0, 0.08)",
+  borderRadius: 8,
+  boxShadow: "0 2px 8px rgba(0, 0, 0, 0.05), 0 0 1px rgba(0, 0, 0, 0.08)",
 };
 
-function Card({ children, style }: { children: ReactNode; style?: CSSProperties }) {
-  return <div style={{ ...CARD_STYLE, ...style }}>{children}</div>;
+function formatRelativeTime(value: string) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  const diffMs = Date.now() - date.getTime();
+  const absMs = Math.abs(diffMs);
+  const minute = 60 * 1000;
+  const hour = 60 * minute;
+  const day = 24 * hour;
+
+  if (absMs < minute) return "방금 전";
+  if (absMs < hour) return `${Math.floor(absMs / minute)}분 전`;
+  if (absMs < day) return `${Math.floor(absMs / hour)}시간 전`;
+  if (absMs < day * 7) return `${Math.floor(absMs / day)}일 전`;
+
+  return date.toLocaleDateString("ko-KR", {
+    month: "short",
+    day: "numeric",
+  });
 }
 
-/* ───── notification row ───── */
+function getNotificationTitle(item: NotificationItem) {
+  if (item.type === "membership_application_submitted") {
+    return "가입 신청이 도착했습니다";
+  }
 
-function NotificationRow({ n }: { n: Notification }) {
-  const meta = CATEGORY_META[n.category];
+  return item.title;
+}
+
+function getNotificationStatus(item: NotificationItem) {
+  if (item.importance === "important" && !item.readAt) return "중요";
+  if (!item.readAt) return "새 알림";
+  return "읽음";
+}
+
+function NotificationRow({
+  item,
+  onOpen,
+  onMarkRead,
+  onDismiss,
+}: {
+  item: NotificationItem;
+  onOpen: (item: NotificationItem) => void;
+  onMarkRead: (item: NotificationItem) => void;
+  onDismiss: (item: NotificationItem) => void;
+}) {
+  const meta = CATEGORY_META[item.category] ?? CATEGORY_META.system;
   const Icon = meta.icon;
+  const unread = !item.readAt;
 
   return (
     <div
-      style={{
-        display: "flex",
-        gap: 18,
-        padding: "20px 28px",
-        borderTop: "1px solid #f1ede4",
-        transition: "background 120ms",
-        cursor: "pointer",
-        position: "relative",
+      role="button"
+      tabIndex={0}
+      onClick={() => onOpen(item)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onOpen(item);
+        }
       }}
-      className="hover:bg-[#fafaf6]"
+      className="group flex w-full gap-4 border-t border-[#f1ede4] px-5 py-4 text-left transition-colors hover:bg-[#fafaf6] sm:px-7"
+      style={{ position: "relative" }}
     >
-      {/* unread indicator bar */}
-      {n.unread && (
-        <div
+      {unread && (
+        <span
+          aria-hidden
           style={{
             position: "absolute",
             left: 0,
@@ -207,122 +185,207 @@ function NotificationRow({ n }: { n: Notification }) {
             bottom: 0,
             width: 3,
             background: "var(--kb-navy-800)",
-            borderRadius: "0 2px 2px 0",
           }}
         />
       )}
 
-      {/* icon circle */}
-      <div
+      <span
+        className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
         style={{
-          width: 42,
-          height: 42,
-          borderRadius: "50%",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          flexShrink: 0,
-          background: n.unread ? "#0a0a0a" : "#f1ede4",
-          marginTop: 2,
+          background: unread ? "var(--kb-navy-800)" : meta.iconBg,
+          color: unread ? "#fff" : meta.iconFg,
         }}
       >
-        <Icon
-          style={{
-            width: 18,
-            height: 18,
-            color: n.unread ? "#fff" : "var(--kb-ink-500)",
-          }}
-        />
-      </div>
+        <Icon className="h-[18px] w-[18px]" />
+      </span>
 
-      {/* content */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 4 }}>
-          {/* category chip */}
+      <span className="min-w-0 flex-1">
+        <span className="mb-1.5 flex flex-wrap items-center gap-2">
           <span
-            style={{
-              fontSize: 12.5,
-              fontWeight: 600,
-              padding: "3px 10px",
-              borderRadius: 4,
-              background: meta.chipBg,
-              color: meta.chipFg,
-              letterSpacing: "0.02em",
-            }}
+            className="inline-flex rounded-full px-2.5 py-1 text-[12px] font-semibold"
+            style={{ background: meta.chipBg, color: meta.chipFg }}
           >
             {meta.label}
           </span>
-          {/* status chip */}
-          <span
-            style={{
-              fontSize: 12.5,
-              color: "var(--kb-ink-500)",
-              fontWeight: 500,
-            }}
-          >
-            {n.status}
+          <span className="text-[12.5px] font-medium text-[var(--kb-ink-500)]">
+            {getNotificationStatus(item)}
           </span>
-          {n.unread && (
-            <span
-              style={{
-                width: 6,
-                height: 6,
-                borderRadius: 3,
-                background: "#dc2626",
-                flexShrink: 0,
-              }}
-            />
+          {item.actor && (
+            <span className="truncate text-[12.5px] text-[var(--kb-ink-400)]">
+              {item.actor.displayName ?? item.actor.loginId ?? "알 수 없음"}
+            </span>
           )}
-        </div>
-        <div
-          style={{
-            fontSize: 16,
-            fontWeight: n.unread ? 600 : 500,
-            color: "var(--kb-ink-900)",
-            lineHeight: 1.45,
-            marginBottom: 4,
-          }}
-        >
-          {n.title}
-        </div>
-        <div
-          style={{
-            fontSize: 14.5,
-            color: "var(--kb-ink-500)",
-            lineHeight: 1.5,
-          }}
-        >
-          {n.message}
-        </div>
-      </div>
+        </span>
 
-      {/* time */}
-      <div
-        style={{
-          fontSize: 13,
-          color: "var(--kb-ink-400)",
-          flexShrink: 0,
-          paddingTop: 2,
-          whiteSpace: "nowrap",
-        }}
-      >
-        {n.time}
-      </div>
+        <span
+          className="block text-[15.5px] leading-6 text-[var(--kb-ink-900)]"
+          style={{ fontWeight: unread ? 700 : 550 }}
+        >
+          {getNotificationTitle(item)}
+        </span>
+        {item.body && (
+          <span className="mt-1 block text-[14px] leading-6 text-[var(--kb-ink-500)]">
+            {item.body}
+          </span>
+        )}
+      </span>
+
+      <span className="flex shrink-0 flex-col items-end gap-2">
+        <span className="whitespace-nowrap text-[12.5px] text-[var(--kb-ink-400)]">
+          {formatRelativeTime(item.createdAt)}
+        </span>
+        <span className="flex opacity-100 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100">
+          {unread && (
+            <button
+              type="button"
+              aria-label="읽음 처리"
+              onClick={(event) => {
+                event.stopPropagation();
+                onMarkRead(item);
+              }}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[var(--kb-ink-500)] hover:bg-white hover:text-[var(--kb-ink-900)]"
+            >
+              <Check className="h-4 w-4" />
+            </button>
+          )}
+          <button
+            type="button"
+            aria-label="삭제"
+            onClick={(event) => {
+              event.stopPropagation();
+              onDismiss(item);
+            }}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[var(--kb-ink-500)] hover:bg-white hover:text-red-600"
+          >
+            <Archive className="h-4 w-4" />
+          </button>
+        </span>
+      </span>
     </div>
   );
 }
 
-/* ───── page ───── */
-
 export default function Notifications() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const [items, setItems] = useState<NotificationItem[]>([]);
   const [activeFilter, setActiveFilter] = useState<FilterKey>("all");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [workingId, setWorkingId] = useState<string | null>(null);
 
   const filtered = useMemo(
-    () => filterNotifications(NOTIFICATIONS, activeFilter),
-    [activeFilter],
+    () => filterNotifications(items, activeFilter) as NotificationItem[],
+    [items, activeFilter],
   );
+  const unreadCount = useMemo(() => getUnreadNotificationCount(items), [items]);
 
-  const unreadCount = useMemo(() => NOTIFICATIONS.filter((n) => n.unread).length, []);
+  async function refreshNotifications() {
+    if (!user) {
+      setItems([]);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      setItems(await listNotifications(user.id));
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "알림을 불러오지 못했습니다.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void refreshNotifications();
+  }, [user?.id]);
+
+  async function handleOpen(item: NotificationItem) {
+    if (!user) return;
+
+    if (!item.readAt) {
+      await handleMarkRead(item, { keepWorking: true });
+    }
+
+    if (item.targetHref) {
+      navigate(item.targetHref);
+    }
+  }
+
+  async function handleMarkRead(
+    item: NotificationItem,
+    options: { keepWorking?: boolean } = {},
+  ) {
+    if (!user || item.readAt) return;
+
+    if (!options.keepWorking) {
+      setWorkingId(item.id);
+    }
+
+    try {
+      const readAt = await markNotificationRead(user.id, item.id);
+      setItems((current) =>
+        current.map((currentItem) =>
+          currentItem.id === item.id ? { ...currentItem, readAt } : currentItem,
+        ),
+      );
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "알림 읽음 처리를 완료하지 못했습니다.",
+      );
+    } finally {
+      if (!options.keepWorking) {
+        setWorkingId(null);
+      }
+    }
+  }
+
+  async function handleMarkAllRead() {
+    if (!user || unreadCount === 0) return;
+
+    setWorkingId("all");
+
+    try {
+      const readAt = await markAllNotificationsRead(user.id);
+      setItems((current) => current.map((item) => ({ ...item, readAt: item.readAt ?? readAt })));
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "모두 읽음 처리를 완료하지 못했습니다.",
+      );
+    } finally {
+      setWorkingId(null);
+    }
+  }
+
+  async function handleDismiss(item: NotificationItem) {
+    if (!user) return;
+
+    setWorkingId(item.id);
+
+    try {
+      await dismissNotification(user.id, item.id);
+      setItems((current) => current.filter((currentItem) => currentItem.id !== item.id));
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "알림을 삭제하지 못했습니다.",
+      );
+    } finally {
+      setWorkingId(null);
+    }
+  }
 
   return (
     <div
@@ -334,120 +397,67 @@ export default function Notifications() {
         background: "#ffffff",
       }}
     >
-      <div style={{ margin: "0 auto", display: "flex", flexDirection: "column", gap: 20, maxWidth: 1100 }}>
-        {/* page header */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "flex-end",
-            justifyContent: "space-between",
-            gap: 16,
-            flexWrap: "wrap",
-            paddingBottom: 4,
-          }}
-        >
+      <div className="mx-auto flex max-w-[1120px] flex-col gap-5">
+        <div className="flex flex-wrap items-end justify-between gap-4 pb-1">
           <div>
             <div
-              className="kb-mono"
-              style={{
-                fontSize: 13,
-                color: "var(--kb-ink-500)",
-                letterSpacing: "0.14em",
-                textTransform: "uppercase",
-                marginBottom: 8,
-              }}
+              className="kb-mono mb-2 text-[13px] uppercase text-[var(--kb-ink-500)]"
+              style={{ letterSpacing: "0.14em" }}
             >
               Notifications
             </div>
             <h1
-              className="kb-display"
-              style={{
-                fontSize: 30,
-                fontWeight: 600,
-                letterSpacing: "-0.02em",
-                margin: 0,
-                lineHeight: 1.2,
-                color: "#0a0a0a",
-              }}
+              className="kb-display m-0 text-[30px] font-semibold leading-tight text-[#0a0a0a]"
+              style={{ letterSpacing: 0 }}
             >
               알림
-              <span style={{ color: "var(--kb-ink-500)", fontWeight: 400, marginLeft: 12, fontSize: 17 }}>
-                · 읽지 않은 알림 {unreadCount}건
+              <span className="ml-3 text-[17px] font-normal text-[var(--kb-ink-500)]">
+                읽지 않은 알림 {unreadCount}건
               </span>
             </h1>
           </div>
 
-          {/* mark all read */}
-          <button
-            type="button"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "10px 18px",
-              border: "1px solid #ebe8e0",
-              background: "#fff",
-              borderRadius: 8,
-              fontSize: 14.5,
-              fontWeight: 500,
-              cursor: "pointer",
-              color: "var(--kb-ink-700)",
-              fontFamily: "inherit",
-              transition: "border-color 120ms",
-            }}
-            className="hover:border-[var(--kb-ink-300)]"
-          >
-            <Check style={{ width: 14, height: 14 }} />
-            모두 읽음 처리
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => void refreshNotifications()}
+              className="inline-flex items-center gap-2 rounded-md border border-[#ebe8e0] bg-white px-4 py-2.5 text-[14px] font-medium text-[var(--kb-ink-700)] hover:border-[var(--kb-ink-300)]"
+            >
+              <RefreshCw className="h-4 w-4" />
+              새로고침
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleMarkAllRead()}
+              disabled={unreadCount === 0 || workingId === "all"}
+              className="inline-flex items-center gap-2 rounded-md border border-[#ebe8e0] bg-white px-4 py-2.5 text-[14px] font-medium text-[var(--kb-ink-700)] hover:border-[var(--kb-ink-300)] disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              <Check className="h-4 w-4" />
+              모두 읽음 처리
+            </button>
+          </div>
         </div>
 
-        {/* parent card wrapping everything */}
-        <Card style={{ padding: 0, overflow: "hidden" }}>
-          {/* filter pills bar */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              padding: "18px 28px",
-              borderBottom: "1px solid #f1ede4",
-              flexWrap: "wrap",
-            }}
-          >
-            {FILTERS.map((f) => {
-              const count = countForFilter(NOTIFICATIONS, f.key);
-              const isActive = activeFilter === f.key;
+        <section style={{ ...CARD_STYLE, overflow: "hidden" }}>
+          <div className="flex flex-wrap items-center gap-2 border-b border-[#f1ede4] px-5 py-4 sm:px-7">
+            {FILTERS.map((filter) => {
+              const count = filterNotifications(items, filter.key).length;
+              const active = activeFilter === filter.key;
+
               return (
                 <button
-                  key={f.key}
+                  key={filter.key}
                   type="button"
-                  onClick={() => setActiveFilter(f.key)}
+                  onClick={() => setActiveFilter(filter.key)}
+                  className="inline-flex items-center gap-2 rounded-full border px-4 py-2 text-[14px] font-medium transition-colors"
                   style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 6,
-                    padding: "8px 16px",
-                    borderRadius: 8,
-                    border: isActive ? "1px solid #0a0a0a" : "1px solid #ebe8e0",
-                    background: isActive ? "#0a0a0a" : "#fff",
-                    color: isActive ? "#fff" : "var(--kb-ink-700)",
-                    fontSize: 14.5,
-                    fontWeight: isActive ? 600 : 500,
-                    cursor: "pointer",
-                    fontFamily: "inherit",
-                    transition: "all 150ms",
+                    borderColor: active ? "#0a0a0a" : "#ebe8e0",
+                    background: active ? "#0a0a0a" : "#fff",
+                    color: active ? "#fff" : "var(--kb-ink-700)",
                   }}
-                  className={isActive ? "" : "hover:border-[var(--kb-ink-300)]"}
                 >
-                  {f.label}
-                  <span
-                    style={{
-                      fontSize: 12.5,
-                      fontWeight: 700,
-                      opacity: isActive ? 0.8 : 0.5,
-                    }}
-                  >
+                  {filter.label}
+                  <span className="text-[12px]" style={{ opacity: active ? 0.8 : 0.55 }}>
                     {count}
                   </span>
                 </button>
@@ -455,55 +465,46 @@ export default function Notifications() {
             })}
           </div>
 
-          {/* notification list */}
-          {filtered.length === 0 ? (
-            <div
-              style={{
-                padding: "56px 28px",
-                textAlign: "center",
-                color: "var(--kb-ink-500)",
-                fontSize: 15.5,
-              }}
-            >
-              <MailOpen
-                style={{
-                  width: 32,
-                  height: 32,
-                  margin: "0 auto 12px",
-                  color: "var(--kb-ink-300)",
-                }}
-              />
-              해당 필터에 알림이 없습니다.
+          {error && (
+            <div className="border-b border-red-100 bg-red-50 px-5 py-3 text-[14px] text-red-700 sm:px-7">
+              {error}
+            </div>
+          )}
+
+          {loading ? (
+            <div className="flex items-center justify-center gap-2 px-5 py-16 text-[15px] text-[var(--kb-ink-500)]">
+              <RefreshCw className="h-4 w-4 animate-spin" />
+              알림을 불러오는 중입니다.
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="px-5 py-16 text-center text-[15px] text-[var(--kb-ink-500)]">
+              <MailOpen className="mx-auto mb-3 h-8 w-8 text-[var(--kb-ink-300)]" />
+              도착한 알림이 없습니다.
             </div>
           ) : (
             <div>
-              {filtered.map((n) => (
-                <NotificationRow key={n.id} n={n} />
+              {filtered.map((item) => (
+                <NotificationRow
+                  key={item.id}
+                  item={item}
+                  onOpen={(nextItem) => void handleOpen(nextItem)}
+                  onMarkRead={(nextItem) => void handleMarkRead(nextItem)}
+                  onDismiss={(nextItem) => void handleDismiss(nextItem)}
+                />
               ))}
             </div>
           )}
 
-          {/* footer summary */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              padding: "14px 28px",
-              borderTop: "1px solid #f1ede4",
-              fontSize: 13.5,
-              color: "var(--kb-ink-500)",
-            }}
-          >
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#f1ede4] px-5 py-3 text-[13px] text-[var(--kb-ink-500)] sm:px-7">
             <span>
-              {filtered.length} / {NOTIFICATIONS.length} items
+              {filtered.length} / {items.length}건
             </span>
-            <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <Bell style={{ width: 13, height: 13 }} />
-              중요한 투표와 권한 요청은 읽지 않음으로 우선 표시됩니다.
+            <span className="inline-flex items-center gap-1.5">
+              <Bell className="h-3.5 w-3.5" />
+              {workingId && workingId !== "all" ? "처리 중" : "최근 알림순"}
             </span>
           </div>
-        </Card>
+        </section>
       </div>
     </div>
   );

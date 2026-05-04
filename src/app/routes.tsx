@@ -25,6 +25,7 @@ import Dashboard from "./pages/member/Dashboard";
 import Notifications from "./pages/member/Notifications";
 import ContactRequests from "./pages/member/ContactRequests";
 import Announcements from "./pages/member/Announcements";
+import AnnouncementDetail from "./pages/member/AnnouncementDetail";
 import StudyLog from "./pages/member/StudyLog";
 import StudyPlaylist from "./pages/member/StudyPlaylist";
 import PeerReview from "./pages/member/PeerReview";
@@ -56,18 +57,28 @@ import NotFound from "./pages/NotFound";
 function memberElement(
   Component: ComponentType,
   requiredPermissions?: string[],
+  options: { allowCourseMember?: boolean } = {},
 ) {
   const page = <Component />;
 
   if (requiredPermissions && requiredPermissions.length > 0) {
     return (
-      <RequireActiveMember>
-        <RequirePermission anyOf={requiredPermissions}>{page}</RequirePermission>
+      <RequireActiveMember allowCourseMember={options.allowCourseMember}>
+        <RequirePermission
+          allowCourseMember={options.allowCourseMember}
+          anyOf={requiredPermissions}
+        >
+          {page}
+        </RequirePermission>
       </RequireActiveMember>
     );
   }
 
-  return <RequireActiveMember>{page}</RequireActiveMember>;
+  return (
+    <RequireActiveMember allowCourseMember={options.allowCourseMember}>
+      {page}
+    </RequireActiveMember>
+  );
 }
 
 export const router = createBrowserRouter([
@@ -111,21 +122,51 @@ export const router = createBrowserRouter([
       { path: "join", Component: ProfileSettings },
       { path: "welcome", Component: Welcome },
       { path: "pending", Component: ApprovalPending },
-      { path: "profile", element: memberElement(Profile) },
-      { path: "security", element: memberElement(Security) },
-      { path: "account-info", element: memberElement(AccountInfo) },
-      { index: true, element: memberElement(Dashboard, ["dashboard.read"]) },
+      {
+        path: "profile",
+        element: memberElement(Profile, undefined, { allowCourseMember: true }),
+      },
+      {
+        path: "security",
+        element: memberElement(Security, undefined, { allowCourseMember: true }),
+      },
+      {
+        path: "account-info",
+        element: memberElement(AccountInfo, undefined, { allowCourseMember: true }),
+      },
+      {
+        index: true,
+        element: memberElement(Dashboard, ["dashboard.read"], {
+          allowCourseMember: true,
+        }),
+      },
       {
         path: "notifications",
-        element: memberElement(Notifications, ["notifications.read"]),
+        element: memberElement(Notifications, ["notifications.read"], {
+          allowCourseMember: true,
+        }),
       },
-      { path: "contact-requests", element: memberElement(ContactRequests) },
+      {
+        path: "contact-requests",
+        element: memberElement(ContactRequests, undefined, {
+          allowCourseMember: true,
+        }),
+      },
       {
         path: "announcements",
-        element: memberElement(Announcements, [
-          "announcements.read",
-          "announcements.manage",
-        ]),
+        element: memberElement(
+          Announcements,
+          ["announcements.read", "announcements.manage"],
+          { allowCourseMember: true },
+        ),
+      },
+      {
+        path: "announcements/:noticeId",
+        element: memberElement(
+          AnnouncementDetail,
+          ["announcements.read", "announcements.manage"],
+          { allowCourseMember: true },
+        ),
       },
       { path: "study-log", element: memberElement(StudyLog) },
       { path: "study-playlist", element: memberElement(StudyPlaylist) },
@@ -149,7 +190,9 @@ export const router = createBrowserRouter([
       { path: "space-booking", element: memberElement(SpaceBooking) },
       {
         path: "members",
-        element: memberElement(Members, ["members.read", "members.manage"]),
+        element: memberElement(Members, ["members.read", "members.manage"], {
+          allowCourseMember: true,
+        }),
       },
       {
         path: "resources",

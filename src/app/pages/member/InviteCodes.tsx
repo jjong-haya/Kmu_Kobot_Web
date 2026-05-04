@@ -13,9 +13,11 @@ import {
   createInviteCode,
   generateInviteCode,
   listInviteCodes,
+  normalizeInviteTags,
   setInviteCodeActive,
   type InviteCodeRow,
 } from "../../api/invite-codes";
+import { copyTextToClipboard } from "../../api/clipboard.js";
 import { sanitizeUserError } from "../../utils/sanitize-error";
 
 const CONTAINER_STYLE: CSSProperties = {
@@ -74,7 +76,8 @@ export default function InviteCodes() {
 
   async function handleCopy(row: InviteCodeRow) {
     try {
-      await navigator.clipboard.writeText(buildInviteUrl(row.code));
+      await copyTextToClipboard(buildInviteUrl(row.code));
+      setLoadError(null);
       setCopiedId(row.id);
       setTimeout(() => setCopiedId(null), 1600);
     } catch {
@@ -209,6 +212,7 @@ export default function InviteCodes() {
                 {[
                   ["CODE", 120],
                   ["동아리", 90],
+                  ["태그", 120],
                   ["라벨", 0],
                   ["사용", 100],
                   ["만료", 110],
@@ -224,7 +228,7 @@ export default function InviteCodes() {
                       color: "var(--kb-ink-500)",
                       textTransform: "uppercase",
                       letterSpacing: "0.06em",
-                      textAlign: i === 6 ? "right" : "left",
+                      textAlign: i === 7 ? "right" : "left",
                       borderBottom: "1px solid #f1ede4",
                       width: w || undefined,
                       whiteSpace: "nowrap",
@@ -239,7 +243,7 @@ export default function InviteCodes() {
               {loading && codes.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={8}
                     style={{
                       padding: "56px 28px",
                       textAlign: "center",
@@ -252,7 +256,7 @@ export default function InviteCodes() {
               ) : codes.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={8}
                     style={{
                       padding: "56px 28px",
                       textAlign: "center",
@@ -315,6 +319,31 @@ export default function InviteCodes() {
                         ) : (
                           <span style={{ color: "var(--kb-ink-400)" }}>—</span>
                         )}
+                      </td>
+                      <td style={{ padding: "14px 16px" }}>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+                          {row.default_tags.map((tag) => {
+                            const normalized = tag.toLocaleLowerCase("ko-KR");
+                            const isKoss = normalized === "koss" || normalized === "코스";
+                            return (
+                              <span
+                                key={`${row.id}-${tag}`}
+                                style={{
+                                  fontSize: 11.5,
+                                  fontWeight: 800,
+                                  padding: "4px 9px",
+                                  borderRadius: 999,
+                                  background: isKoss ? "#eee7ff" : "#fff7dc",
+                                  color: isKoss ? "#5b3f96" : "#7a5a18",
+                                  border: isKoss ? "1px solid #d6c6ff" : "1px solid #f4dfa0",
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                {tag}
+                              </span>
+                            );
+                          })}
+                        </div>
                       </td>
                       <td
                         style={{
@@ -462,6 +491,7 @@ function CreateModal({
   const [code, setCode] = useState(() => generateInviteCode());
   const [label, setLabel] = useState("");
   const [clubAffiliation, setClubAffiliation] = useState("");
+  const [defaultTags, setDefaultTags] = useState("KOSS");
   const [maxUses, setMaxUses] = useState<string>("");
   const [expiresAt, setExpiresAt] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
@@ -491,6 +521,7 @@ function CreateModal({
         code: code.trim().toUpperCase(),
         label: label.trim() || null,
         clubAffiliation: clubAffiliation.trim() || null,
+        defaultTags: normalizeInviteTags(defaultTags),
         maxUses: maxUses ? Math.max(1, parseInt(maxUses, 10)) : null,
         expiresAt: expiresAt
           ? new Date(`${expiresAt}T23:59:59`).toISOString()
@@ -682,6 +713,28 @@ function CreateModal({
             >
               지정하면 이 코드로 가입한 사람의 프로필 소속이 자동으로 이 이름으로 설정됩니다.
             </p>
+          </div>
+
+          <div>
+            <label
+              style={{
+                display: "block",
+                fontSize: 13,
+                fontWeight: 600,
+                color: "var(--kb-ink-700)",
+                marginBottom: 6,
+              }}
+            >
+              부여 태그
+            </label>
+            <input
+              type="text"
+              value={defaultTags}
+              onChange={(e) => setDefaultTags(e.target.value)}
+              placeholder="KOSS"
+              style={inputStyle}
+              maxLength={120}
+            />
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>

@@ -1,71 +1,41 @@
 import { Link } from "react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
+import {
+  AlertCircle,
+  ArrowRight,
+  CalendarClock,
+  Inbox,
+  Loader2,
+  RefreshCcw,
+} from "lucide-react";
+import {
+  loadDashboardData,
+  type DashboardContactRequest,
+  type DashboardData,
+  type DashboardNotification,
+  type DashboardSection,
+} from "../../api/dashboard";
 import { useAuth } from "../../auth/useAuth";
-import { ArrowRight } from "lucide-react";
+import { sanitizeUserError } from "../../utils/sanitize-error";
 
-/* Light, harmonized dashboard with right-side calendar panel.
- * - All cards share the same radius / hairline / shadow / paper.
- * - Uniform grid, no graphs, no dark colors except sidebar (handled by layout). */
-
-type TodayItem = { time: string; title: string; meta: string; urgent: boolean };
-type Project = { name: string; role: string; prog: number; members: number };
-type EventKind = "deadline" | "event" | "meeting";
-type CalendarEvent = { id: string; offset: number; span?: number; title: string; kind: EventKind };
-type CellEvent = CalendarEvent & { position: "single" | "start" | "middle" | "end"; isWeekStart: boolean };
-
-const TODAY: TodayItem[] = [
-  { time: "마감",  title: "컴퓨터 비전 과제 제출",         meta: "오늘 23:59",   urgent: true  },
-  { time: "19:00", title: "ROS 2 Navigation 세미나",     meta: "과기관 310호", urgent: false },
-  { time: "마감",  title: "프로젝트 문서 작성",            meta: "내일까지",     urgent: false },
-];
-
-const PROJECTS: Project[] = [
-  { name: "자율주행 로봇 개발",     role: "리드", prog: 65, members: 5 },
-  { name: "딥러닝 기반 물체 인식",   role: "참여", prog: 40, members: 6 },
-];
-
-const NOTICES: Array<{ tag: string; title: string; date: string }> = [
-  { tag: "모집", title: "2026년 상반기 신입 부원 모집 공고", date: "5/2" },
-  { tag: "안내", title: "ROS 2 Navigation 고급 세미나",      date: "5/1" },
-  { tag: "행사", title: "국제 로봇 경진대회 참가 안내",       date: "4/30" },
-  { tag: "일반", title: "동아리방 이용 규칙 v3 업데이트",     date: "4/28" },
-];
-
-/* offsets relative to today so the calendar always shows realistic scatter.
- * `span` makes an event multi-day (visually connected across cells). */
-const EVENTS: CalendarEvent[] = [
-  { id: "e1",  offset: 0,            title: "컴퓨터 비전 과제 제출",     kind: "deadline" },
-  { id: "e2",  offset: 2,            title: "ROS 2 Navigation 세미나",   kind: "event"    },
-  { id: "e3",  offset: 3,            title: "프로젝트 문서 작성 마감",   kind: "deadline" },
-  { id: "e4",  offset: 4,  span: 3,  title: "팀 워크샵 (3일)",            kind: "event"    },
-  { id: "e5",  offset: 9,            title: "정기 총회",                 kind: "meeting"  },
-  { id: "e6",  offset: 10, span: 4,  title: "분기 리뷰 위크",             kind: "meeting"  },
-  { id: "e7",  offset: 16, span: 2,  title: "데모데이 준비",              kind: "deadline" },
-  { id: "e8",  offset: 18,           title: "프로젝트 중간 발표",         kind: "event"    },
-  { id: "e9",  offset: 22,           title: "장비 점검",                 kind: "meeting"  },
-];
-
-const KIND_COLOR: Record<EventKind, string> = {
-  deadline: "#dc2626",
-  event:    "var(--kb-navy-800)",
-  meeting:  "#15803d",
+type TodayItem = {
+  id: string;
+  time: string;
+  title: string;
+  meta: string;
+  tone: "urgent" | "normal" | "muted";
+  to: string;
 };
 
-const KIND_LABEL: Record<EventKind, string> = {
-  deadline: "마감",
-  event:    "행사",
-  meeting:  "회의",
+type EventKind = "booking" | "deadline";
+type CalendarEvent = {
+  id: string;
+  date: string;
+  title: string;
+  kind: EventKind;
+  meta: string;
 };
-
-/* pastel chip palette for event labels inside calendar cells */
-const KIND_CHIP: Record<EventKind, { bg: string; fg: string; dot: string }> = {
-  deadline: { bg: "#fde8e6", fg: "#9b1c1c", dot: "#dc2626" },
-  event:    { bg: "#e3ecfb", fg: "#163b86", dot: "var(--kb-navy-800)" },
-  meeting:  { bg: "#dff4e2", fg: "#15602e", dot: "#15803d" },
-};
-
-/* ───── shared primitives ───── */
 
 const CARD_STYLE: CSSProperties = {
   background: "#ffffff",
@@ -74,37 +44,43 @@ const CARD_STYLE: CSSProperties = {
   boxShadow: "0 2px 8px rgba(0, 0, 0, 0.06), 0 0 1px rgba(0, 0, 0, 0.08)",
 };
 
-function Card({ children, style }: { children: ReactNode; style?: CSSProperties }) {
-  return <div style={{ ...CARD_STYLE, ...style }}>{children}</div>;
-}
-
-/* left-bar color per notice category */
-const TAG_BAR: Record<string, string> = {
-  "모집": "#2a52a3",
-  "안내": "#15803d",
-  "행사": "#b45309",
-  "일반": "#6a6a6a",
+const KIND_COLOR: Record<EventKind, string> = {
+  booking: "var(--kb-navy-800)",
+  deadline: "#dc2626",
 };
 
-function MoreLink({ to }: { to: string }) {
-  return (
-    <Link
-      to={to}
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        width: 28,
-        height: 28,
-        borderRadius: 6,
-        color: "var(--kb-ink-400)",
-        textDecoration: "none",
-        transition: "color 0.15s, background 0.15s",
-      }}
-    >
-      <ArrowRight style={{ width: 16, height: 16 }} />
-    </Link>
-  );
+const KIND_LABEL: Record<EventKind, string> = {
+  booking: "예약",
+  deadline: "마감",
+};
+
+const KIND_CHIP: Record<EventKind, { bg: string; fg: string; dot: string }> = {
+  booking: { bg: "#e3ecfb", fg: "#163b86", dot: "var(--kb-navy-800)" },
+  deadline: { bg: "#fde8e6", fg: "#9b1c1c", dot: "#dc2626" },
+};
+
+const PROJECT_STATUS_META: Record<string, { label: string; bg: string; fg: string }> = {
+  active: { label: "진행중", bg: "#e3ecfb", fg: "#163b86" },
+  pending: { label: "승인 대기", bg: "#fef3c7", fg: "#92400e" },
+  archived: { label: "종료", bg: "#f3f3f1", fg: "#6a6a6a" },
+  rejected: { label: "반려", bg: "#fde8e6", fg: "#9b1c1c" },
+};
+
+const TAG_BAR: Record<string, string> = {
+  공지: "#2a52a3",
+  알림: "#15803d",
+};
+
+const SECTION_LABEL: Record<DashboardSection, string> = {
+  notifications: "알림",
+  notices: "공지",
+  projects: "프로젝트",
+  bookings: "공간 예약",
+  contactRequests: "연락 요청",
+};
+
+function Card({ children, style }: { children: ReactNode; style?: CSSProperties }) {
+  return <div style={{ ...CARD_STYLE, ...style }}>{children}</div>;
 }
 
 function CardHeader({ eyebrow, action }: { eyebrow: string; action?: ReactNode }) {
@@ -135,65 +111,268 @@ function CardHeader({ eyebrow, action }: { eyebrow: string; action?: ReactNode }
   );
 }
 
-/* ───── calendar ───── */
+function MoreLink({ to }: { to: string }) {
+  return (
+    <Link
+      to={to}
+      aria-label="더 보기"
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        width: 28,
+        height: 28,
+        borderRadius: 6,
+        color: "var(--kb-ink-400)",
+        textDecoration: "none",
+        transition: "color 0.15s, background 0.15s",
+      }}
+      className="hover:bg-[#f5f3ee]"
+    >
+      <ArrowRight style={{ width: 16, height: 16 }} />
+    </Link>
+  );
+}
 
-function startOfMonth(d: Date) {
-  return new Date(d.getFullYear(), d.getMonth(), 1);
+function EmptyBlock({ icon, children }: { icon?: ReactNode; children: ReactNode }) {
+  return (
+    <div
+      style={{
+        padding: "42px 28px",
+        textAlign: "center",
+        color: "var(--kb-ink-500)",
+        fontSize: 14.5,
+        borderTop: "1px solid #f1ede4",
+      }}
+    >
+      {icon}
+      <div>{children}</div>
+    </div>
+  );
 }
-function daysInMonth(d: Date) {
-  return new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+
+function LoadingBlock() {
+  return (
+    <EmptyBlock
+      icon={
+        <Loader2
+          style={{
+            width: 24,
+            height: 24,
+            margin: "0 auto 10px",
+            color: "var(--kb-ink-300)",
+          }}
+          className="animate-spin"
+        />
+      }
+    >
+      불러오는 중...
+    </EmptyBlock>
+  );
 }
+
+function toDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function parseDateKey(key: string) {
+  const [year, month, day] = key.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function startOfMonth(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+function daysInMonth(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+}
+
+function addDays(date: Date, days: number) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function startOfWeek(date: Date) {
+  const next = new Date(date);
+  next.setDate(next.getDate() - next.getDay());
+  next.setHours(0, 0, 0, 0);
+  return next;
+}
+
 function sameDate(a: Date, b: Date) {
-  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-}
-function addDays(d: Date, n: number) {
-  const r = new Date(d);
-  r.setDate(r.getDate() + n);
-  return r;
-}
-
-function startOfWeek(d: Date) {
-  const r = new Date(d);
-  r.setDate(r.getDate() - r.getDay());
-  r.setHours(0, 0, 0, 0);
-  return r;
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
 }
 
-function CalendarPanel() {
+function formatMonthDay(value: string | Date) {
+  const date = typeof value === "string" ? parseDateKey(value) : value;
+  return `${date.getMonth() + 1}/${date.getDate()}`;
+}
+
+function formatDateTime(iso: string) {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  return `${date.getMonth() + 1}/${date.getDate()} ${String(date.getHours()).padStart(2, "0")}:${String(
+    date.getMinutes(),
+  ).padStart(2, "0")}`;
+}
+
+function formatRelativeTime(iso: string) {
+  const date = new Date(iso);
+  const diff = Date.now() - date.getTime();
+  if (!Number.isFinite(diff)) return "";
+
+  const minute = 60 * 1000;
+  const hour = 60 * minute;
+  const day = 24 * hour;
+
+  if (diff < minute) return "방금";
+  if (diff < hour) return `${Math.floor(diff / minute)}분 전`;
+  if (diff < day) return `${Math.floor(diff / hour)}시간 전`;
+  if (diff < day * 7) return `${Math.floor(diff / day)}일 전`;
+  return formatDateTime(iso);
+}
+
+function bookingTypeLabel(type: string) {
+  switch (type) {
+    case "meeting":
+      return "회의";
+    case "study":
+      return "스터디";
+    case "personal":
+      return "개인";
+    default:
+      return "예약";
+  }
+}
+
+function projectStatusMeta(status: string) {
+  return PROJECT_STATUS_META[status] ?? {
+    label: status,
+    bg: "#f3f3f1",
+    fg: "#6a6a6a",
+  };
+}
+
+function contactRequestTitle(request: DashboardContactRequest, userId: string) {
+  return request.recipientUserId === userId ? "연락 요청 응답 마감" : "보낸 연락 요청 응답 대기";
+}
+
+function notificationMeta(notification: DashboardNotification) {
+  const unread = notification.readAt ? "읽음" : "읽지 않음";
+  return `${unread} · ${formatRelativeTime(notification.createdAt)}`;
+}
+
+function buildCalendarEvents(data: DashboardData): CalendarEvent[] {
+  const bookingEvents = data.bookings.map((booking) => ({
+    id: `booking-${booking.id}`,
+    date: booking.date,
+    title: booking.title,
+    kind: "booking" as const,
+    meta: `${booking.start}-${booking.end} · ${bookingTypeLabel(booking.type)}`,
+  }));
+
+  const contactEvents = data.contactRequests.map((request) => ({
+    id: `contact-${request.id}`,
+    date: toDateKey(new Date(request.expiresAt)),
+    title: "연락 요청 응답 마감",
+    kind: "deadline" as const,
+    meta: formatDateTime(request.expiresAt),
+  }));
+
+  return [...bookingEvents, ...contactEvents].sort((a, b) =>
+    a.date === b.date ? a.title.localeCompare(b.title, "ko") : a.date.localeCompare(b.date),
+  );
+}
+
+function buildTodayItems(data: DashboardData, userId: string, todayKey: string): TodayItem[] {
+  const today = parseDateKey(todayKey);
+  const soon = addDays(today, 3).getTime();
+
+  const contacts = data.contactRequests
+    .filter((request) => {
+      const due = new Date(request.expiresAt).getTime();
+      return Number.isFinite(due) && due <= soon;
+    })
+    .map((request) => ({
+      id: `contact-${request.id}`,
+      time: "마감",
+      title: contactRequestTitle(request, userId),
+      meta: formatDateTime(request.expiresAt),
+      tone: "urgent" as const,
+      to: "/member/contact-requests",
+    }));
+
+  const bookings = data.bookings
+    .filter((booking) => booking.date === todayKey)
+    .map((booking) => ({
+      id: `booking-${booking.id}`,
+      time: booking.start,
+      title: booking.title,
+      meta: `${booking.end}까지 · ${booking.organizer}`,
+      tone: "normal" as const,
+      to: "/member/space-booking",
+    }));
+
+  const notifications = data.notifications
+    .filter((notification) => !notification.readAt || notification.importance === "important")
+    .slice(0, 3)
+    .map((notification) => ({
+      id: `notification-${notification.id}`,
+      time: notification.importance === "important" ? "중요" : "알림",
+      title: notification.title,
+      meta: notificationMeta(notification),
+      tone: notification.importance === "important" ? ("urgent" as const) : ("muted" as const),
+      to: notification.href ?? "/member/notifications",
+    }));
+
+  return [...contacts, ...bookings, ...notifications].slice(0, 6);
+}
+
+const navBtn: CSSProperties = {
+  width: 28,
+  height: 28,
+  borderRadius: 6,
+  border: "1px solid #ebe8e0",
+  background: "#fff",
+  fontSize: 14,
+  cursor: "pointer",
+  color: "var(--kb-ink-700)",
+  fontFamily: "inherit",
+};
+
+function CalendarPanel({ events }: { events: CalendarEvent[] }) {
   const today = useMemo(() => {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    return d;
+    const date = new Date();
+    date.setHours(0, 0, 0, 0);
+    return date;
   }, []);
   const [cursor, setCursor] = useState(() => startOfMonth(today));
   const [selected, setSelected] = useState<Date | null>(null);
 
   const eventsByDate = useMemo(() => {
-    const map = new Map<string, CellEvent[]>();
-    for (const e of EVENTS) {
-      const span = e.span ?? 1;
-      for (let i = 0; i < span; i += 1) {
-        const d = addDays(today, e.offset + i);
-        const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-        const position: CellEvent["position"] =
-          span === 1 ? "single" : i === 0 ? "start" : i === span - 1 ? "end" : "middle";
-        const arr = map.get(key) ?? [];
-        arr.push({ ...e, position, isWeekStart: d.getDay() === 0 });
-        map.set(key, arr);
-      }
+    const map = new Map<string, CalendarEvent[]>();
+    for (const event of events) {
+      const current = map.get(event.date) ?? [];
+      current.push(event);
+      map.set(event.date, current);
     }
     return map;
-  }, [today]);
+  }, [events]);
 
-  const upcoming = useMemo(
-    () => EVENTS.slice(0, 5).map((e) => ({ ...e, date: addDays(today, e.offset) })),
-    [today],
-  );
+  const upcoming = useMemo(() => {
+    const todayKey = toDateKey(today);
+    return events.filter((event) => event.date >= todayKey).slice(0, 5);
+  }, [events, today]);
 
-  const dayLabels = ["일", "월", "화", "수", "목", "금", "토"];
-  const monthLabel = `${cursor.getFullYear()}년 ${cursor.getMonth() + 1}월`;
-
-  // Build month rows OR week row
   const cells: Array<Date | null> = [];
   if (selected) {
     const weekStart = startOfWeek(selected);
@@ -203,24 +382,37 @@ function CalendarPanel() {
     const startWeekday = monthStart.getDay();
     const dim = daysInMonth(cursor);
     for (let i = 0; i < startWeekday; i += 1) cells.push(null);
-    for (let i = 1; i <= dim; i += 1) cells.push(new Date(cursor.getFullYear(), cursor.getMonth(), i));
+    for (let i = 1; i <= dim; i += 1) {
+      cells.push(new Date(cursor.getFullYear(), cursor.getMonth(), i));
+    }
     while (cells.length % 7 !== 0) cells.push(null);
   }
 
-  const cellMin = selected ? 90 : 64;
-  const selectedKey = selected
-    ? `${selected.getFullYear()}-${selected.getMonth()}-${selected.getDate()}`
-    : null;
+  const dayLabels = ["일", "월", "화", "수", "목", "금", "토"];
+  const monthLabel = `${cursor.getFullYear()}년 ${cursor.getMonth() + 1}월`;
+  const selectedKey = selected ? toDateKey(selected) : null;
   const selectedEvents = selectedKey ? eventsByDate.get(selectedKey) ?? [] : [];
+  const cellMin = selected ? 90 : 64;
 
   return (
-    <Card style={{ padding: 0, position: "sticky", top: 80, overflow: "hidden", display: "flex", flexDirection: "column", height: "100%" }}>
+    <Card
+      style={{
+        padding: 0,
+        position: "sticky",
+        top: 80,
+        overflow: "hidden",
+        display: "flex",
+        flexDirection: "column",
+        height: "100%",
+      }}
+    >
       <div
         style={{
           padding: "20px 24px 12px",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
+          gap: 12,
         }}
       >
         <div>
@@ -244,16 +436,15 @@ function CalendarPanel() {
           </h2>
         </div>
         <div style={{ display: "flex", gap: 4 }}>
-          {selected && (
+          {selected ? (
             <button
               type="button"
               onClick={() => setSelected(null)}
               style={{ ...navBtn, width: "auto", padding: "0 10px", fontSize: 11 }}
             >
-              월간 ←
+              월간
             </button>
-          )}
-          {!selected && (
+          ) : (
             <>
               <button
                 type="button"
@@ -283,8 +474,8 @@ function CalendarPanel() {
         </div>
       </div>
 
-      {/* day labels */}
       <div
+        className="kb-mono"
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(7, 1fr)",
@@ -294,24 +485,22 @@ function CalendarPanel() {
           textTransform: "uppercase",
           letterSpacing: "0.1em",
         }}
-        className="kb-mono"
       >
-        {dayLabels.map((d, i) => (
+        {dayLabels.map((day, index) => (
           <div
-            key={d}
+            key={day}
             style={{
               textAlign: "center",
               padding: "8px 0 4px",
-              color: i === 0 ? "#dc2626" : i === 6 ? "var(--kb-navy-800)" : "var(--kb-ink-500)",
+              color: index === 0 ? "#dc2626" : index === 6 ? "var(--kb-navy-800)" : "var(--kb-ink-500)",
               fontWeight: 600,
             }}
           >
-            {d}
+            {day}
           </div>
         ))}
       </div>
 
-      {/* grid — gap 0 so adjacent event chips visually connect */}
       <div
         style={{
           display: "grid",
@@ -320,25 +509,23 @@ function CalendarPanel() {
           gap: 0,
         }}
       >
-        {cells.map((d, i) => {
-          if (!d) return <div key={`empty-${i}`} style={{ minHeight: cellMin }} />;
-          const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-          const evs = eventsByDate.get(key) ?? [];
-          const isToday = sameDate(d, today);
-          const isSelected = selected ? sameDate(d, selected) : false;
-          const dow = d.getDay();
+        {cells.map((date, index) => {
+          if (!date) return <div key={`empty-${index}`} style={{ minHeight: cellMin }} />;
+
+          const key = toDateKey(date);
+          const dayEvents = eventsByDate.get(key) ?? [];
+          const isToday = sameDate(date, today);
+          const isSelected = selected ? sameDate(date, selected) : false;
+          const dow = date.getDay();
           const dimColor =
             dow === 0 ? "#dc2626" : dow === 6 ? "var(--kb-navy-800)" : "var(--kb-ink-700)";
-          const slotsForCell = selected ? 3 : 2;
-          // circle indicator color
-          const circleBg = isSelected ? "#0a0a0a" : "transparent";
-          const circleBorder = isToday && !isSelected ? "1px solid var(--kb-navy-800)" : "1px solid transparent";
-          const circleColor = isSelected ? "#fff" : isToday ? "var(--kb-navy-800)" : dimColor;
+          const visibleSlots = selected ? 3 : 2;
+
           return (
             <button
               key={key}
               type="button"
-              onClick={() => setSelected(isSelected ? null : d)}
+              onClick={() => setSelected(isSelected ? null : date)}
               style={{
                 minHeight: cellMin,
                 background: "transparent",
@@ -365,32 +552,27 @@ function CalendarPanel() {
                     alignItems: "center",
                     justifyContent: "center",
                     borderRadius: "50%",
-                    background: circleBg,
-                    border: circleBorder,
-                    color: circleColor,
+                    background: isSelected ? "#0a0a0a" : "transparent",
+                    border: isToday && !isSelected ? "1px solid var(--kb-navy-800)" : "1px solid transparent",
+                    color: isSelected ? "#fff" : isToday ? "var(--kb-navy-800)" : dimColor,
                     fontSize: 13,
                     fontWeight: isToday || isSelected ? 700 : 500,
-                    transition: "background 150ms, border-color 150ms",
                   }}
                 >
-                  {d.getDate()}
+                  {date.getDate()}
                 </span>
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-                {evs.slice(0, slotsForCell).map((e, idx) => {
-                  const chip = KIND_CHIP[e.kind];
-                  // Show left bar + title only on the FIRST day of an event
-                  // (or when an event continues into a new week — Sunday).
-                  const isHead = e.position === "single" || e.position === "start" || e.isWeekStart;
+              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                {dayEvents.slice(0, visibleSlots).map((event) => {
+                  const chip = KIND_CHIP[event.kind];
                   return (
                     <span
-                      key={`${e.id}-${idx}`}
+                      key={event.id}
                       style={{
                         fontSize: 11,
                         lineHeight: 1.45,
-                        padding: isHead ? "3px 6px 3px 8px" : "3px 6px 3px 5px",
-                        borderRadius: 0,
-                        borderLeft: isHead ? `3px solid ${chip.dot}` : "0",
+                        padding: "3px 6px 3px 8px",
+                        borderLeft: `3px solid ${chip.dot}`,
                         background: chip.bg,
                         color: chip.fg,
                         whiteSpace: "nowrap",
@@ -400,19 +582,13 @@ function CalendarPanel() {
                         minHeight: 16,
                       }}
                     >
-                      {isHead ? e.title : " "}
+                      {event.title}
                     </span>
                   );
                 })}
-                {evs.length > slotsForCell && (
-                  <span
-                    style={{
-                      fontSize: 10,
-                      color: "var(--kb-ink-500)",
-                      paddingLeft: 7,
-                    }}
-                  >
-                    +{evs.length - slotsForCell}
+                {dayEvents.length > visibleSlots && (
+                  <span style={{ fontSize: 10, color: "var(--kb-ink-500)", paddingLeft: 7 }}>
+                    +{dayEvents.length - visibleSlots}
                   </span>
                 )}
               </div>
@@ -421,7 +597,6 @@ function CalendarPanel() {
         })}
       </div>
 
-      {/* legend */}
       <div
         style={{
           display: "flex",
@@ -433,122 +608,41 @@ function CalendarPanel() {
           flexWrap: "wrap",
         }}
       >
-        {(Object.keys(KIND_COLOR) as EventKind[]).map((k) => (
-          <span key={k} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-            <span style={{ width: 6, height: 6, borderRadius: 3, background: KIND_COLOR[k] }} />
-            {KIND_LABEL[k]}
+        {(Object.keys(KIND_LABEL) as EventKind[]).map((kind) => (
+          <span key={kind} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <span style={{ width: 6, height: 6, borderRadius: 3, background: KIND_COLOR[kind] }} />
+            {KIND_LABEL[kind]}
           </span>
         ))}
       </div>
 
-      {/* selected day detail OR upcoming list */}
-      {selected ? (
-        <div style={{ borderTop: "1px solid #f1ede4" }}>
-          <div
-            style={{
-              padding: "16px 24px 6px",
-              display: "flex",
-              alignItems: "baseline",
-              justifyContent: "space-between",
-              gap: 8,
-            }}
-          >
-            <div>
-              <div
-                className="kb-mono"
-                style={{
-                  fontSize: 12,
-                  color: "var(--kb-ink-500)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.12em",
-                  marginBottom: 2,
-                }}
-              >
-                Selected
-              </div>
-              <h3
-                className="kb-display"
-                style={{ fontSize: 18, fontWeight: 600, margin: 0, letterSpacing: "-0.01em" }}
-              >
-                {selected.getMonth() + 1}월 {selected.getDate()}일{" "}
-                <span style={{ color: "var(--kb-ink-500)", fontWeight: 400, fontSize: 14.5 }}>
-                  ({dayLabels[selected.getDay()]})
-                </span>
-              </h3>
-            </div>
-            <span style={{ fontSize: 13, color: "var(--kb-ink-500)" }}>
-              {selectedEvents.length}건
-            </span>
-          </div>
-          {selectedEvents.length === 0 ? (
-            <div
-              style={{
-                padding: "12px 20px 18px",
-                fontSize: 13,
-                color: "var(--kb-ink-500)",
-              }}
-            >
-              일정이 없어요.
-            </div>
-          ) : (
-            <ul style={{ listStyle: "none", margin: 0, padding: "4px 0 8px" }}>
-              {selectedEvents.map((e, i) => {
-                const chip = KIND_CHIP[e.kind];
-                return (
-                  <li
-                    key={i}
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "70px 1fr",
-                      alignItems: "center",
-                      gap: 12,
-                      padding: "10px 18px 10px 14px",
-                      background: chip.bg,
-                      borderLeft: `3px solid ${chip.dot}`,
-                    }}
-                  >
-                    <span
-                      className="kb-mono"
-                      style={{
-                        fontSize: 12,
-                        color: chip.fg,
-                        fontWeight: 700,
-                        textTransform: "uppercase",
-                        letterSpacing: "0.08em",
-                      }}
-                    >
-                      {KIND_LABEL[e.kind]}
-                    </span>
-                    <span style={{ fontSize: 14.5, color: chip.fg, fontWeight: 500 }}>{e.title}</span>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
+      <div style={{ borderTop: "1px solid #f1ede4" }}>
+        <div
+          className="kb-mono"
+          style={{
+            padding: "14px 24px 4px",
+            fontSize: 12,
+            color: "var(--kb-ink-500)",
+            textTransform: "uppercase",
+            letterSpacing: "0.12em",
+          }}
+        >
+          {selected ? "Selected" : "다가오는"}
         </div>
-      ) : (
-        <div style={{ borderTop: "1px solid #f1ede4" }}>
-          <div
-            className="kb-mono"
-            style={{
-              padding: "14px 24px 4px",
-              fontSize: 12,
-              color: "var(--kb-ink-500)",
-              textTransform: "uppercase",
-              letterSpacing: "0.12em",
-            }}
-          >
-            다가오는
+        {(selected ? selectedEvents : upcoming).length === 0 ? (
+          <div style={{ padding: "12px 24px 18px", fontSize: 13.5, color: "var(--kb-ink-500)" }}>
+            일정이 없습니다.
           </div>
+        ) : (
           <ul style={{ listStyle: "none", margin: 0, padding: "0 0 12px" }}>
-            {upcoming.map((u, i) => {
-              const isToday = sameDate(u.date, today);
+            {(selected ? selectedEvents : upcoming).map((event) => {
+              const chip = KIND_CHIP[event.kind];
               return (
                 <li
-                  key={i}
+                  key={`${event.date}-${event.id}`}
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "48px 1fr auto",
+                    gridTemplateColumns: "54px 1fr",
                     padding: "10px 24px",
                     alignItems: "center",
                     gap: 12,
@@ -558,47 +652,90 @@ function CalendarPanel() {
                     className="kb-mono"
                     style={{
                       fontSize: 13,
-                      color: isToday ? "#dc2626" : "var(--kb-ink-700)",
-                      fontWeight: isToday ? 700 : 500,
+                      color: chip.fg,
+                      fontWeight: 700,
                     }}
                   >
-                    {u.date.getMonth() + 1}/{u.date.getDate()}
+                    {formatMonthDay(event.date)}
                   </span>
-                  <span style={{ fontSize: 14.5, color: "var(--kb-ink-900)" }}>{u.title}</span>
-                  <span
-                    style={{
-                      width: 6,
-                      height: 6,
-                      borderRadius: 3,
-                      background: KIND_COLOR[u.kind],
-                    }}
-                  />
+                  <span style={{ minWidth: 0 }}>
+                    <span
+                      style={{
+                        display: "block",
+                        fontSize: 14.5,
+                        color: "var(--kb-ink-900)",
+                        fontWeight: 600,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {event.title}
+                    </span>
+                    <span style={{ display: "block", fontSize: 12.5, color: "var(--kb-ink-500)" }}>
+                      {event.meta}
+                    </span>
+                  </span>
                 </li>
               );
             })}
           </ul>
-        </div>
-      )}
+        )}
+      </div>
     </Card>
   );
 }
 
-const navBtn: CSSProperties = {
-  width: 28,
-  height: 28,
-  borderRadius: 6,
-  border: "1px solid #ebe8e0",
-  background: "#fff",
-  fontSize: 14,
-  cursor: "pointer",
-  color: "var(--kb-ink-700)",
-  fontFamily: "inherit",
-};
-
-/* ───── page ───── */
+function ErrorBanner({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 12,
+        padding: "12px 16px",
+        background: "#fef2f2",
+        border: "1px solid #fecaca",
+        borderRadius: 10,
+        color: "#991b1b",
+        fontSize: 14,
+        fontWeight: 500,
+      }}
+    >
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+        <AlertCircle style={{ width: 16, height: 16, flexShrink: 0 }} />
+        {message}
+      </span>
+      <button
+        type="button"
+        onClick={onRetry}
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 6,
+          padding: "7px 10px",
+          borderRadius: 7,
+          border: "1px solid #fecaca",
+          background: "#fff",
+          color: "#991b1b",
+          fontSize: 13,
+          fontWeight: 700,
+          cursor: "pointer",
+          fontFamily: "inherit",
+          whiteSpace: "nowrap",
+        }}
+      >
+        <RefreshCcw style={{ width: 13, height: 13 }} />
+        다시
+      </button>
+    </div>
+  );
+}
 
 export default function Dashboard() {
   const { authData } = useAuth();
+  const userId = authData.profile.id ?? "";
   const displayName = useMemo(
     () =>
       authData.profile.displayName ??
@@ -607,11 +744,55 @@ export default function Dashboard() {
       "Member",
     [authData],
   );
+  const [data, setData] = useState<DashboardData | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   const today = useMemo(() => {
-    const d = new Date();
+    const date = new Date();
     const days = ["일", "월", "화", "수", "목", "금", "토"];
-    return `${d.getMonth() + 1}월 ${d.getDate()}일 (${days[d.getDay()]})`;
+    return {
+      label: `${date.getMonth() + 1}월 ${date.getDate()}일 (${days[date.getDay()]})`,
+      key: toDateKey(date),
+    };
   }, []);
+
+  async function load() {
+    if (!userId) return;
+
+    setLoading(true);
+    setError(null);
+    try {
+      const nextData = await loadDashboardData(userId);
+      setData(nextData);
+      if (nextData.failedSections.length > 0) {
+        setError(
+          `일부 데이터를 불러오지 못했습니다: ${nextData.failedSections
+            .map((section) => SECTION_LABEL[section])
+            .join(", ")}`,
+        );
+      }
+    } catch (err) {
+      setError(sanitizeUserError(err, "대시보드 데이터를 불러오지 못했습니다."));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void load();
+  }, [userId]);
+
+  const todayItems = useMemo(
+    () => (data ? buildTodayItems(data, userId, today.key) : []),
+    [data, today.key, userId],
+  );
+  const calendarEvents = useMemo(() => (data ? buildCalendarEvents(data) : []), [data]);
+  const todayBookingCount = data?.bookings.filter((booking) => booking.date === today.key).length ?? 0;
+  const activeProjectCount = data?.projects.filter((project) => project.status === "active").length ?? 0;
+  const summary = data
+    ? `읽지 않은 알림 ${data.unreadNotificationCount}건 · 오늘 일정 ${todayBookingCount}건 · 진행 프로젝트 ${activeProjectCount}개`
+    : "실제 데이터를 불러오는 중";
 
   return (
     <div
@@ -624,7 +805,6 @@ export default function Dashboard() {
       }}
     >
       <div style={{ margin: "0 auto", display: "flex", flexDirection: "column", gap: 20 }}>
-        {/* Inline page header — small, no card */}
         <div
           style={{
             display: "flex",
@@ -646,7 +826,7 @@ export default function Dashboard() {
                 marginBottom: 8,
               }}
             >
-              {today} · Dashboard
+              {today.label} · Dashboard
             </div>
             <h1
               className="kb-display"
@@ -660,8 +840,15 @@ export default function Dashboard() {
               }}
             >
               안녕하세요, {displayName}
-              <span style={{ color: "var(--kb-ink-500)", fontWeight: 400, marginLeft: 12, fontSize: 17 }}>
-                · 마감 임박 1건 · 일정 3건 · 프로젝트 2개
+              <span
+                style={{
+                  color: "var(--kb-ink-500)",
+                  fontWeight: 400,
+                  marginLeft: 12,
+                  fontSize: 17,
+                }}
+              >
+                · {summary}
               </span>
             </h1>
           </div>
@@ -683,178 +870,304 @@ export default function Dashboard() {
           </Link>
         </div>
 
-        {/* Two-col layout — stacks on narrow screens, side-by-side on wide */}
+        {error && <ErrorBanner message={error} onRetry={() => void load()} />}
+
         <style>{`
           @media (min-width: 1100px) {
             .kb-dash-grid { grid-template-columns: 1fr minmax(380px, 0.75fr) !important; }
           }
         `}</style>
         <div className="kb-dash-grid grid gap-4 items-stretch" style={{ gridTemplateColumns: "1fr" }}>
-          {/* MAIN COLUMN — Today / Projects / Notices stacked */}
           <div style={{ display: "flex", flexDirection: "column", gap: 16, minWidth: 0, minHeight: 0 }}>
-            {/* TODAY */}
             <Card>
-              <CardHeader
-                eyebrow="Today"
-                action={<MoreLink to="/member/events" />}
-              />
-              <div>
-                {TODAY.map((it, i) => (
-                  <div
-                    key={`${it.title}-${i}`}
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "72px 1fr auto",
-                      alignItems: "center",
-                      gap: 18,
-                      padding: "16px 28px",
-                      borderTop: "1px solid #f1ede4",
-                    }}
-                  >
-                    <span
+              <CardHeader eyebrow="Today" action={<MoreLink to="/member/notifications" />} />
+              {loading && !data ? (
+                <LoadingBlock />
+              ) : todayItems.length === 0 ? (
+                <EmptyBlock
+                  icon={
+                    <Inbox
                       style={{
-                        fontSize: 14,
-                        fontWeight: 700,
-                        color: it.urgent ? "#b45309" : "var(--kb-navy-800)",
+                        width: 26,
+                        height: 26,
+                        margin: "0 auto 10px",
+                        color: "var(--kb-ink-300)",
                       }}
+                    />
+                  }
+                >
+                  오늘 표시할 항목이 없습니다.
+                </EmptyBlock>
+              ) : (
+                <div>
+                  {todayItems.map((item) => (
+                    <Link
+                      key={item.id}
+                      to={item.to}
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "72px 1fr auto",
+                        alignItems: "center",
+                        gap: 18,
+                        padding: "16px 28px",
+                        borderTop: "1px solid #f1ede4",
+                        textDecoration: "none",
+                        color: "inherit",
+                      }}
+                      className="hover:bg-[#fafaf6]"
                     >
-                      {it.time}
-                    </span>
-                    <span style={{ fontSize: 16.5, fontWeight: 500, color: "var(--kb-ink-900)" }}>
-                      {it.title}
-                    </span>
-                    <span style={{ fontSize: 14.5, color: "var(--kb-ink-500)" }}>{it.meta}</span>
-                  </div>
-                ))}
-              </div>
+                      <span
+                        style={{
+                          fontSize: 14,
+                          fontWeight: 700,
+                          color:
+                            item.tone === "urgent"
+                              ? "#b45309"
+                              : item.tone === "normal"
+                                ? "var(--kb-navy-800)"
+                                : "var(--kb-ink-500)",
+                        }}
+                      >
+                        {item.time}
+                      </span>
+                      <span
+                        style={{
+                          fontSize: 16.5,
+                          fontWeight: 500,
+                          color: "var(--kb-ink-900)",
+                          minWidth: 0,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {item.title}
+                      </span>
+                      <span style={{ fontSize: 14.5, color: "var(--kb-ink-500)", whiteSpace: "nowrap" }}>
+                        {item.meta}
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              )}
             </Card>
 
-            {/* PROJECTS */}
             <Card>
-              <CardHeader
-                eyebrow="Projects"
-                action={<MoreLink to="/member/projects" />}
-              />
-              <div>
-                {PROJECTS.map((p) => (
-                  <Link
-                    key={p.name}
-                    to="/member/projects"
-                    style={{
-                      display: "block",
-                      padding: "18px 28px",
-                      borderTop: "1px solid #f1ede4",
-                      textDecoration: "none",
-                      color: "var(--kb-ink-900)",
-                    }}
-                  >
-                    <div
+              <CardHeader eyebrow="Projects" action={<MoreLink to="/member/projects" />} />
+              {loading && !data ? (
+                <LoadingBlock />
+              ) : !data || data.projects.length === 0 ? (
+                <EmptyBlock
+                  icon={
+                    <CalendarClock
                       style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        marginBottom: 10,
+                        width: 26,
+                        height: 26,
+                        margin: "0 auto 10px",
+                        color: "var(--kb-ink-300)",
                       }}
-                    >
-                      <span style={{ fontSize: 17, fontWeight: 600 }}>{p.name}</span>
-                      <span style={{ fontSize: 14, color: "var(--kb-ink-500)" }}>
-                        {p.role} · {p.members}명
-                      </span>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <div
+                    />
+                  }
+                >
+                  참여 중인 프로젝트가 없습니다.
+                </EmptyBlock>
+              ) : (
+                <div>
+                  {data.projects.slice(0, 4).map((project) => {
+                    const meta = projectStatusMeta(project.status);
+                    return (
+                      <Link
+                        key={project.id}
+                        to={`/member/projects/${project.slug}`}
                         style={{
-                          flex: 1,
-                          height: 6,
-                          background: "#f1ede4",
-                          borderRadius: 3,
-                          overflow: "hidden",
+                          display: "block",
+                          padding: "18px 28px",
+                          borderTop: "1px solid #f1ede4",
+                          textDecoration: "none",
+                          color: "var(--kb-ink-900)",
                         }}
+                        className="hover:bg-[#fafaf6]"
                       >
                         <div
                           style={{
-                            height: "100%",
-                            width: `${p.prog}%`,
-                            background: "var(--kb-navy-800)",
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            gap: 12,
+                            marginBottom: 10,
                           }}
-                        />
-                      </div>
-                      <span
-                        className="kb-mono"
-                        style={{
-                          fontSize: 14.5,
-                          color: "var(--kb-navy-800)",
-                          fontWeight: 600,
-                          minWidth: 40,
-                          textAlign: "right",
-                        }}
-                      >
-                        {p.prog}%
-                      </span>
-                    </div>
-                  </Link>
-                ))}
-              </div>
+                        >
+                          <span
+                            style={{
+                              fontSize: 17,
+                              fontWeight: 600,
+                              minWidth: 0,
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {project.name}
+                          </span>
+                          <span style={{ fontSize: 14, color: "var(--kb-ink-500)", whiteSpace: "nowrap" }}>
+                            {project.role} · {project.members}명
+                          </span>
+                        </div>
+                        {project.summary && (
+                          <div
+                            style={{
+                              fontSize: 14,
+                              color: "var(--kb-ink-500)",
+                              marginBottom: 10,
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {project.summary}
+                          </div>
+                        )}
+                        {project.progress === null ? (
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <span
+                              style={{
+                                fontSize: 12.5,
+                                fontWeight: 700,
+                                padding: "3px 10px",
+                                borderRadius: 4,
+                                background: meta.bg,
+                                color: meta.fg,
+                              }}
+                            >
+                              {meta.label}
+                            </span>
+                            <span style={{ fontSize: 13, color: "var(--kb-ink-500)" }}>
+                              {formatRelativeTime(project.updatedAt)}
+                            </span>
+                          </div>
+                        ) : (
+                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                            <div
+                              style={{
+                                flex: 1,
+                                height: 6,
+                                background: "#f1ede4",
+                                borderRadius: 3,
+                                overflow: "hidden",
+                              }}
+                            >
+                              <div
+                                style={{
+                                  height: "100%",
+                                  width: `${project.progress}%`,
+                                  background: "var(--kb-navy-800)",
+                                }}
+                              />
+                            </div>
+                            <span
+                              className="kb-mono"
+                              style={{
+                                fontSize: 14.5,
+                                color: "var(--kb-navy-800)",
+                                fontWeight: 600,
+                                minWidth: 40,
+                                textAlign: "right",
+                              }}
+                            >
+                              {project.progress}%
+                            </span>
+                          </div>
+                        )}
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
             </Card>
 
-            {/* NOTICES */}
             <Card>
-              <CardHeader
-                eyebrow="Notices"
-                action={<MoreLink to="/member/announcements" />}
-              />
-              <div>
-                {NOTICES.map((n) => (
-                  <Link
-                    key={n.title}
-                    to="/member/announcements"
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 18,
-                      padding: "16px 28px",
-                      borderTop: "1px solid #f1ede4",
-                      textDecoration: "none",
-                      color: "var(--kb-ink-900)",
-                    }}
-                  >
-                    <span
+              <CardHeader eyebrow="Notices" action={<MoreLink to="/member/announcements" />} />
+              {loading && !data ? (
+                <LoadingBlock />
+              ) : !data || data.notices.length === 0 ? (
+                <EmptyBlock
+                  icon={
+                    <Inbox
                       style={{
-                        width: 3,
-                        alignSelf: "stretch",
-                        borderRadius: 2,
-                        background: TAG_BAR[n.tag] ?? "#ccc",
-                        flexShrink: 0,
+                        width: 26,
+                        height: 26,
+                        margin: "0 auto 10px",
+                        color: "var(--kb-ink-300)",
                       }}
                     />
-                    <span
+                  }
+                >
+                  게시된 공지가 없습니다.
+                </EmptyBlock>
+              ) : (
+                <div>
+                  {data.notices.map((notice) => (
+                    <Link
+                      key={notice.id}
+                      to="/member/announcements"
                       style={{
-                        fontFamily: "'Nunito', sans-serif",
-                        fontSize: 15.5,
-                        fontWeight: 800,
-                        color: "#0a0a0a",
-                        minWidth: 40,
-                        flexShrink: 0,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 18,
+                        padding: "16px 28px",
+                        borderTop: "1px solid #f1ede4",
+                        textDecoration: "none",
+                        color: "var(--kb-ink-900)",
                       }}
+                      className="hover:bg-[#fafaf6]"
                     >
-                      {n.tag}
-                    </span>
-                    <span style={{ fontSize: 16.5, fontWeight: 500, color: "var(--kb-ink-900)", flex: 1 }}>
-                      {n.title}
-                    </span>
-                    <span style={{ fontSize: 14, color: "var(--kb-ink-500)", flexShrink: 0 }}>
-                      {n.date}
-                    </span>
-                  </Link>
-                ))}
-              </div>
+                      <span
+                        style={{
+                          width: 3,
+                          alignSelf: "stretch",
+                          borderRadius: 2,
+                          background: TAG_BAR["공지"],
+                          flexShrink: 0,
+                        }}
+                      />
+                      <span
+                        style={{
+                          fontFamily: "'Nunito', sans-serif",
+                          fontSize: 15.5,
+                          fontWeight: 800,
+                          color: "#0a0a0a",
+                          minWidth: 40,
+                          flexShrink: 0,
+                        }}
+                      >
+                        공지
+                      </span>
+                      <span
+                        style={{
+                          fontSize: 16.5,
+                          fontWeight: 500,
+                          color: "var(--kb-ink-900)",
+                          flex: 1,
+                          minWidth: 0,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {notice.title}
+                      </span>
+                      <span style={{ fontSize: 14, color: "var(--kb-ink-500)", flexShrink: 0 }}>
+                        {formatDateTime(notice.createdAt).split(" ")[0]}
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              )}
             </Card>
           </div>
 
-          {/* RIGHT — calendar */}
-          <CalendarPanel />
+          <CalendarPanel events={calendarEvents} />
         </div>
-
       </div>
     </div>
   );
