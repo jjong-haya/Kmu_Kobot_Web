@@ -160,7 +160,7 @@ export default function Showcase() {
                   </div>
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-full bg-[#103078] flex items-center justify-center text-white text-[10px] font-medium">
+                      <div className="w-7 h-7 rounded-full bg-[#103078] flex items-center justify-center text-white text-[12px] font-medium">
                         {item.authorAvatar}
                       </div>
                       <span className="text-sm text-gray-600">
@@ -235,7 +235,7 @@ export default function Showcase() {
                     </div>
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-full bg-[#103078] flex items-center justify-center text-white text-[10px] font-medium">
+                        <div className="w-7 h-7 rounded-full bg-[#103078] flex items-center justify-center text-white text-[12px] font-medium">
                           {item.authorAvatar}
                         </div>
                         <span className="text-sm text-gray-600">
@@ -312,7 +312,7 @@ export default function Showcase() {
                     </div>
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-full bg-[#103078] flex items-center justify-center text-white text-[10px] font-medium">
+                        <div className="w-7 h-7 rounded-full bg-[#103078] flex items-center justify-center text-white text-[12px] font-medium">
                           {item.authorAvatar}
                         </div>
                         <span className="text-sm text-gray-600">

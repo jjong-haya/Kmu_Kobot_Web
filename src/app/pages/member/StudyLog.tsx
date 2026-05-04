@@ -1,374 +1,223 @@
-import { BookOpen, Plus, Heart, MessageCircle, Eye, Calendar, User, Tag } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
-import { Button } from "../../components/ui/button";
-import { Badge } from "../../components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/tabs";
+import { useMemo, useState } from "react";
+import { Card, PageEyebrow, PageTitle } from "../../components/member/MemberShell";
+
+type LogCategory = "study" | "project" | "event" | "qna";
+
+type LogEntry = {
+  d: string;
+  t: string;
+  cat: LogCategory;
+  title: string;
+  hours: number;
+  tags: string[];
+};
+
+const LOGS: LogEntry[] = [
+  { d: "2026.02.17", t: "14:32", cat: "study",   title: "ROS Navigation 2 — Costmap 튜닝",                                   hours: 2.5, tags: ["ROS", "Nav2"] },
+  { d: "2026.02.16", t: "20:18", cat: "project", title: "자율주행 로봇 — SLAM 파라미터 조정 후 5m 이상 안정 주행 확인",     hours: 3.0, tags: ["SLAM"] },
+  { d: "2026.02.15", t: "19:00", cat: "event",   title: "ROS 2 워크샵 참석",                                                hours: 2.0, tags: ["워크샵"] },
+  { d: "2026.02.14", t: "15:40", cat: "study",   title: "PyTorch 객체 인식 모델 학습 — fine-tuning",                          hours: 4.0, tags: ["PyTorch", "YOLO"] },
+  { d: "2026.02.13", t: "21:05", cat: "qna",     title: 'Q&A 답변 — "Costmap이 너무 보수적으로 잡힌다" 질문에 답변',          hours: 0.5, tags: [] },
+  { d: "2026.02.12", t: "18:30", cat: "project", title: "딥러닝 물체 인식 — 데이터셋 라벨링 작업",                            hours: 2.0, tags: ["Dataset"] },
+];
+
+const CATEGORY_STYLES: Record<LogCategory, { bg: string; fg: string; label: string }> = {
+  study:   { bg: "rgba(34,197,94,0.13)",  fg: "#15803d",         label: "STUDY" },
+  project: { bg: "rgba(16,48,120,0.13)",  fg: "var(--kb-navy-800)", label: "PROJECT" },
+  event:   { bg: "rgba(249,115,22,0.13)", fg: "#c2410c",         label: "EVENT" },
+  qna:     { bg: "rgba(168,85,247,0.13)", fg: "#7e22ce",         label: "Q&A" },
+};
+
+const STATS: Array<[string, string, string]> = [
+  ["이번 주", "12.0h", "+2.5h vs 지난 주"],
+  ["이번 달", "47.5h", "목표 60h 중 79%"],
+  ["최다 카테고리", "STUDY", "전체의 42%"],
+  ["연속 기록일", "8일", "최장 12일"],
+];
+
+const FILTERS: Array<{ key: "all" | LogCategory; label: string }> = [
+  { key: "all", label: "전체" },
+  { key: "study", label: "study" },
+  { key: "project", label: "project" },
+  { key: "event", label: "event" },
+  { key: "qna", label: "qna" },
+];
 
 export default function StudyLog() {
-  const studyPosts = [
-    {
-      id: 1,
-      title: "ROS2 Navigation Stack Deep Dive",
-      excerpt: "Today I explored the Nav2 stack in detail. Here's what I learned about behavior trees and recovery behaviors...",
-      author: "Sarah Kim",
-      authorAvatar: "SK",
-      date: "2026-02-15",
-      readTime: "8 min read",
-      likes: 24,
-      comments: 5,
-      views: 156,
-      tags: ["ROS2", "Navigation", "Tutorial"],
-      featured: true,
-    },
-    {
-      id: 2,
-      title: "Computer Vision Basics for Robotics",
-      excerpt: "A beginner-friendly guide to understanding OpenCV and its applications in robot perception...",
-      author: "John Doe",
-      authorAvatar: "JD",
-      date: "2026-02-14",
-      readTime: "12 min read",
-      likes: 31,
-      comments: 8,
-      views: 203,
-      tags: ["Computer Vision", "OpenCV", "Beginner"],
-      featured: true,
-    },
-    {
-      id: 3,
-      title: "My Journey Learning SLAM",
-      excerpt: "Week 3 of learning SLAM algorithms. Today I implemented EKF-SLAM from scratch...",
-      author: "Mike Lee",
-      authorAvatar: "ML",
-      date: "2026-02-13",
-      readTime: "6 min read",
-      likes: 18,
-      comments: 3,
-      views: 92,
-      tags: ["SLAM", "Learning Journey", "Algorithm"],
-      featured: false,
-    },
-    {
-      id: 4,
-      title: "Python Tips for Robotics Programming",
-      excerpt: "Collection of useful Python patterns and libraries I use in robotics projects...",
-      author: "Emily Park",
-      authorAvatar: "EP",
-      date: "2026-02-12",
-      readTime: "5 min read",
-      likes: 27,
-      comments: 6,
-      views: 178,
-      tags: ["Python", "Tips", "Programming"],
-      featured: false,
-    },
-    {
-      id: 5,
-      title: "Understanding PID Control Intuitively",
-      excerpt: "Breaking down PID controllers with real examples from our line-following robot...",
-      author: "Alex Chen",
-      authorAvatar: "AC",
-      date: "2026-02-11",
-      readTime: "10 min read",
-      likes: 35,
-      comments: 9,
-      views: 241,
-      tags: ["Control", "PID", "Tutorial"],
-      featured: false,
-    },
-    {
-      id: 6,
-      title: "Setting Up a Robotics Dev Environment",
-      excerpt: "Complete guide to setting up VS Code, ROS2, and useful tools for robot development...",
-      author: "David Park",
-      authorAvatar: "DP",
-      date: "2026-02-10",
-      readTime: "7 min read",
-      likes: 22,
-      comments: 4,
-      views: 134,
-      tags: ["Setup", "Tools", "Guide"],
-      featured: false,
-    },
-  ];
+  const [filter, setFilter] = useState<"all" | LogCategory>("all");
+  const [query, setQuery] = useState("");
 
-  const trendingTags = [
-    "ROS2", "Python", "SLAM", "Computer Vision", "Arduino", "Machine Learning", 
-    "Control Theory", "Sensors", "Tutorial", "Project Log"
-  ];
+  const filtered = useMemo(() => {
+    return LOGS.filter((l) => {
+      if (filter !== "all" && l.cat !== filter) return false;
+      if (query.trim() && !l.title.toLowerCase().includes(query.trim().toLowerCase())) return false;
+      return true;
+    });
+  }, [filter, query]);
 
   return (
-    <div className="max-w-6xl">
-      <div className="flex items-center justify-between mb-6">
+    <div className="kb-root" style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: 16 }}>
         <div>
-          <h1 className="text-2xl font-bold mb-1">Study Log</h1>
-          <p className="text-gray-600">Share your learning journey and insights</p>
+          <PageEyebrow>member / study-log</PageEyebrow>
+          <PageTitle>Study Log</PageTitle>
+          <p style={{ fontSize: 16, color: "var(--kb-ink-500)", margin: "6px 0 0" }}>
+            이번 학기 누적 <strong style={{ color: "var(--kb-ink-900)" }}>47.5시간</strong> · 활동 23건
+          </p>
         </div>
-        <Button className="bg-[#103078] hover:bg-[#2048A0]">
-          <Plus className="h-4 w-4 mr-2" />
-          Write Post
-        </Button>
+        <button
+          type="button"
+          style={{
+            padding: "10px 16px",
+            border: 0,
+            background: "var(--kb-navy-800)",
+            color: "var(--kb-paper)",
+            borderRadius: 8,
+            fontSize: 14.5,
+            fontWeight: 500,
+            cursor: "pointer",
+          }}
+        >
+          + 새 활동 기록
+        </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
-          {/* Featured Posts */}
-          <div>
-            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-              <BookOpen className="h-5 w-5 text-[#2048A0]" />
-              Featured Posts
-            </h2>
-            <div className="space-y-4">
-              {studyPosts
-                .filter((post) => post.featured)
-                .map((post) => (
-                  <Card
-                    key={post.id}
-                    className="hover:shadow-lg transition-shadow border-[#2048A0]/30"
-                  >
-                    <CardContent className="p-6">
-                      <div className="flex items-start gap-4">
-                        <div className="w-12 h-12 rounded-full bg-[#103078] flex items-center justify-center text-white font-medium">
-                          {post.authorAvatar}
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2 text-sm text-gray-500">
-                            <span>{post.author}</span>
-                            <span>•</span>
-                            <span className="flex items-center gap-1">
-                              <Calendar className="h-3.5 w-3.5" />
-                              {post.date}
-                            </span>
-                            <span>•</span>
-                            <span>{post.readTime}</span>
-                          </div>
-                          <h3 className="text-xl font-semibold mb-2 hover:text-[#2048A0] cursor-pointer">
-                            {post.title}
-                          </h3>
-                          <p className="text-gray-600 mb-3">{post.excerpt}</p>
-                          <div className="flex flex-wrap gap-2 mb-3">
-                            {post.tags.map((tag) => (
-                              <Badge key={tag} variant="outline" className="text-xs">
-                                {tag}
-                              </Badge>
-                            ))}
-                          </div>
-                          <div className="flex items-center gap-4 text-sm text-gray-500">
-                            <button className="flex items-center gap-1 hover:text-[#2048A0]">
-                              <Heart className="h-4 w-4" />
-                              {post.likes}
-                            </button>
-                            <button className="flex items-center gap-1 hover:text-[#2048A0]">
-                              <MessageCircle className="h-4 w-4" />
-                              {post.comments}
-                            </button>
-                            <span className="flex items-center gap-1">
-                              <Eye className="h-4 w-4" />
-                              {post.views}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-            </div>
-          </div>
-
-          {/* All Posts */}
-          <div>
-            <h2 className="text-lg font-semibold mb-4">Recent Posts</h2>
-            <Tabs defaultValue="recent">
-              <TabsList className="mb-4">
-                <TabsTrigger value="recent">Recent</TabsTrigger>
-                <TabsTrigger value="popular">Popular</TabsTrigger>
-                <TabsTrigger value="following">Following</TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="recent" className="space-y-4">
-                {studyPosts.map((post) => (
-                  <Card key={post.id} className="hover:shadow-md transition-shadow">
-                    <CardContent className="p-5">
-                      <div className="flex items-start gap-3">
-                        <div className="w-10 h-10 rounded-full bg-[#103078] flex items-center justify-center text-white text-sm font-medium">
-                          {post.authorAvatar}
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1 text-xs text-gray-500">
-                            <span>{post.author}</span>
-                            <span>•</span>
-                            <span>{post.date}</span>
-                            <span>•</span>
-                            <span>{post.readTime}</span>
-                          </div>
-                          <h3 className="font-semibold mb-2 hover:text-[#2048A0] cursor-pointer">
-                            {post.title}
-                          </h3>
-                          <p className="text-sm text-gray-600 mb-2 line-clamp-2">
-                            {post.excerpt}
-                          </p>
-                          <div className="flex flex-wrap gap-2 mb-2">
-                            {post.tags.map((tag) => (
-                              <Badge key={tag} variant="outline" className="text-xs">
-                                {tag}
-                              </Badge>
-                            ))}
-                          </div>
-                          <div className="flex items-center gap-3 text-xs text-gray-500">
-                            <button className="flex items-center gap-1 hover:text-[#2048A0]">
-                              <Heart className="h-3.5 w-3.5" />
-                              {post.likes}
-                            </button>
-                            <button className="flex items-center gap-1 hover:text-[#2048A0]">
-                              <MessageCircle className="h-3.5 w-3.5" />
-                              {post.comments}
-                            </button>
-                            <span className="flex items-center gap-1">
-                              <Eye className="h-3.5 w-3.5" />
-                              {post.views}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </TabsContent>
-
-              <TabsContent value="popular" className="space-y-4">
-                {studyPosts
-                  .sort((a, b) => b.likes - a.likes)
-                  .map((post) => (
-                    <Card key={post.id} className="hover:shadow-md transition-shadow">
-                      <CardContent className="p-5">
-                        <div className="flex items-start gap-3">
-                          <div className="w-10 h-10 rounded-full bg-[#103078] flex items-center justify-center text-white text-sm font-medium">
-                            {post.authorAvatar}
-                          </div>
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1 text-xs text-gray-500">
-                              <span>{post.author}</span>
-                              <span>•</span>
-                              <span>{post.date}</span>
-                              <span>•</span>
-                              <span>{post.readTime}</span>
-                            </div>
-                            <h3 className="font-semibold mb-2 hover:text-[#2048A0] cursor-pointer">
-                              {post.title}
-                            </h3>
-                            <p className="text-sm text-gray-600 mb-2 line-clamp-2">
-                              {post.excerpt}
-                            </p>
-                            <div className="flex flex-wrap gap-2 mb-2">
-                              {post.tags.map((tag) => (
-                                <Badge key={tag} variant="outline" className="text-xs">
-                                  {tag}
-                                </Badge>
-                              ))}
-                            </div>
-                            <div className="flex items-center gap-3 text-xs text-gray-500">
-                              <button className="flex items-center gap-1 hover:text-[#2048A0]">
-                                <Heart className="h-3.5 w-3.5" />
-                                {post.likes}
-                              </button>
-                              <button className="flex items-center gap-1 hover:text-[#2048A0]">
-                                <MessageCircle className="h-3.5 w-3.5" />
-                                {post.comments}
-                              </button>
-                              <span className="flex items-center gap-1">
-                                <Eye className="h-3.5 w-3.5" />
-                                {post.views}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-              </TabsContent>
-
-              <TabsContent value="following" className="space-y-4">
-                <Card className="border-dashed">
-                  <CardContent className="p-8 text-center">
-                    <User className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                    <p className="text-gray-500 mb-2">Follow members to see their posts here</p>
-                    <Button variant="outline" size="sm">Discover Members</Button>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-            </Tabs>
-          </div>
-        </div>
-
-        {/* Sidebar */}
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Trending Tags</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap gap-2">
-                {trendingTags.map((tag) => (
-                  <Button
-                    key={tag}
-                    variant="outline"
-                    size="sm"
-                    className="text-xs"
-                  >
-                    <Tag className="h-3 w-3 mr-1" />
-                    {tag}
-                  </Button>
-                ))}
-              </div>
-            </CardContent>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
+        {STATS.map(([t, v, s]) => (
+          <Card key={t} style={{ padding: 20 }}>
+            <p style={{ fontSize: 13.5, color: "var(--kb-ink-500)", margin: 0 }}>{t}</p>
+            <p
+              className="kb-display"
+              style={{ fontSize: 26, fontWeight: 600, letterSpacing: "-0.02em", margin: "4px 0" }}
+            >
+              {v}
+            </p>
+            <p style={{ fontSize: 13, color: "var(--kb-ink-500)", margin: 0 }}>{s}</p>
           </Card>
+        ))}
+      </div>
 
-          <Card className="border-[#103078]/20 bg-gradient-to-br from-white to-blue-50/30">
-            <CardHeader>
-              <CardTitle className="text-base">Writing Tips</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ul className="text-sm text-gray-600 space-y-2">
-                <li>✍️ Share your learning process</li>
-                <li>💡 Include code examples</li>
-                <li>🖼️ Add diagrams if helpful</li>
-                <li>🏷️ Use relevant tags</li>
-                <li>💬 Engage with comments</li>
-              </ul>
-            </CardContent>
-          </Card>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="활동 검색…"
+          style={{
+            padding: "8px 12px",
+            border: "1px solid var(--kb-hairline)",
+            borderRadius: 8,
+            fontSize: 14.5,
+            width: 280,
+            outline: "none",
+            fontFamily: "inherit",
+            background: "var(--kb-paper)",
+          }}
+        />
+        <span style={{ fontSize: 13.5, color: "var(--kb-ink-500)", marginLeft: 8 }}>카테고리:</span>
+        {FILTERS.map((f) => {
+          const active = filter === f.key;
+          return (
+            <button
+              key={f.key}
+              type="button"
+              onClick={() => setFilter(f.key)}
+              style={{
+                padding: "6px 12px",
+                borderRadius: 6,
+                fontSize: 13.5,
+                background: active ? "var(--kb-ink-900)" : "var(--kb-paper)",
+                color: active ? "var(--kb-paper)" : "var(--kb-ink-700)",
+                border: "1px solid " + (active ? "var(--kb-ink-900)" : "var(--kb-hairline)"),
+                cursor: "pointer",
+                fontWeight: active ? 600 : 400,
+                fontFamily: "var(--kb-font-mono)",
+              }}
+            >
+              {f.label}
+            </button>
+          );
+        })}
+        <span style={{ marginLeft: "auto", fontSize: 13.5, color: "var(--kb-ink-500)" }}>
+          Group by: <strong style={{ color: "var(--kb-ink-900)" }}>날짜</strong>
+        </span>
+      </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Top Contributors</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {[
-                  { name: "Sarah Kim", posts: 12, avatar: "SK" },
-                  { name: "John Doe", posts: 10, avatar: "JD" },
-                  { name: "Mike Lee", posts: 8, avatar: "ML" },
-                ].map((contributor) => (
-                  <div
-                    key={contributor.name}
-                    className="flex items-center gap-3"
-                  >
-                    <div className="w-8 h-8 rounded-full bg-[#103078] flex items-center justify-center text-white text-xs font-medium">
-                      {contributor.avatar}
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium">{contributor.name}</p>
-                      <p className="text-xs text-gray-500">
-                        {contributor.posts} posts
-                      </p>
-                    </div>
+      <Card>
+        {filtered.length === 0 ? (
+          <div style={{ padding: 32, textAlign: "center", color: "var(--kb-ink-500)" }}>
+            기록이 없어요. 첫 활동을 추가해 보세요.
+          </div>
+        ) : (
+          filtered.map((l, i) => {
+            const cs = CATEGORY_STYLES[l.cat];
+            return (
+              <div
+                key={`${l.d}-${l.t}-${i}`}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "110px 80px 1fr 100px 80px",
+                  padding: "18px 28px",
+                  alignItems: "center",
+                  gap: 16,
+                  borderBottom: i < filtered.length - 1 ? "1px solid var(--kb-hairline-2)" : 0,
+                  cursor: "pointer",
+                }}
+              >
+                <div>
+                  <div className="kb-mono" style={{ fontSize: 14.5, color: "var(--kb-ink-900)" }}>
+                    {l.d}
                   </div>
-                ))}
+                  <div className="kb-mono" style={{ fontSize: 13, color: "var(--kb-ink-500)" }}>
+                    {l.t}
+                  </div>
+                </div>
+                <span
+                  style={{
+                    fontSize: 11,
+                    padding: "3px 8px",
+                    borderRadius: 4,
+                    background: cs.bg,
+                    color: cs.fg,
+                    textAlign: "center",
+                    width: "fit-content",
+                    fontWeight: 600,
+                    letterSpacing: "0.04em",
+                  }}
+                >
+                  {cs.label}
+                </span>
+                <div>
+                  <div style={{ fontSize: 16, fontWeight: 500, marginBottom: 4 }}>{l.title}</div>
+                  <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                    {l.tags.map((t) => (
+                      <span
+                        key={t}
+                        style={{
+                          fontSize: 11,
+                          padding: "2px 6px",
+                          borderRadius: 3,
+                          background: "var(--kb-paper-3)",
+                          color: "var(--kb-ink-700)",
+                          fontFamily: "var(--kb-font-mono)",
+                        }}
+                      >
+                        #{t}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <span
+                  className="kb-mono"
+                  style={{ fontSize: 14.5, color: "var(--kb-ink-700)", textAlign: "right" }}
+                >
+                  {l.hours}h
+                </span>
+                <span style={{ fontSize: 13.5, color: "var(--kb-ink-500)", textAlign: "right" }}>편집 ↗</span>
               </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+            );
+          })
+        )}
+      </Card>
     </div>
   );
 }

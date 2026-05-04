@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<title>Kobot · 4가지 디자인 방향 탐색</title>
+<link rel="stylesheet" href="styles/foundation.css" />
+<style>
+  body { margin: 0; background: #f4f4f2; font-family: 'Pretendard', system-ui, sans-serif; }
+  @keyframes blink { 50% { opacity: 0; } }
+</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="variants/v1-editorial.jsx"></script>
+<script type="text/babel" src="variants/v2-tech-index.jsx"></script>
+<script type="text/babel" src="variants/v3-bold-block.jsx"></script>
+<script type="text/babel" src="variants/v4-quiet-notion.jsx"></script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { DesignCanvas, DCSection, DCArtboard } = window;
+
+function App() {
+  const variations = [
+    { id: 'v1', title: 'V1 — Editorial', subtitle: '큰 타이포그래피 · 잡지스러운 위계 · 비대칭 그리드 · 얇은 hairline', mod: window.V1Editorial },
+    { id: 'v2', title: 'V2 — Tech Index', subtitle: '모노스페이스 디테일 · 인덱스 번호 · 터미널 톤 · 정보 우선', mod: window.V2TechIndex },
+    { id: 'v3', title: 'V3 — Bold Block', subtitle: 'Navy 풀블리드 · 강한 타이포 · 컬러 블록 · 자신감 있는 위계', mod: window.V3BoldBlock },
+    { id: 'v4', title: 'V4 — Quiet Notion', subtitle: 'Notion·Linear 스타일 · 일관된 리스트 · 정보 밀도 낮춤 · 절제된 보더', mod: window.V4QuietNotion },
+  ];
+
+  return (
+    <DesignCanvas
+      title="Kobot — 4가지 디자인 방향 탐색"
+      subtitle="네이비 #103078 공통 · 페이지별 4개 화면 (Landing / Activities / Projects / Notice)"
+    >
+      {variations.map(v => (
+        <DCSection key={v.id} id={v.id} title={v.title} subtitle={v.subtitle}>
+          <DCArtboard id={v.id + '-landing'}    label="Landing"    width={1440} height={1100}>
+            <v.mod.Landing />
+          </DCArtboard>
+          <DCArtboard id={v.id + '-activities'} label="Activities" width={1440} height={1100}>
+            <v.mod.Activities />
+          </DCArtboard>
+          <DCArtboard id={v.id + '-projects'}   label="Projects"   width={1440} height={1100}>
+            <v.mod.Projects />
+          </DCArtboard>
+          <DCArtboard id={v.id + '-notice'}     label="Notice"     width={1440} height={1100}>
+            <v.mod.Notice />
+          </DCArtboard>
+        </DCSection>
+      ))}
+    </DesignCanvas>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

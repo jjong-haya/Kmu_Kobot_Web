@@ -6,3 +6,4 @@ dist
 supabase/.temp/
 .playwright-mcp/
 .vite-dev.log
+nul

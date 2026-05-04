@@ -1,204 +1,162 @@
 import { useState } from "react";
-import { Card, CardContent } from "../../components/ui/card";
-import { Badge } from "../../components/ui/badge";
-import { Input } from "../../components/ui/input";
-import { Button } from "../../components/ui/button";
-import { Search, Pin } from "lucide-react";
+import { Link } from "react-router";
+import { PublicHeader } from "../../components/public/PublicHeader";
+import { useIsMobile } from "../../hooks/useIsMobile";
+import MobileNotice from "./MobileNotice";
 
-export default function PublicNotice() {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("전체");
+export type NoticeItem = {
+  slug: string;
+  pinned: boolean;
+  category: "all" | "system" | "general";
+  title: string;
+  date: string;
+  preview: string;
+  body: string;
+  author: string;
+};
 
-  const categories = ["전체", "일반", "행사", "모집", "세미나"];
+export const NOTICES: NoticeItem[] = [
+  {
+    slug: "space-booking-launch",
+    pinned: true,
+    category: "system",
+    title: "공간 예약 시스템 오픈",
+    date: "2026.05.04",
+    author: "운영진",
+    preview: "동아리실 일정을 캘린더로 관리합니다.",
+    body:
+      "복지관 B128-1호 동아리실 사용을 위한 공간 예약 시스템이 오픈되었습니다.\n\n" +
+      "■ 주요 기능\n" +
+      "- 월간 캘린더에서 한눈에 일정 확인\n" +
+      "- 예약 유형 3가지: 회의 / 스터디 / 개인\n" +
+      "- 사용 범위 3단계: 전체 단독 사용 / 책상만 사용 / 자유 출입\n" +
+      "- 본인이 만든 예약만 수정·취소 가능\n\n" +
+      "■ 사용 방법\n" +
+      "1. 멤버 → 공간 예약 메뉴 진입\n" +
+      "2. 캘린더에서 원하는 날짜 클릭\n" +
+      "3. 우측 하단 '+ 새 예약' 버튼으로 일정 등록\n\n" +
+      "예약 충돌이나 정책 관련 문의는 운영진에게 알려주세요.",
+  },
+];
 
-  const notices = [
-    {
-      id: 1,
-      title: "2026년 상반기 신입 부원 모집 공고",
-      category: "모집",
-      date: "2026.02.15",
-      isPinned: true,
-      preview:
-        "2026년 상반기 신입 부원을 모집합니다. 로봇에 관심있는 모든 학생 환영!",
-    },
-    {
-      id: 2,
-      title: "ROS 2 고급 세미나 안내",
-      category: "세미나",
-      date: "2026.02.14",
-      isPinned: true,
-      preview: "ROS 2 Navigation Stack 활용법에 대한 세미나를 진행합니다.",
-    },
-    {
-      id: 3,
-      title: "국제 로봇 경진대회 참가 안내",
-      category: "행사",
-      date: "2026.02.13",
-      isPinned: false,
-      preview:
-        "3월 개최되는 국제 로봇 경진대회에 참가합니다. 관심있는 멤버는 신청해주세요.",
-    },
-    {
-      id: 4,
-      title: "정기 총회 개최 안내",
-      category: "일반",
-      date: "2026.02.12",
-      isPinned: false,
-      preview: "2월 20일 정기 총회가 개최됩니다. 모든 멤버는 필수 참석입니다.",
-    },
-    {
-      id: 5,
-      title: "프로젝트 중간 발표회",
-      category: "행사",
-      date: "2026.02.10",
-      isPinned: false,
-      preview:
-        "진행중인 프로젝트들의 중간 발표회를 진행합니다. 많은 참여 부탁드립니다.",
-    },
-    {
-      id: 6,
-      title: "동아리방 이용 규칙 안내",
-      category: "일반",
-      date: "2026.02.08",
-      isPinned: false,
-      preview: "동아리방 이용 시 지켜야 할 규칙을 안내드립니다.",
-    },
-    {
-      id: 7,
-      title: "컴퓨터 비전 스터디 모집",
-      category: "모집",
-      date: "2026.02.05",
-      isPinned: false,
-      preview: "OpenCV 기초부터 시작하는 컴퓨터 비전 스터디원을 모집합니다.",
-    },
-    {
-      id: 8,
-      title: "로봇 대회 수상 소식",
-      category: "일반",
-      date: "2026.02.01",
-      isPinned: false,
-      preview:
-        "전국 로봇 경진대회에서 우수상을 수상했습니다! 축하합니다!",
-    },
-  ];
+export function findNoticeBySlug(slug: string | undefined) {
+  if (!slug) return undefined;
+  return NOTICES.find((n) => n.slug === slug);
+}
 
-  const filteredNotices = notices.filter((notice) => {
-    const matchesCategory =
-      selectedCategory === "전체" || notice.category === selectedCategory;
-    const matchesSearch =
-      searchQuery === "" ||
-      notice.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      notice.preview.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesCategory && matchesSearch;
-  });
+const FILTERS: Array<NoticeItem["category"]> = ["all", "system", "general"];
 
-  const pinnedNotices = filteredNotices.filter((n) => n.isPinned);
-  const regularNotices = filteredNotices.filter((n) => !n.isPinned);
+export default function Notice() {
+  const [filter, setFilter] = useState<NoticeItem["category"]>("all");
+  const filtered = filter === "all" ? NOTICES : NOTICES.filter((n) => n.category === filter);
+  const isMobile = useIsMobile();
+
+  if (isMobile) {
+    return <MobileNotice />;
+  }
 
   return (
-    <div className="py-12">
-      <div className="mx-auto max-w-4xl px-6 lg:px-8">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl md:text-4xl font-bold mb-4">공지사항</h1>
-          <p className="text-lg text-gray-600">
-            동아리의 주요 소식과 공지를 확인하세요
-          </p>
+    <div className="kb-root" style={{ background: "var(--kb-paper)", minHeight: "100vh" }}>
+      <PublicHeader variant="tech" />
+      <section style={{ padding: "40px", maxWidth: 1080, margin: "0 auto" }}>
+        <div className="kb-mono" style={{ fontSize: 11, color: "var(--kb-ink-500)", marginBottom: 24 }}>
+          ~/kobot $ tail -n 50 notice.log
         </div>
+        <h1
+          className="kb-mono"
+          style={{ fontSize: "clamp(28px, 4vw, 36px)", fontWeight: 600, margin: "0 0 8px", letterSpacing: "-0.02em" }}
+        >
+          /notice
+        </h1>
+        <p className="kb-mono" style={{ fontSize: 12, color: "var(--kb-ink-500)", margin: "0 0 32px" }}>
+          # all official announcements
+        </p>
 
-        {/* Search & Filter */}
-        <div className="mb-8">
-          <div className="relative mb-4">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <Input
-              placeholder="공지사항 검색..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            {categories.map((category) => (
-              <Button
-                key={category}
-                variant={selectedCategory === category ? "default" : "outline"}
-                size="sm"
-                onClick={() => setSelectedCategory(category)}
-                className={
-                  selectedCategory === category
-                    ? "bg-[#103078] hover:bg-[#2048A0]"
-                    : ""
-                }
+        <div
+          style={{
+            display: "flex",
+            gap: 8,
+            marginBottom: 24,
+            fontFamily: "var(--kb-font-mono)",
+            fontSize: 11,
+            flexWrap: "wrap",
+          }}
+        >
+          {FILTERS.map((t) => {
+            const active = filter === t;
+            return (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setFilter(t)}
+                style={{
+                  padding: "6px 12px",
+                  background: active ? "var(--kb-ink-900)" : "transparent",
+                  color: active ? "var(--kb-paper)" : "var(--kb-ink-700)",
+                  border: "1px solid " + (active ? "var(--kb-ink-900)" : "var(--kb-hairline)"),
+                  cursor: "pointer",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.1em",
+                  fontFamily: "inherit",
+                }}
               >
-                {category}
-              </Button>
-            ))}
-          </div>
+                --{t}
+              </button>
+            );
+          })}
         </div>
 
-        {/* Pinned Notices */}
-        {pinnedNotices.length > 0 && (
-          <div className="mb-6">
-            <div className="space-y-3">
-              {pinnedNotices.map((notice) => (
-                <Card
-                  key={notice.id}
-                  className="border-[#103078] bg-blue-50/30 hover:shadow-lg transition-all cursor-pointer"
-                >
-                  <CardContent className="p-6">
-                    <div className="flex items-start gap-4">
-                      <Pin className="h-5 w-5 text-[#103078] mt-1 flex-shrink-0" />
-                      <div className="flex-1">
-                        <div className="flex items-start justify-between mb-2">
-                          <h3 className="font-semibold text-lg">
-                            {notice.title}
-                          </h3>
-                          <Badge className="bg-[#103078] text-white ml-2">
-                            {notice.category}
-                          </Badge>
-                        </div>
-                        <p className="text-sm text-gray-600 mb-2">
-                          {notice.preview}
-                        </p>
-                        <p className="text-xs text-gray-500">{notice.date}</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Regular Notices */}
-        <div className="space-y-3">
-          {regularNotices.map((notice) => (
-            <Card
-              key={notice.id}
-              className="border-gray-200 hover:border-[#2048A0] hover:shadow-lg transition-all cursor-pointer"
+        <div style={{ border: "1px solid var(--kb-hairline)", fontFamily: "var(--kb-font-mono)" }}>
+          {filtered.map((n, i) => (
+            <Link
+              key={n.slug}
+              to={`/notice/${n.slug}`}
+              style={{
+                display: "grid",
+                gridTemplateColumns: "40px 80px 1fr 110px",
+                padding: "20px 20px",
+                borderBottom: i < filtered.length - 1 ? "1px solid var(--kb-hairline-2)" : 0,
+                alignItems: "baseline",
+                gap: 16,
+                background: n.pinned ? "var(--kb-navy-50)" : "transparent",
+                transition: "background 200ms",
+                textDecoration: "none",
+                color: "inherit",
+              }}
             >
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between mb-2">
-                  <h3 className="font-semibold text-lg">{notice.title}</h3>
-                  <Badge variant="outline" className="ml-2">
-                    {notice.category}
-                  </Badge>
-                </div>
-                <p className="text-sm text-gray-600 mb-2">{notice.preview}</p>
-                <p className="text-xs text-gray-500">{notice.date}</p>
-              </CardContent>
-            </Card>
+              <span style={{ fontSize: 11, color: n.pinned ? "var(--kb-navy-800)" : "var(--kb-ink-400)" }}>
+                {n.pinned ? "[★]" : `[${String(filtered.length - i).padStart(2, "0")}]`}
+              </span>
+              <span
+                style={{
+                  fontSize: 10,
+                  color: "var(--kb-ink-500)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.1em",
+                }}
+              >
+                {n.category}
+              </span>
+              <div>
+                <h3 style={{ fontFamily: "var(--kb-font-body)", fontSize: 16, fontWeight: 600, margin: 0 }}>
+                  {n.title}
+                </h3>
+                <p
+                  style={{
+                    fontFamily: "var(--kb-font-body)",
+                    fontSize: 13,
+                    color: "var(--kb-ink-500)",
+                    margin: "4px 0 0",
+                  }}
+                >
+                  {n.preview}
+                </p>
+              </div>
+              <span style={{ fontSize: 11, color: "var(--kb-ink-500)", textAlign: "right" }}>{n.date}</span>
+            </Link>
           ))}
         </div>
-
-        {/* Empty State */}
-        {filteredNotices.length === 0 && (
-          <div className="text-center py-12">
-            <p className="text-gray-500">검색 결과가 없습니다</p>
-          </div>
-        )}
-      </div>
+      </section>
     </div>
   );
 }

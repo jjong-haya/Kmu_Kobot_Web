@@ -1,3 +1,5 @@
+import { useState } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -6,52 +8,56 @@ import {
   Mail,
   MessageSquare,
   Phone,
-  ShieldAlert,
+  Send,
   ShieldCheck,
   UserRound,
   XCircle,
 } from "lucide-react";
-import { Alert, AlertDescription, AlertTitle } from "../../components/ui/alert";
-import { Badge } from "../../components/ui/badge";
-import { Button } from "../../components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
-import { Checkbox } from "../../components/ui/checkbox";
-import { Input } from "../../components/ui/input";
-import { Label } from "../../components/ui/label";
-import { RadioGroup, RadioGroupItem } from "../../components/ui/radio-group";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "../../components/ui/select";
-import { Textarea } from "../../components/ui/textarea";
+
+/* ───── types & data ───── */
 
 type RequestStatus = "pending" | "accepted" | "rejected";
 
-const statusConfig: Record<
+type ContactRequest = {
+  id: number;
+  requester: string;
+  requesterRole: string;
+  reason: string;
+  disclosedMethods: string[];
+  requestedAt: string;
+  dueText: string;
+  status: RequestStatus;
+  responderContacts?: string[];
+};
+
+const STATUS_META: Record<
   RequestStatus,
-  { label: string; className: string; icon: typeof Clock3 }
+  { label: string; icon: typeof Clock3; bg: string; fg: string; dot: string }
 > = {
   pending: {
     label: "대기",
-    className: "bg-amber-100 text-amber-700 hover:bg-amber-100",
     icon: Clock3,
+    bg: "#fef3c7",
+    fg: "#92400e",
+    dot: "#d97706",
   },
   accepted: {
     label: "수락",
-    className: "bg-green-100 text-green-700 hover:bg-green-100",
     icon: CheckCircle2,
+    bg: "#dff4e2",
+    fg: "#15602e",
+    dot: "#15803d",
   },
   rejected: {
     label: "거절",
-    className: "bg-gray-100 text-gray-700 hover:bg-gray-100",
     icon: XCircle,
+    bg: "#f3f3f1",
+    fg: "#6a6a6a",
+    dot: "#9a9a98",
   },
 };
 
-const contactRequests = [
+const REQUESTS: ContactRequest[] = [
   {
     id: 1,
     requester: "김하린",
@@ -60,7 +66,7 @@ const contactRequests = [
     disclosedMethods: ["이메일", "카카오톡 오픈채팅"],
     requestedAt: "2026-04-28 10:20",
     dueText: "응답 기한 D-2",
-    status: "pending" as RequestStatus,
+    status: "pending",
   },
   {
     id: 2,
@@ -70,7 +76,7 @@ const contactRequests = [
     disclosedMethods: ["이메일", "전화번호"],
     requestedAt: "2026-04-27 18:05",
     dueText: "응답 기한 D-1",
-    status: "accepted" as RequestStatus,
+    status: "accepted",
     responderContacts: ["이메일"],
   },
   {
@@ -81,249 +87,515 @@ const contactRequests = [
     disclosedMethods: ["이메일"],
     requestedAt: "2026-04-25 09:40",
     dueText: "반복 요청 경고 1회",
-    status: "rejected" as RequestStatus,
+    status: "rejected",
   },
 ];
 
-const policyCards = [
-  {
-    title: "3일 미응답 자동 거절",
-    description: "요청 수신 후 3일 안에 수락하지 않으면 개인정보 보호를 위해 자동 거절됩니다.",
-    icon: Clock3,
-  },
-  {
-    title: "스팸 신고와 반복 요청 경고",
-    description: "불필요하거나 반복적인 요청은 신고할 수 있으며 누적 시 요청 기능이 제한됩니다.",
-    icon: ShieldAlert,
-  },
-  {
-    title: "자동화 요청 차단",
-    description: "짧은 시간 다량 요청, 동일 문구 반복, 비정상 패턴은 자동으로 차단됩니다.",
-    icon: ShieldCheck,
-  },
+/* ───── filter ───── */
+
+type FilterKey = "all" | "pending" | "accepted" | "rejected";
+
+const FILTERS: { key: FilterKey; label: string }[] = [
+  { key: "all", label: "전체" },
+  { key: "pending", label: "대기" },
+  { key: "accepted", label: "수락" },
+  { key: "rejected", label: "거절" },
 ];
+
+function filterRequests(items: ContactRequest[], key: FilterKey) {
+  if (key === "all") return items;
+  return items.filter((r) => r.status === key);
+}
+
+/* ───── shared container ───── */
+
+const CONTAINER_STYLE: CSSProperties = {
+  background: "#ffffff",
+  border: "1px solid #e8e8e4",
+  borderRadius: 16,
+  boxShadow: "0 2px 8px rgba(0, 0, 0, 0.06), 0 0 1px rgba(0, 0, 0, 0.08)",
+};
+
+/* ───── request row (NOT a card — a row inside a list) ───── */
+
+function RequestRow({ r }: { r: ContactRequest }) {
+  const meta = STATUS_META[r.status];
+  const StatusIcon = meta.icon;
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        gap: 18,
+        padding: "22px 28px",
+        borderTop: "1px solid #f1ede4",
+        transition: "background 120ms",
+        cursor: "pointer",
+        position: "relative",
+      }}
+      className="hover:bg-[#fafaf6]"
+    >
+      {/* unread indicator bar for pending */}
+      {r.status === "pending" && (
+        <div
+          style={{
+            position: "absolute",
+            left: 0,
+            top: 0,
+            bottom: 0,
+            width: 3,
+            background: "var(--kb-navy-800)",
+            borderRadius: "0 2px 2px 0",
+          }}
+        />
+      )}
+
+      {/* avatar */}
+      <div
+        style={{
+          width: 44,
+          height: 44,
+          borderRadius: "50%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexShrink: 0,
+          background: r.status === "pending" ? "#0a0a0a" : "#f1ede4",
+          marginTop: 2,
+        }}
+      >
+        <UserRound
+          style={{
+            width: 20,
+            height: 20,
+            color: r.status === "pending" ? "#fff" : "var(--kb-ink-500)",
+          }}
+        />
+      </div>
+
+      {/* content */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        {/* top line: name + role + status + methods */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            flexWrap: "wrap",
+            marginBottom: 6,
+          }}
+        >
+          <span
+            style={{
+              fontSize: 16.5,
+              fontWeight: r.status === "pending" ? 700 : 600,
+              color: "var(--kb-ink-900)",
+            }}
+          >
+            {r.requester}
+          </span>
+          <span
+            style={{
+              fontSize: 13.5,
+              color: "var(--kb-ink-400)",
+            }}
+          >
+            {r.requesterRole}
+          </span>
+
+          {/* status chip */}
+          <span
+            style={{
+              fontSize: 12.5,
+              fontWeight: 600,
+              padding: "3px 10px",
+              borderRadius: 4,
+              background: meta.bg,
+              color: meta.fg,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 4,
+            }}
+          >
+            <StatusIcon style={{ width: 12, height: 12 }} />
+            {meta.label}
+          </span>
+
+          {r.status === "pending" && (
+            <span
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: 3,
+                background: "#dc2626",
+                flexShrink: 0,
+              }}
+            />
+          )}
+        </div>
+
+        {/* reason */}
+        <div
+          style={{
+            fontSize: 15.5,
+            lineHeight: 1.55,
+            color: "var(--kb-ink-600, #505050)",
+            marginBottom: 8,
+          }}
+        >
+          {r.reason}
+        </div>
+
+        {/* bottom meta line */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 16,
+            flexWrap: "wrap",
+            fontSize: 13.5,
+            color: "var(--kb-ink-400)",
+          }}
+        >
+          {/* disclosed methods */}
+          <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <Mail style={{ width: 13, height: 13 }} />
+            {r.disclosedMethods.join(", ")}
+          </span>
+
+          <span style={{ color: "#ddd" }}>·</span>
+          <span>{r.requestedAt}</span>
+          <span style={{ color: "#ddd" }}>·</span>
+          <span
+            style={{
+              fontWeight: 600,
+              color:
+                r.status === "pending"
+                  ? "var(--kb-navy-800)"
+                  : r.status === "rejected"
+                    ? "#dc2626"
+                    : "var(--kb-ink-400)",
+            }}
+          >
+            {r.dueText}
+          </span>
+
+          {/* accepted: show responder contacts inline */}
+          {r.status === "accepted" && r.responderContacts && (
+            <>
+              <span style={{ color: "#ddd" }}>·</span>
+              <span style={{ color: "#15803d", fontWeight: 500 }}>
+                공개: {r.responderContacts.join(", ")}
+              </span>
+            </>
+          )}
+        </div>
+
+        {/* pending: action buttons inline */}
+        {r.status === "pending" && (
+          <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+            <button
+              type="button"
+              style={{
+                padding: "8px 22px",
+                background: "#0a0a0a",
+                color: "#fff",
+                border: "none",
+                borderRadius: 8,
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: "pointer",
+                fontFamily: "inherit",
+              }}
+            >
+              수락
+            </button>
+            <button
+              type="button"
+              style={{
+                padding: "8px 22px",
+                background: "#fff",
+                color: "var(--kb-ink-700)",
+                border: "1px solid #e8e8e4",
+                borderRadius: 8,
+                fontSize: 14,
+                fontWeight: 500,
+                cursor: "pointer",
+                fontFamily: "inherit",
+              }}
+            >
+              거절
+            </button>
+            <button
+              type="button"
+              style={{
+                padding: "8px 14px",
+                background: "#fff",
+                color: "#dc2626",
+                border: "1px solid #fecaca",
+                borderRadius: 8,
+                fontSize: 13,
+                fontWeight: 500,
+                cursor: "pointer",
+                fontFamily: "inherit",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4,
+              }}
+            >
+              <Flag style={{ width: 13, height: 13 }} />
+              신고
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* time on right */}
+      <div
+        style={{
+          fontSize: 13,
+          color: "var(--kb-ink-400)",
+          flexShrink: 0,
+          paddingTop: 2,
+          whiteSpace: "nowrap",
+        }}
+      >
+        {r.requestedAt.split(" ")[1]}
+      </div>
+    </div>
+  );
+}
+
+/* ───── page ───── */
 
 export default function ContactRequests() {
+  const [activeFilter, setActiveFilter] = useState<FilterKey>("all");
+  const filtered = filterRequests(REQUESTS, activeFilter);
+
+  const pendingCount = REQUESTS.filter((r) => r.status === "pending").length;
+
   return (
-    <div className="max-w-7xl space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-bold mb-1">연락 요청</h1>
-          <p className="text-gray-600">
-            연락처는 서로 동의한 범위에서만 공개되며, 요청 사유와 공개 수단을 먼저 확인합니다.
-          </p>
-        </div>
-        <Button className="w-full bg-[#103078] hover:bg-[#2048A0] sm:w-auto">
-          <MessageSquare className="h-4 w-4 mr-2" />새 요청 작성
-        </Button>
-      </div>
-
-      <Alert className="border-[#103078]/20 bg-blue-50/60">
-        <ShieldCheck className="h-4 w-4 text-[#103078]" />
-        <AlertTitle>개인정보 공개 원칙</AlertTitle>
-        <AlertDescription>
-          요청자는 연락 이유와 본인이 공개할 연락수단을 제출하고, 수락자는 수락 시 공개할 연락처를 직접 선택합니다.
-        </AlertDescription>
-      </Alert>
-
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        {policyCards.map((policy) => {
-          const Icon = policy.icon;
-          return (
-            <Card key={policy.title} className="border-[#103078]/10">
-              <CardContent className="p-4">
-                <div className="flex items-start gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#103078]/10">
-                    <Icon className="h-5 w-5 text-[#103078]" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="font-semibold">{policy.title}</p>
-                    <p className="mt-1 text-sm leading-6 text-gray-600">{policy.description}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
-
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
-        <section className="space-y-4 min-w-0">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <h2 className="text-lg font-semibold">받은 요청 현황</h2>
-              <p className="text-sm text-gray-600">상태는 mock 데이터이며 실제 저장소 연결 전 UI 흐름입니다.</p>
+    <div
+      className="kb-root"
+      style={{
+        minHeight: "calc(100vh - 4rem)",
+        margin: -32,
+        padding: 32,
+        background: "#ffffff",
+      }}
+    >
+      <div
+        style={{
+          margin: "0 auto",
+          display: "flex",
+          flexDirection: "column",
+          gap: 20,
+          maxWidth: 1100,
+        }}
+      >
+        {/* ─── page header ─── */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "flex-end",
+            justifyContent: "space-between",
+            gap: 16,
+            flexWrap: "wrap",
+            paddingBottom: 4,
+          }}
+        >
+          <div>
+            <div
+              className="kb-mono"
+              style={{
+                fontSize: 13,
+                color: "var(--kb-ink-500)",
+                letterSpacing: "0.14em",
+                textTransform: "uppercase",
+                marginBottom: 8,
+              }}
+            >
+              Contact Requests
             </div>
-            <div className="flex flex-wrap gap-2">
-              <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">대기 1</Badge>
-              <Badge className="bg-green-100 text-green-700 hover:bg-green-100">수락 1</Badge>
-              <Badge variant="outline">거절 1</Badge>
-            </div>
+            <h1
+              className="kb-display"
+              style={{
+                fontSize: 30,
+                fontWeight: 600,
+                letterSpacing: "-0.02em",
+                margin: 0,
+                lineHeight: 1.2,
+                color: "#0a0a0a",
+              }}
+            >
+              연락 요청
+              <span
+                style={{
+                  color: "var(--kb-ink-500)",
+                  fontWeight: 400,
+                  marginLeft: 12,
+                  fontSize: 17,
+                }}
+              >
+                · 대기 {pendingCount}건
+              </span>
+            </h1>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            {contactRequests.map((request) => {
-              const StatusIcon = statusConfig[request.status].icon;
+          <button
+            type="button"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "12px 22px",
+              background: "#0a0a0a",
+              color: "#fff",
+              border: "none",
+              borderRadius: 10,
+              fontSize: 15,
+              fontWeight: 600,
+              cursor: "pointer",
+              fontFamily: "inherit",
+            }}
+          >
+            <Send style={{ width: 15, height: 15 }} />
+            새 요청
+          </button>
+        </div>
+
+        {/* ─── privacy note (simple inline, not a card) ─── */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            padding: "14px 20px",
+            background: "#f8f9fc",
+            borderRadius: 10,
+            fontSize: 14.5,
+            color: "var(--kb-ink-500)",
+            lineHeight: 1.5,
+          }}
+        >
+          <ShieldCheck
+            style={{
+              width: 18,
+              height: 18,
+              color: "var(--kb-navy-800)",
+              flexShrink: 0,
+            }}
+          />
+          연락처는 서로 동의한 범위에서만 공개됩니다. 미응답 시 3일 후 자동 거절됩니다.
+        </div>
+
+        {/* ─── single list container (like Notifications) ─── */}
+        <div style={{ ...CONTAINER_STYLE, padding: 0, overflow: "hidden" }}>
+          {/* filter pills bar */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "18px 28px",
+              borderBottom: "1px solid #f1ede4",
+              flexWrap: "wrap",
+            }}
+          >
+            {FILTERS.map((f) => {
+              const count =
+                f.key === "all"
+                  ? REQUESTS.length
+                  : REQUESTS.filter((r) => r.status === f.key).length;
+              const isActive = activeFilter === f.key;
               return (
-                <Card key={request.id} className="hover:shadow-md transition-shadow">
-                  <CardHeader className="space-y-3">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                      <div className="flex min-w-0 items-start gap-3">
-                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#103078] text-white">
-                          <UserRound className="h-5 w-5" />
-                        </div>
-                        <div className="min-w-0">
-                          <CardTitle className="text-base break-keep">{request.requester}</CardTitle>
-                          <p className="text-sm text-gray-600">{request.requesterRole}</p>
-                        </div>
-                      </div>
-                      <Badge className={statusConfig[request.status].className}>
-                        <StatusIcon className="h-3.5 w-3.5 mr-1" />
-                        {statusConfig[request.status].label}
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div>
-                      <p className="text-xs font-medium text-gray-500 mb-1">연락 이유</p>
-                      <p className="text-sm leading-6 text-gray-700">{request.reason}</p>
-                    </div>
-
-                    <div>
-                      <p className="text-xs font-medium text-gray-500 mb-2">요청자가 공개한 연락수단</p>
-                      <div className="flex flex-wrap gap-2">
-                        {request.disclosedMethods.map((method) => (
-                          <Badge key={method} variant="outline" className="text-xs">
-                            {method}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-
-                    {request.status === "accepted" && (
-                      <div className="rounded-lg bg-green-50 p-3 text-sm text-green-700">
-                        수락자가 공개한 연락처: {request.responderContacts?.join(", ")}
-                      </div>
-                    )}
-
-                    <div className="flex flex-col gap-2 border-t pt-4 text-xs text-gray-500 sm:flex-row sm:items-center sm:justify-between">
-                      <span>{request.requestedAt}</span>
-                      <span className="font-medium text-[#103078]">{request.dueText}</span>
-                    </div>
-
-                    {request.status === "pending" && (
-                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                        <Button size="sm" className="bg-[#103078] hover:bg-[#2048A0]">수락</Button>
-                        <Button size="sm" variant="outline">거절</Button>
-                        <Button size="sm" variant="outline" className="text-red-600">
-                          <Flag className="h-3.5 w-3.5 mr-1" />신고
-                        </Button>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
+                <button
+                  key={f.key}
+                  type="button"
+                  onClick={() => setActiveFilter(f.key)}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "8px 16px",
+                    borderRadius: 8,
+                    border: isActive
+                      ? "1px solid #0a0a0a"
+                      : "1px solid #ebe8e0",
+                    background: isActive ? "#0a0a0a" : "#fff",
+                    color: isActive ? "#fff" : "var(--kb-ink-700)",
+                    fontSize: 14.5,
+                    fontWeight: isActive ? 600 : 500,
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                    transition: "all 150ms",
+                  }}
+                  className={isActive ? "" : "hover:border-[var(--kb-ink-300)]"}
+                >
+                  {f.label}
+                  <span
+                    style={{
+                      fontSize: 12.5,
+                      fontWeight: 700,
+                      opacity: isActive ? 0.8 : 0.5,
+                    }}
+                  >
+                    {count}
+                  </span>
+                </button>
               );
             })}
           </div>
-        </section>
 
-        <aside className="space-y-4 min-w-0">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">연락 요청 작성</CardTitle>
-              <p className="text-sm text-gray-600">DB 연결 전 mock 입력 폼입니다.</p>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="target-member">요청 대상</Label>
-                <Input id="target-member" placeholder="예: 홍길동" />
-              </div>
+          {/* request rows */}
+          {filtered.length === 0 ? (
+            <div
+              style={{
+                padding: "56px 28px",
+                textAlign: "center",
+                color: "var(--kb-ink-500)",
+                fontSize: 15.5,
+              }}
+            >
+              <UserRound
+                style={{
+                  width: 32,
+                  height: 32,
+                  margin: "0 auto 12px",
+                  color: "var(--kb-ink-300)",
+                }}
+              />
+              해당 필터에 요청이 없습니다.
+            </div>
+          ) : (
+            <div>
+              {filtered.map((r) => (
+                <RequestRow key={r.id} r={r} />
+              ))}
+            </div>
+          )}
 
-              <div className="space-y-2">
-                <Label htmlFor="request-reason">연락 이유</Label>
-                <Textarea
-                  id="request-reason"
-                  placeholder="요청 목적, 필요한 응답, 관련 프로젝트를 구체적으로 적어주세요."
-                  className="min-h-28"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>요청자가 공개할 연락수단</Label>
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-1">
-                  {[
-                    { id: "email", label: "이메일", icon: Mail },
-                    { id: "phone", label: "전화번호", icon: Phone },
-                    { id: "chat", label: "오픈채팅", icon: MessageSquare },
-                  ].map((method) => {
-                    const Icon = method.icon;
-                    return (
-                      <label
-                        key={method.id}
-                        htmlFor={method.id}
-                        className="flex items-center gap-2 rounded-lg border p-3 text-sm"
-                      >
-                        <Checkbox id={method.id} />
-                        <Icon className="h-4 w-4 text-gray-500" />
-                        {method.label}
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>요청 긴급도</Label>
-                <RadioGroup defaultValue="normal" className="grid-cols-1 sm:grid-cols-3 xl:grid-cols-1">
-                  {[
-                    ["normal", "일반"],
-                    ["soon", "3일 내 필요"],
-                    ["low", "여유 있음"],
-                  ].map(([value, label]) => (
-                    <label key={value} className="flex items-center gap-2 rounded-lg border p-3 text-sm">
-                      <RadioGroupItem value={value} />
-                      {label}
-                    </label>
-                  ))}
-                </RadioGroup>
-              </div>
-
-              <Button className="w-full bg-[#103078] hover:bg-[#2048A0]">요청 보내기</Button>
-            </CardContent>
-          </Card>
-
-          <Card className="border-amber-200 bg-amber-50/70">
-            <CardContent className="p-4">
-              <div className="flex items-start gap-3">
-                <AlertTriangle className="h-5 w-5 shrink-0 text-amber-600" />
-                <div className="text-sm leading-6 text-amber-800">
-                  <p className="font-semibold">수락 시 공개할 연락처 선택</p>
-                  <p>연락 요청을 수락할 때 이메일, 전화번호, 오픈채팅 중 필요한 항목만 선택해 공개합니다.</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">수락 응답 예시</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <Select defaultValue="email">
-                <SelectTrigger>
-                  <SelectValue placeholder="공개할 연락처 선택" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="email">이메일만 공개</SelectItem>
-                  <SelectItem value="chat">오픈채팅만 공개</SelectItem>
-                  <SelectItem value="both">이메일 + 오픈채팅 공개</SelectItem>
-                </SelectContent>
-              </Select>
-              <Textarea placeholder="응답 메시지를 입력하세요." />
-              <Button variant="outline" className="w-full">선택한 연락처로 수락</Button>
-            </CardContent>
-          </Card>
-        </aside>
+          {/* footer */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              padding: "14px 28px",
+              borderTop: "1px solid #f1ede4",
+              fontSize: 13.5,
+              color: "var(--kb-ink-500)",
+            }}
+          >
+            <span>
+              {filtered.length} / {REQUESTS.length} 건
+            </span>
+            <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <ShieldCheck style={{ width: 13, height: 13 }} />
+              스팸·반복 요청은 자동 차단됩니다.
+            </span>
+          </div>
+        </div>
       </div>
     </div>
   );

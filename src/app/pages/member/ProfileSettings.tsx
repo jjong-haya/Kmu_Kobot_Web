@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import type { FormEvent, ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
-import { Navigate, useLocation, useNavigate } from "react-router";
+import { Link, Navigate, useLocation, useNavigate } from "react-router";
 import { toast } from "sonner";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
@@ -177,17 +177,19 @@ function FormSection({
   title: string;
 }) {
   return (
-    <section className="grid gap-6 border-t border-slate-300 bg-white p-5 first:border-t-0 sm:p-7 lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-8 lg:p-8">
-      <div className="lg:border-r lg:border-slate-200 lg:pr-8">
-        <p className="inline-flex h-8 min-w-12 items-center justify-center rounded-full border border-[#103078]/20 bg-[#103078]/5 px-3 text-xs font-semibold tracking-[0.16em] text-[#103078]">
-          {number}
-        </p>
-        <h2 className="mt-3 text-lg font-semibold tracking-[-0.025em] text-slate-950">
-          {title}
-        </h2>
-        <p className="mt-3 text-sm leading-6 text-slate-500">{description}</p>
+    <section className="border-t border-slate-200 bg-white p-5 first:border-t-0 sm:p-6">
+      <div className="mb-5 pb-4 border-b border-slate-100">
+        <div className="flex items-center gap-3">
+          <span className="inline-flex h-7 min-w-10 items-center justify-center rounded-full border border-[#103078]/20 bg-[#103078]/5 px-2.5 text-[11px] font-semibold tracking-[0.14em] text-[#103078]">
+            {number}
+          </span>
+          <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-slate-950">
+            {title}
+          </h2>
+        </div>
+        <p className="mt-2 text-[12.5px] leading-5 text-slate-500">{description}</p>
       </div>
-      <div className="min-w-0 space-y-6 lg:pl-1">{children}</div>
+      <div className="min-w-0 space-y-5">{children}</div>
     </section>
   );
 }
@@ -288,6 +290,17 @@ export default function ProfileSettings() {
   const [checkedAvailableLoginId, setCheckedAvailableLoginId] = useState<string | null>(null);
   const [shakingField, setShakingField] = useState<FieldKey | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<FieldKey, string>>>({});
+  const [agreeTerms, setAgreeTerms] = useState(false);
+  const [agreePrivacy, setAgreePrivacy] = useState(false);
+  const [agreeMarketing, setAgreeMarketing] = useState(false);
+  const [consentError, setConsentError] = useState<string | null>(null);
+  const allAgreed = agreeTerms && agreePrivacy && agreeMarketing;
+  function setAllAgreed(v: boolean) {
+    setAgreeTerms(v);
+    setAgreePrivacy(v);
+    setAgreeMarketing(v);
+    setConsentError(null);
+  }
 
   const normalizedNickname = useMemo(
     () => normalizeNicknameDisplay(nicknameDisplay),
@@ -487,6 +500,7 @@ export default function ProfileSettings() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setFieldErrors({});
+    setConsentError(null);
 
     const requiredFields: Array<[FieldKey, string, string]> = [
       ["nicknameDisplay", normalizedNickname, "닉네임을 입력해 주세요."],
@@ -501,6 +515,18 @@ export default function ProfileSettings() {
     if (missingField) {
       showFieldError(missingField[0], missingField[2]);
       return;
+    }
+
+    // require legal consent on first signup
+    if (isJoinRequest) {
+      if (!agreeTerms) {
+        setConsentError("이용약관에 동의해 주세요.");
+        return;
+      }
+      if (!agreePrivacy) {
+        setConsentError("개인정보 수집·이용에 동의해 주세요.");
+        return;
+      }
     }
 
     if (phone.replace(/\D/g, "").length < 8) {
@@ -614,7 +640,7 @@ export default function ProfileSettings() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 px-1 pb-10 sm:px-0">
+    <div className="mx-auto max-w-3xl space-y-6 px-3 pt-8 pb-10 sm:px-4 sm:pt-12">
       {!isJoinRequest && (
         <section className="border-b border-slate-200 pb-7">
           <div className="max-w-2xl">
@@ -881,6 +907,107 @@ export default function ProfileSettings() {
             </FieldShell>
           </div>
         </FormSection>
+
+        {isJoinRequest && (
+          <FormSection
+            number="03"
+            title="약관 및 개인정보 동의"
+            description="가입 전 동의가 필요한 항목입니다. 필수 항목 미동의 시 가입할 수 없습니다."
+          >
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <label className="flex cursor-pointer items-center gap-3 pb-3 border-b border-slate-200">
+                <input
+                  type="checkbox"
+                  checked={allAgreed}
+                  onChange={(e) => setAllAgreed(e.target.checked)}
+                  className="h-4 w-4 cursor-pointer accent-[#103078]"
+                />
+                <span className="text-sm font-bold text-slate-900">
+                  전체 동의
+                </span>
+                <span className="text-[12px] text-slate-500">
+                  (선택 항목 포함)
+                </span>
+              </label>
+
+              <div className="mt-3 space-y-2.5">
+                <label className="flex cursor-pointer items-start gap-3">
+                  <input
+                    type="checkbox"
+                    checked={agreeTerms}
+                    onChange={(e) => {
+                      setAgreeTerms(e.target.checked);
+                      setConsentError(null);
+                    }}
+                    className="mt-0.5 h-4 w-4 cursor-pointer accent-[#103078]"
+                  />
+                  <span className="flex-1 text-sm text-slate-700 leading-6">
+                    <span className="font-semibold text-red-600">[필수]</span>{" "}
+                    KOBOT 이용약관에 동의합니다.{" "}
+                    <Link
+                      to="/terms"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[#103078] underline underline-offset-2"
+                    >
+                      약관 보기
+                    </Link>
+                  </span>
+                </label>
+
+                <label className="flex cursor-pointer items-start gap-3">
+                  <input
+                    type="checkbox"
+                    checked={agreePrivacy}
+                    onChange={(e) => {
+                      setAgreePrivacy(e.target.checked);
+                      setConsentError(null);
+                    }}
+                    className="mt-0.5 h-4 w-4 cursor-pointer accent-[#103078]"
+                  />
+                  <span className="flex-1 text-sm text-slate-700 leading-6">
+                    <span className="font-semibold text-red-600">[필수]</span>{" "}
+                    개인정보 수집·이용에 동의합니다 (이름·학번·학과·전화번호·이메일·로그인 ID 등).{" "}
+                    <Link
+                      to="/privacy"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[#103078] underline underline-offset-2"
+                    >
+                      처리방침 보기
+                    </Link>
+                  </span>
+                </label>
+
+                <label className="flex cursor-pointer items-start gap-3">
+                  <input
+                    type="checkbox"
+                    checked={agreeMarketing}
+                    onChange={(e) => setAgreeMarketing(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 cursor-pointer accent-[#103078]"
+                  />
+                  <span className="flex-1 text-sm text-slate-700 leading-6">
+                    <span className="font-semibold text-slate-500">[선택]</span>{" "}
+                    공지·행사·세미나 등 동아리 활동 알림 수신에 동의합니다. 언제든
+                    설정에서 해제할 수 있습니다.
+                  </span>
+                </label>
+              </div>
+
+              {consentError && (
+                <p className="mt-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
+                  {consentError}
+                </p>
+              )}
+
+              <p className="mt-3 text-[11.5px] leading-5 text-slate-500">
+                만 14세 미만은 가입할 수 없으며, 입력 정보는 동아리 운영 목적
+                외에는 사용되지 않습니다. 회원 탈퇴 시 보관 기록은
+                개인정보처리방침에 따라 삭제됩니다.
+              </p>
+            </div>
+          </FormSection>
+        )}
 
         <div className="sticky bottom-3 z-10 border-t border-slate-200 bg-white/95 p-4 backdrop-blur sm:static sm:flex sm:justify-end sm:bg-slate-50">
           <Button

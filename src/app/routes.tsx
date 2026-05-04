@@ -10,6 +10,7 @@ import MemberLayout from "./layouts/MemberLayout";
 import Landing from "./pages/public/Landing";
 import PublicProjects from "./pages/public/Projects";
 import PublicNotice from "./pages/public/Notice";
+import NoticeDetail from "./pages/public/NoticeDetail";
 import Recruit from "./pages/public/Recruit";
 import Contact from "./pages/public/Contact";
 import Activities from "./pages/public/Activities";
@@ -18,18 +19,20 @@ import Privacy from "./pages/public/Privacy";
 import Terms from "./pages/public/Terms";
 import Login from "./pages/public/Login";
 import AuthCallback from "./pages/public/AuthCallback";
+import InviteCourse from "./pages/public/InviteCourse";
+import DesignLab from "./pages/public/DesignLab";
 import Dashboard from "./pages/member/Dashboard";
 import Notifications from "./pages/member/Notifications";
 import ContactRequests from "./pages/member/ContactRequests";
 import Announcements from "./pages/member/Announcements";
-import QnA from "./pages/member/QnA";
 import StudyLog from "./pages/member/StudyLog";
 import StudyPlaylist from "./pages/member/StudyPlaylist";
 import PeerReview from "./pages/member/PeerReview";
 import MemberProjects from "./pages/member/Projects";
+import ProjectDetail from "./pages/member/ProjectDetail";
 import Showcase from "./pages/member/Showcase";
 import Events from "./pages/member/Events";
-import OfficeHours from "./pages/member/OfficeHours";
+import SpaceBooking from "./pages/member/SpaceBooking";
 import Members from "./pages/member/Members";
 import Resources from "./pages/member/Resources";
 import Templates from "./pages/member/Templates";
@@ -41,8 +44,13 @@ import Votes from "./pages/member/Votes";
 import Forms from "./pages/member/Forms";
 import Integrations from "./pages/member/Integrations";
 import Permissions from "./pages/member/Permissions";
+import InviteCodes from "./pages/member/InviteCodes";
 import ApprovalPending from "./pages/member/ApprovalPending";
 import ProfileSettings from "./pages/member/ProfileSettings";
+import Welcome from "./pages/member/Welcome";
+import Profile from "./pages/member/Profile";
+import Security from "./pages/member/Security";
+import AccountInfo from "./pages/member/AccountInfo";
 import NotFound from "./pages/NotFound";
 
 function memberElement(
@@ -70,6 +78,7 @@ export const router = createBrowserRouter([
       { index: true, Component: Landing },
       { path: "projects", Component: PublicProjects },
       { path: "notice", Component: PublicNotice },
+      { path: "notice/:slug", Component: NoticeDetail },
       { path: "recruit", Component: Recruit },
       { path: "contact", Component: Contact },
       { path: "activities", Component: Activities },
@@ -80,8 +89,16 @@ export const router = createBrowserRouter([
     ],
   },
   {
+    path: "/invite/course",
+    Component: InviteCourse,
+  },
+  {
     path: "/auth/callback",
     Component: AuthCallback,
+  },
+  {
+    path: "/design-lab",
+    Component: DesignLab,
   },
   {
     path: "/member",
@@ -92,8 +109,11 @@ export const router = createBrowserRouter([
     ),
     children: [
       { path: "join", Component: ProfileSettings },
+      { path: "welcome", Component: Welcome },
       { path: "pending", Component: ApprovalPending },
-      { path: "profile", element: memberElement(ProfileSettings) },
+      { path: "profile", element: memberElement(Profile) },
+      { path: "security", element: memberElement(Security) },
+      { path: "account-info", element: memberElement(AccountInfo) },
       { index: true, element: memberElement(Dashboard, ["dashboard.read"]) },
       {
         path: "notifications",
@@ -107,13 +127,16 @@ export const router = createBrowserRouter([
           "announcements.manage",
         ]),
       },
-      { path: "qna", element: memberElement(QnA) },
       { path: "study-log", element: memberElement(StudyLog) },
       { path: "study-playlist", element: memberElement(StudyPlaylist) },
       { path: "peer-review", element: memberElement(PeerReview) },
       {
         path: "projects",
         element: memberElement(MemberProjects, ["projects.read", "projects.manage"]),
+      },
+      {
+        path: "projects/:slug",
+        element: memberElement(ProjectDetail, ["projects.read", "projects.manage"]),
       },
       {
         path: "showcase",
@@ -123,7 +146,7 @@ export const router = createBrowserRouter([
         path: "events",
         element: memberElement(Events, ["events.read", "events.manage"]),
       },
-      { path: "office-hours", element: memberElement(OfficeHours) },
+      { path: "space-booking", element: memberElement(SpaceBooking) },
       {
         path: "members",
         element: memberElement(Members, ["members.read", "members.manage"]),
@@ -152,6 +175,10 @@ export const router = createBrowserRouter([
       {
         path: "permissions",
         element: memberElement(Permissions, ["permissions.manage"]),
+      },
+      {
+        path: "invite-codes",
+        element: memberElement(InviteCodes, ["members.manage"]),
       },
     ],
   },

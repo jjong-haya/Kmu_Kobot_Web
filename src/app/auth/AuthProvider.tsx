@@ -32,6 +32,7 @@ const MEMBER_STATUSES: Exclude<MemberStatus, null>[] = [
   "rejected",
   "alumni",
   "project_only",
+  "course_member",
   "withdrawn",
 ];
 
@@ -267,6 +268,7 @@ function normalizeAuthorizationContext(data: unknown): AuthorizationContextData 
         account.status === "rejected" ||
         account.status === "alumni" ||
         account.status === "project_only" ||
+        account.status === "course_member" ||
         account.status === "withdrawn"
           ? account.status
           : null,

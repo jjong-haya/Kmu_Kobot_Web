@@ -1,0 +1,54 @@
+/* === Kobot 통일 디자인 시스템 - Foundation === */
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&family=Instrument+Serif&display=swap');
+
+:root {
+  /* Brand */
+  --navy-950: #050d24;
+  --navy-900: #082058;
+  --navy-800: #103078;
+  --navy-700: #1c3f8a;
+  --navy-600: #2a52a3;
+  --navy-500: #3b6bc4;
+  --navy-100: #e8eef9;
+  --navy-50:  #f4f7fc;
+
+  /* Paper / Ink — warm-cool neutral */
+  --paper:    #ffffff;
+  --paper-2:  #fafaf9;
+  --paper-3:  #f4f4f2;
+  --hairline: #e7e7e3;
+  --hairline-2: #ececea;
+  --rule:     #1a1a1a;
+
+  --ink-900:  #0a0a0a;
+  --ink-800:  #1a1a1a;
+  --ink-700:  #303030;
+  --ink-500:  #6a6a6a;
+  --ink-400:  #9a9a98;
+  --ink-300:  #b8b8b5;
+
+  /* Type */
+  --font-display: 'Geist', 'Pretendard', system-ui, sans-serif;
+  --font-body:    'Pretendard', 'Geist', system-ui, sans-serif;
+  --font-mono:    'JetBrains Mono', ui-monospace, monospace;
+  --font-serif:   'Instrument Serif', 'Pretendard', serif;
+}
+
+/* base reset for design canvas use */
+.kb-root, .kb-root * { box-sizing: border-box; }
+.kb-root {
+  font-family: var(--font-body);
+  color: var(--ink-900);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+.kb-root img { display: block; max-width: 100%; }
+
+.mono { font-family: var(--font-mono); font-feature-settings: "ss01"; }
+.display { font-family: var(--font-display); letter-spacing: -0.02em; }
+.serif { font-family: var(--font-serif); letter-spacing: -0.01em; }
+
+/* utility */
+.kb-tabnum { font-variant-numeric: tabular-nums; }
+.kb-uppercase { text-transform: uppercase; letter-spacing: 0.08em; }

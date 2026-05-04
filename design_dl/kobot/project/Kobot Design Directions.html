@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<title>Kobot · 통합 디자인안</title>
+<link rel="stylesheet" href="styles/foundation.css" />
+<style>
+  body { margin: 0; background: #f4f4f2; font-family: 'Pretendard', system-ui, sans-serif; }
+  @keyframes blink { 50% { opacity: 0; } }
+  @keyframes tabIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="variants/v1-editorial.jsx"></script>
+<script type="text/babel" src="variants/v2-tech-index.jsx"></script>
+<script type="text/babel" src="variants/v3-bold-block.jsx"></script>
+<script type="text/babel" src="variants/v4-quiet-notion.jsx"></script>
+<script type="text/babel" src="variants/member-dashboard.jsx"></script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { DesignCanvas, DCSection, DCArtboard } = window;
+const V1 = window.V1Editorial;
+const V2 = window.V2TechIndex;
+const M  = window.MemberDashboard;
+
+function App() {
+  return (
+    <DesignCanvas
+      title="Kobot 통합 디자인안"
+      subtitle="공개 사이트는 V2 + V1 믹스 · 멤버 포털은 256px 사이드바 대시보드 · 네이비 #103078 공통"
+    >
+      {/* ── PUBLIC SITE ─────────────────────────── */}
+      <DCSection
+        id="public"
+        title="공개 사이트 / Public"
+        subtitle="Landing은 V2 Tech Index · Activities·Projects는 V1 Editorial · Notice는 V2 Tech Index"
+      >
+        <DCArtboard id="pub-landing"    label="Landing — V2 Tech Index"       width={1440} height={1100}>
+          <V2.Landing />
+        </DCArtboard>
+        <DCArtboard id="pub-activities" label="Activities — V1 Editorial"    width={1440} height={1100}>
+          <V1.Activities />
+        </DCArtboard>
+        <DCArtboard id="pub-projects"   label="Projects — V1 Editorial"      width={1440} height={1100}>
+          <V1.Projects />
+        </DCArtboard>
+        <DCArtboard id="pub-notice"     label="Notice — V2 Tech Index"       width={1440} height={1100}>
+          <V2.Notice />
+        </DCArtboard>
+      </DCSection>
+
+      {/* ── MEMBER PORTAL ───────────────────────── */}
+      <DCSection
+        id="member"
+        title="멤버 포털 / Member Portal"
+        subtitle="좌측 256px 사이드바 (Overview · Communication · Learning · Projects · Events&People · Resources · Management · Admin) · 활동 기록 · 프로젝트 관리"
+      >
+        <DCArtboard id="m-dashboard" label="Dashboard — 로그인 후 첫 화면"       width={1600} height={1700}>
+          <M.Dashboard />
+        </DCArtboard>
+        <DCArtboard id="m-studylog"  label="Study Log — 활동 기록"               width={1600} height={1500}>
+          <M.ActivityLog />
+        </DCArtboard>
+        <DCArtboard id="m-project"   label="Project — 프로젝트 관리 (Tasks 탭)" width={1600} height={1500}>
+          <M.ProjectManage />
+        </DCArtboard>
+      </DCSection>
+    </DesignCanvas>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

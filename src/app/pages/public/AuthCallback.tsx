@@ -260,6 +260,24 @@ export default function AuthCallback() {
           return;
         }
 
+        // If user came through /invite/course, redeem the code BEFORE refreshing
+        // auth data so the new status is reflected.
+        try {
+          const inviteCode = window.localStorage.getItem("kobot:course-invite-code");
+          if (inviteCode) {
+            const supabase = getSupabaseBrowserClient();
+            const { error: redeemErr } = await supabase.rpc("redeem_course_invite", {
+              invite_code: inviteCode,
+            });
+            // success or already-redeemed → clear the code so it isn't reused
+            if (!redeemErr) {
+              window.localStorage.removeItem("kobot:course-invite-code");
+            }
+          }
+        } catch {
+          // non-blocking: even if RPC fails, continue to normal callback flow
+        }
+
         const authData = await runLoadingStep(2, refreshAuthData);
         await waitForMinimumLoading();
 
