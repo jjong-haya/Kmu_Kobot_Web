@@ -41,6 +41,14 @@ const MEMBER_SCOPE_FILTERS: Array<{ key: MemberScopeFilter; label: string }> = [
   { key: "course", label: "코스" },
 ];
 
+function nameWithReal(member: MemberDirectoryProfile): string {
+  const display = member.displayName?.trim();
+  const real = member.fullName?.trim();
+  if (!display) return real ?? "이름 없음";
+  if (!real || real === display) return display;
+  return `${display} (${real})`;
+}
+
 const PAGE_STYLE: CSSProperties = {
   minHeight: "calc(100vh - 4rem)",
   margin: -32,
@@ -221,21 +229,19 @@ function Avatar({ member, size = 52 }: { member: MemberDirectoryProfile; size?: 
           title="회장"
           style={{
             position: "absolute",
-            top: -5,
-            right: -5,
-            width: crownSize,
-            height: crownSize,
-            borderRadius: "50%",
-            background: "#fff1c2",
-            border: "1px solid #f4d36b",
-            color: "#8a5a00",
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            boxShadow: "0 2px 5px rgba(0, 0, 0, 0.14)",
+            top: -Math.round(crownSize * 0.6),
+            left: "50%",
+            transform: "translateX(-50%)",
+            color: "#d4a017",
+            filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.18))",
+            pointerEvents: "none",
           }}
         >
-          <Crown style={{ width: Math.max(11, crownSize - 7), height: Math.max(11, crownSize - 7) }} />
+          <Crown
+            fill="#facc15"
+            strokeWidth={1.5}
+            style={{ width: crownSize, height: crownSize, display: "block" }}
+          />
         </span>
       ) : null}
     </div>
@@ -467,7 +473,7 @@ function MemberCard({
                   whiteSpace: "nowrap",
                 }}
               >
-                {member.displayName}
+                {nameWithReal(member)}
               </h3>
               {member.isSelf ? <Chip tone="strong">나</Chip> : null}
             </div>
@@ -579,7 +585,7 @@ function MemberListRow({
                 whiteSpace: "nowrap",
               }}
             >
-              {member.displayName}
+              {nameWithReal(member)}
             </h3>
             {member.isSelf ? <Chip tone="strong">나</Chip> : null}
           </div>
@@ -686,7 +692,7 @@ function ProfileEditor({
             <Avatar member={member} size={64} />
             <div style={{ minWidth: 0 }}>
               <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: "var(--kb-ink-900)" }}>
-                {member.displayName}
+                {nameWithReal(member)}
               </h2>
             </div>
           </div>

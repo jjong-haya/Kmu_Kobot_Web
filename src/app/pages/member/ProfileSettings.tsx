@@ -32,6 +32,7 @@ import {
   normalizeDepartmentName,
 } from "../../auth/kookminAcademic";
 import { useAuth } from "../../auth/useAuth";
+import { isJoinRequestComplete } from "../../auth/onboarding";
 import type { MemberStatus } from "../../auth/types";
 import { getSafeInternalPath, withNextPath } from "../../auth/redirects";
 
@@ -316,7 +317,12 @@ export default function ProfileSettings() {
   const normalizedLoginId = loginId.trim().toLowerCase();
   const isPasswordConfirmMismatched =
     passwordConfirm.length > 0 && password !== passwordConfirm;
-  const isJoinRequest = memberStatus === "pending" || memberStatus === null;
+  // 초대코드(KOSS 등)는 태그/권한만 부여한다. 단과대·학과·약관 동의 같은 기본
+  // 가입 절차는 정규 부원과 동일하게 거치게 강제한다.
+  const isJoinRequest =
+    memberStatus === "pending" ||
+    memberStatus === null ||
+    (memberStatus === "course_member" && !isJoinRequestComplete(authData));
   const isJoinRoute = location.pathname === "/member/join";
   const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const safeNextPath = getSafeInternalPath(searchParams.get("next"));
