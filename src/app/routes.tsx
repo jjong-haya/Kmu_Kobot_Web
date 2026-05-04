@@ -104,6 +104,10 @@ export const router = createBrowserRouter([
     Component: InviteCourse,
   },
   {
+    path: "/invite/course/:code",
+    Component: InviteCourse,
+  },
+  {
     path: "/auth/callback",
     Component: AuthCallback,
   },

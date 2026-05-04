@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
-import { useSearchParams, Navigate, Link } from "react-router";
+import { useParams, useSearchParams, Navigate, Link } from "react-router";
 import {
   GraduationCap,
   CheckCircle2,
@@ -33,7 +33,29 @@ const cardStyle: CSSProperties = {
 
 export default function InviteCourse() {
   const [params] = useSearchParams();
-  const inviteCode = params.get("code") ?? "";
+  const pathParams = useParams<{ code?: string }>();
+  // Resolve invite code in this priority order:
+  //   1. path param  /invite/course/KOSS2026  (survives most redirects)
+  //   2. query param /invite/course?code=KOSS2026
+  //   3. localStorage (set by previous successful visit, OAuth round-trip)
+  //   4. raw window.location.search (defensive fallback if useSearchParams misfires)
+  const inviteCode = useMemo(() => {
+    const fromPath = pathParams.code?.trim();
+    if (fromPath) return fromPath;
+    const fromQuery = params.get("code")?.trim();
+    if (fromQuery) return fromQuery;
+    if (typeof window !== "undefined") {
+      const fromRaw = new URLSearchParams(window.location.search).get("code")?.trim();
+      if (fromRaw) return fromRaw;
+      try {
+        const stored = window.localStorage.getItem(COURSE_INVITE_KEY)?.trim();
+        if (stored) return stored;
+      } catch {
+        /* localStorage unavailable */
+      }
+    }
+    return "";
+  }, [pathParams.code, params]);
   const { signInWithGoogle, isInitializing, session, isConfigured } = useAuth();
 
   const [submitting, setSubmitting] = useState(false);
