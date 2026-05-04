@@ -51,6 +51,7 @@ import {
 } from "../api/notifications";
 import wordLogo from "@/assets/wordLogo.png";
 import { APP_VERSION_LABEL } from "../utils/version";
+import { useCourseMemberNavPaths } from "../hooks/useCourseMemberNavPaths";
 
 type NavigationItem = {
   name: string;
@@ -197,6 +198,12 @@ const NAVIGATION: NavigationSection[] = [
         icon: Settings,
         permissions: ["permissions.manage"],
       },
+      {
+        name: "사이드바 설정",
+        href: "/member/nav-config",
+        icon: ListChecks,
+        permissions: ["permissions.manage"],
+      },
     ],
   },
 ];
@@ -270,14 +277,9 @@ function getRoleDisplayLabel(slug?: string | null, name?: string | null) {
   return name?.trim() || null;
 }
 
-const COURSE_MEMBER_ALLOWED_PATHS = new Set([
-  "/member",
-  "/member/notifications",
-  "/member/announcements",
-  "/member/contact-requests",
-  "/member/members",
-  "/member/space-booking",
-  // account pages (everyone can view their own)
+// Account pages (profile/security/account-info) are visible to everyone
+// regardless of role and are not user-configurable.
+const ACCOUNT_PATHS_ALWAYS_VISIBLE = new Set([
   "/member/profile",
   "/member/security",
   "/member/account-info",
@@ -372,6 +374,7 @@ export default function MemberLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { authData, hasPermission, memberStatus, signOut, user } = useAuth();
+  const courseMemberPaths = useCourseMemberNavPaths();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
@@ -458,7 +461,11 @@ export default function MemberLayout() {
 
       return {
         ...section,
-        items: section.items.filter((item) => COURSE_MEMBER_ALLOWED_PATHS.has(item.href)),
+        items: section.items.filter(
+          (item) =>
+            courseMemberPaths.has(item.href) ||
+            ACCOUNT_PATHS_ALWAYS_VISIBLE.has(item.href),
+        ),
       };
     }
 
