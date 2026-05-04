@@ -544,9 +544,52 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const [authData, setAuthData] = useState(EMPTY_AUTH_CONTEXT);
   const [authError, setAuthError] = useState<string | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
+  const [tagPermissions, setTagPermissions] = useState<string[]>([]);
+  const [tagNavPaths, setTagNavPaths] = useState<string[]>([]);
+  const [tagsLoaded, setTagsLoaded] = useState(false);
   const refreshAuthDataPromiseRef = useRef<Promise<AuthorizationContextData | null> | null>(null);
   const isWorkspaceSchemaMissingRef = useRef(false);
   const configured = isSupabaseConfigured();
+
+  async function refreshTags() {
+    if (!configured) {
+      setTagPermissions([]);
+      setTagNavPaths([]);
+      setTagsLoaded(true);
+      return;
+    }
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const [permsResult, navsResult] = await Promise.all([
+        supabase.rpc("current_user_tag_permissions"),
+        supabase.rpc("current_user_tag_nav_paths"),
+      ]);
+      const perms = ((permsResult.data ?? []) as Array<string | { permission?: string }>)
+        .map((row) =>
+          typeof row === "string"
+            ? row
+            : row && typeof row === "object" && "permission" in row && row.permission
+              ? row.permission
+              : null,
+        )
+        .filter((value): value is string => Boolean(value));
+      const navs = ((navsResult.data ?? []) as Array<string | { href?: string }>)
+        .map((row) =>
+          typeof row === "string"
+            ? row
+            : row && typeof row === "object" && "href" in row && row.href
+              ? row.href
+              : null,
+        )
+        .filter((value): value is string => Boolean(value));
+      setTagPermissions(perms);
+      setTagNavPaths(navs);
+    } catch {
+      // tag RPC failed — keep previous values, fall back to legacy hardcoded sets
+    } finally {
+      setTagsLoaded(true);
+    }
+  }
 
   async function refreshAuthData() {
     if (refreshAuthDataPromiseRef.current) {
@@ -687,6 +730,20 @@ export function AuthProvider({ children }: PropsWithChildren) {
       subscription.unsubscribe();
     };
   }, [configured]);
+
+  // Re-fetch the current user's tag-derived permissions and nav paths every
+  // time the auth user changes (login, logout, refresh).
+  useEffect(() => {
+    if (!configured) return;
+    if (!user) {
+      setTagPermissions([]);
+      setTagNavPaths([]);
+      setTagsLoaded(true);
+      return;
+    }
+    void refreshTags();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [configured, user?.id]);
 
   async function signInWithGoogle(nextPath?: string) {
     if (!configured) {
@@ -964,14 +1021,22 @@ export function AuthProvider({ children }: PropsWithChildren) {
     setAuthError(null);
   }
 
-  const implicitPermissions =
+  // Tag-driven permissions are authoritative once loaded. The hardcoded
+  // status-base sets remain as a cold fallback for the first few hundred
+  // ms before the tag RPCs resolve, and as a safety net if RLS blocks the
+  // RPC call entirely.
+  const fallbackPermissions =
     authData.account.status === "active"
       ? ACTIVE_MEMBER_BASE_PERMISSIONS
       : authData.account.status === "course_member"
         ? COURSE_MEMBER_BASE_PERMISSIONS
         : [];
   const effectivePermissions = Array.from(
-    new Set([...authData.permissions, ...implicitPermissions]),
+    new Set([
+      ...authData.permissions,
+      ...tagPermissions,
+      ...(tagsLoaded && tagPermissions.length > 0 ? [] : fallbackPermissions),
+    ]),
   );
 
   const value: AuthContextValue = {
@@ -982,6 +1047,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     authData,
     memberStatus: authData.account.status,
     permissions: effectivePermissions,
+    tagNavPaths,
     authError,
     hasPermission: (...codes: string[]) => {
       if (authData.account.isBootstrapAdmin) {
@@ -991,6 +1057,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       return codes.some((code) => effectivePermissions.includes(code));
     },
     refreshAuthData,
+    refreshTags,
     signInWithGoogle,
     signInWithLoginId,
     checkLoginIdAvailability,

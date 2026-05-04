@@ -46,6 +46,8 @@ import Forms from "./pages/member/Forms";
 import Integrations from "./pages/member/Integrations";
 import Permissions from "./pages/member/Permissions";
 import NavConfig from "./pages/member/NavConfig";
+import Tags from "./pages/member/Tags";
+import TagDetail from "./pages/member/TagDetail";
 import InviteCodes from "./pages/member/InviteCodes";
 import ApprovalPending from "./pages/member/ApprovalPending";
 import ProfileSettings from "./pages/member/ProfileSettings";
@@ -230,6 +232,14 @@ export const router = createBrowserRouter([
       {
         path: "nav-config",
         element: memberElement(NavConfig, ["permissions.manage"]),
+      },
+      {
+        path: "tags",
+        element: memberElement(Tags, ["permissions.manage"]),
+      },
+      {
+        path: "tags/:slug",
+        element: memberElement(TagDetail, ["permissions.manage"]),
       },
       {
         path: "invite-codes",

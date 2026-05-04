@@ -31,7 +31,7 @@ import {
   X,
   Megaphone,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import {
@@ -51,7 +51,6 @@ import {
 } from "../api/notifications";
 import wordLogo from "@/assets/wordLogo.png";
 import { APP_VERSION_LABEL } from "../utils/version";
-import { useCourseMemberNavPaths } from "../hooks/useCourseMemberNavPaths";
 
 type NavigationItem = {
   name: string;
@@ -199,9 +198,9 @@ const NAVIGATION: NavigationSection[] = [
         permissions: ["permissions.manage"],
       },
       {
-        name: "사이드바 설정",
-        href: "/member/nav-config",
-        icon: ListChecks,
+        name: "태그",
+        href: "/member/tags",
+        icon: Award,
         permissions: ["permissions.manage"],
       },
     ],
@@ -373,8 +372,8 @@ function KobotWordmark({ className = "" }: { className?: string }) {
 export default function MemberLayout() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { authData, hasPermission, memberStatus, signOut, user } = useAuth();
-  const courseMemberPaths = useCourseMemberNavPaths();
+  const { authData, hasPermission, memberStatus, signOut, user, tagNavPaths } = useAuth();
+  const tagNavSet = useMemo(() => new Set(tagNavPaths), [tagNavPaths]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
@@ -463,7 +462,7 @@ export default function MemberLayout() {
         ...section,
         items: section.items.filter(
           (item) =>
-            courseMemberPaths.has(item.href) ||
+            tagNavSet.has(item.href) ||
             ACCOUNT_PATHS_ALWAYS_VISIBLE.has(item.href),
         ),
       };
@@ -478,11 +477,28 @@ export default function MemberLayout() {
     return {
       ...section,
       items: section.items.filter((item) => {
-        if (!item.permissions || item.permissions.length === 0) {
-          return true;
+        // Account pages and items inside higher-tier sections (공식팀장+)
+        // bypass tag-nav checks because they are gated by section permissions
+        // already.
+        if (ACCOUNT_PATHS_ALWAYS_VISIBLE.has(item.href)) return true;
+
+        // Per-item permission check (existing behaviour)
+        if (item.permissions && item.permissions.length > 0) {
+          if (!hasPermission(...item.permissions)) return false;
         }
 
-        return hasPermission(...item.permissions);
+        // Tag-nav check: if the user has any tag nav data, the path must
+        // appear in at least one of their tags' nav set. Higher-tier sections
+        // (공식팀장 / 부회장 / 회장) are excluded because their items aren't
+        // typically seeded into KOBOT tag.
+        if (
+          (section.minimumRole ?? "member") === "member" &&
+          tagNavSet.size > 0
+        ) {
+          return tagNavSet.has(item.href);
+        }
+
+        return true;
       }),
     };
   }).filter((section) => section.items.length > 0);

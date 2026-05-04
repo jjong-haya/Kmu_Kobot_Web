@@ -89,9 +89,15 @@ export interface AuthContextValue {
   authData: AuthorizationContextData;
   memberStatus: MemberStatus;
   permissions: string[];
+  /**
+   * Sidebar paths granted to the current user via assigned tags. Empty until
+   * the first refreshTags call resolves.
+   */
+  tagNavPaths: string[];
   authError: string | null;
   hasPermission: (...codes: string[]) => boolean;
   refreshAuthData: () => Promise<AuthorizationContextData | null>;
+  refreshTags: () => Promise<void>;
   signInWithGoogle: (nextPath?: string) => Promise<void>;
   signInWithLoginId: (
     loginId: string,
