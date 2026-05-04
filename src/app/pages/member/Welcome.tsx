@@ -15,12 +15,12 @@ export default function Welcome() {
   const [error, setError] = useState<string | null>(null);
 
   // already past this step → redirect away
-  if (
-    memberStatus === "active" ||
-    memberStatus === "course_member" ||
-    isJoinRequestComplete(authData)
-  ) {
+  if (memberStatus === "active" || isJoinRequestComplete(authData)) {
     return <Navigate to="/member" replace />;
+  }
+  if (memberStatus === "course_member") {
+    // KOSS 코드는 적용됐지만 프로필 미완료 → 정보 입력 페이지로
+    return <Navigate to="/member/join?course=1" replace />;
   }
 
   async function handleRedeem(e: FormEvent) {
@@ -48,7 +48,8 @@ export default function Welcome() {
       }
       // refresh authData so memberStatus updates to course_member
       await refreshAuthData();
-      navigate("/member", { replace: true });
+      // KOSS 코드만 적용된 상태 → 단과대/학과 등 프로필 정보 입력 페이지로 이동
+      navigate("/member/join?course=1", { replace: true });
     } catch (err) {
       setError(sanitizeUserError(err, "오류가 발생했습니다. 잠시 후 다시 시도해 주세요."));
     } finally {
