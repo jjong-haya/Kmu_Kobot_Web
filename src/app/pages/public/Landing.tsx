@@ -57,6 +57,14 @@ export default function Landing() {
 
   // Live DB data — replaces hardcoded mock notices/events/stats below.
   const live = useLandingData();
+
+  // Dynamic date — for calendar / month label / today highlight.
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1; // 1-12
+  const currentDay = now.getDate();
+  const daysInCurrentMonth = new Date(currentYear, currentMonth, 0).getDate();
+  const monthDays = Array.from({ length: daysInCurrentMonth }, (_, i) => i + 1);
   const memberActionLabel = !session
     ? "로그인"
     : isInitializing
@@ -733,7 +741,7 @@ export default function Landing() {
                     <div className="flex items-center justify-between mb-3">
                       <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                         <Calendar className="h-5 w-5 text-[#2048A0]" />
-                        2월 일정
+                        {currentMonth}월 일정
                       </h3>
                     </div>
 
@@ -750,9 +758,9 @@ export default function Landing() {
 
                       {/* Calendar Days */}
                       <div className="grid grid-cols-7 gap-1.5">
-                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28].map((day) => {
-                          const isToday = day === 15;
-                          const isSelected = day === 15;
+                        {monthDays.map((day) => {
+                          const isToday = day === currentDay;
+                          const isSelected = selectedDay === day;
                           const dayEvents = sortEvents(getEventsForDay(day));
                           const visibleEvents = dayEvents.slice(0, 2);
                           const hiddenCount = Math.max(0, dayEvents.length - 2);
@@ -900,7 +908,9 @@ export default function Landing() {
 
             {/* Date Header */}
             <div className="mb-4 pr-8">
-              <div className="text-sm text-gray-500 mb-1">2월</div>
+              <div className="text-sm text-gray-500 mb-1">
+                {currentYear}년 {currentMonth}월
+              </div>
               <h3 className="text-2xl font-bold text-gray-900">
                 {selectedDay}일
               </h3>
@@ -963,7 +973,7 @@ export default function Landing() {
                       {event.startDate !== event.endDate && (
                         <div className="mt-2 pt-2 border-t border-gray-200">
                           <div className="text-xs text-gray-500">
-                            📅 {event.duration}일 일정 (2월 {event.startDate}일 - {event.endDate}일)
+                            📅 {event.duration}일 일정 ({currentMonth}월 {event.startDate}일 - {event.endDate}일)
                           </div>
                         </div>
                       )}
@@ -1604,16 +1614,11 @@ export default function Landing() {
             transition={{ duration: 0.5 }}
           >
             <h2 className="text-3xl sm:text-4xl font-bold mb-3">
-              2026 봄학기 신입 부원 모집
+              KOBOT
             </h2>
-            <div className="flex items-center justify-center gap-3 mb-2">
-              <p className="text-base sm:text-lg">
-                지원 마감: 2026년 2월 20일 (목)
-              </p>
-              <Badge className="bg-white/15 backdrop-blur-sm text-white text-sm px-3 py-1 border border-white/20">
-                D-5
-              </Badge>
-            </div>
+            <p className="text-base sm:text-lg mb-2">
+              국민대학교 소프트웨어융합대학 로봇 학술 동아리
+            </p>
             <p className="text-sm text-white/80 mb-6">
               5단계 커리큘럼 · 팀프로젝트 · 데모데이까지 한 학기 완주
             </p>
