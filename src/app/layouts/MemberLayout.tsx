@@ -276,6 +276,7 @@ const COURSE_MEMBER_ALLOWED_PATHS = new Set([
   "/member/announcements",
   "/member/contact-requests",
   "/member/members",
+  "/member/space-booking",
   // account pages (everyone can view their own)
   "/member/profile",
   "/member/security",

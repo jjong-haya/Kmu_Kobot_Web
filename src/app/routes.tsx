@@ -191,7 +191,10 @@ export const router = createBrowserRouter([
         path: "events",
         element: memberElement(Events, ["events.read", "events.manage"]),
       },
-      { path: "space-booking", element: memberElement(SpaceBooking) },
+      {
+        path: "space-booking",
+        element: memberElement(SpaceBooking, undefined, { allowCourseMember: true }),
+      },
       {
         path: "members",
         element: memberElement(Members, ["members.read", "members.manage"], {
