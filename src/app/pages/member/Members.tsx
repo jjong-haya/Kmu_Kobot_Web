@@ -229,18 +229,27 @@ function Avatar({ member, size = 52 }: { member: MemberDirectoryProfile; size?: 
           title="회장"
           style={{
             position: "absolute",
-            top: -Math.round(crownSize * 0.6),
+            top: -Math.round(crownSize * 0.7),
             left: "50%",
-            transform: "translateX(-50%)",
-            color: "#d4a017",
-            filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.18))",
+            transform: "translateX(-50%) rotate(-12deg)",
+            width: crownSize,
+            height: crownSize,
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "#b45309",
+            filter:
+              "drop-shadow(0 2px 3px rgba(0,0,0,0.22)) drop-shadow(0 0 1px rgba(0,0,0,0.35))",
             pointerEvents: "none",
+            zIndex: 1,
           }}
         >
           <Crown
+            color="#b45309"
             fill="#facc15"
-            strokeWidth={1.5}
-            style={{ width: crownSize, height: crownSize, display: "block" }}
+            strokeWidth={2}
+            size={crownSize}
+            style={{ display: "block" }}
           />
         </span>
       ) : null}

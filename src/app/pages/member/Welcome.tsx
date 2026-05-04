@@ -19,7 +19,11 @@ export default function Welcome() {
     return <Navigate to="/member" replace />;
   }
   if (memberStatus === "course_member") {
-    // KOSS 코드는 적용됐지만 프로필 미완료 → 정보 입력 페이지로
+    // KOSS 코드 자동 승인된 사람도 프로필 미완료면 가입 폼으로
+    return <Navigate to="/member/join?course=1" replace />;
+  }
+  // pending 상태에서도 이미 KOSS 코드를 redeem 한 사용자는 정보 입력 페이지로 직행
+  if (authData.profile.clubAffiliation) {
     return <Navigate to="/member/join?course=1" replace />;
   }
 

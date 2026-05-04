@@ -915,6 +915,15 @@ export function AuthProvider({ children }: PropsWithChildren) {
           toErrorMessage(submitApplicationError, "회원가입 요청을 제출하지 못했습니다."),
         );
       }
+
+      // KOSS 초대코드를 미리 redeem 해 둔 사용자는 가입 신청과 동시에
+      // course_member 로 자동 승인. 코드가 없으면 RPC 가 false 만 돌려주므로
+      // 일반 가입 흐름에 영향 없음.
+      try {
+        await supabase.rpc("apply_course_invite_after_application");
+      } catch {
+        // 자동 승인 실패는 일반 가입 신청을 막을 사유가 아니다.
+      }
     }
 
     return refreshAuthData();
@@ -929,10 +938,24 @@ export function AuthProvider({ children }: PropsWithChildren) {
     }
 
     const supabase = getSupabaseBrowserClient();
-    const { error } = await supabase.auth.signOut();
+    // scope: 'local' avoids the 403 "session_not_found" Supabase returns when
+    // the JWT was already revoked or expired server-side. We just need to drop
+    // the local copy of the session — there is nothing for the user to do
+    // about a server-side revoked token at logout time.
+    const { error } = await supabase.auth.signOut({ scope: "local" });
 
+    // Ignore session-missing / expired errors. Anything else (network, etc.)
+    // we still surface so the caller can show a toast.
     if (error) {
-      throw new Error(toErrorMessage(error, "로그아웃하지 못했습니다."));
+      const status = (error as { status?: number }).status ?? 0;
+      const message = error.message ?? "";
+      const isHarmless =
+        status === 401 ||
+        status === 403 ||
+        /session_not_found|jwt expired|invalid token/i.test(message);
+      if (!isHarmless) {
+        throw new Error(toErrorMessage(error, "로그아웃하지 못했습니다."));
+      }
     }
 
     setSession(null);

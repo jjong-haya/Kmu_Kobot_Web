@@ -37,8 +37,11 @@ export function getPostAuthMemberPath(
   }
 
   if (memberStatus === "pending" || memberStatus === null) {
-    // brand-new account → ask about course invite first, then info form
-    return isJoinRequestComplete(authData) ? "/member/pending" : "/member/welcome";
+    // 초대코드(KOSS 등)가 이미 적용된 사용자(profile.clubAffiliation 세팅됨)는
+    // 코드 입력 단계를 다시 보여주지 않고 바로 정보 입력 폼으로 보낸다.
+    const hasInvite = Boolean(authData.profile.clubAffiliation);
+    if (isJoinRequestComplete(authData)) return "/member/pending";
+    return hasInvite ? "/member/join?course=1" : "/member/welcome";
   }
 
   return "/member/pending";
