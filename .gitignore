@@ -9,3 +9,4 @@ supabase/.temp/
 nul
 design_dl/
 .tmp-landing/
+.vite-codex.*.log
