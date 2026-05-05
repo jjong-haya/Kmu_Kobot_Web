@@ -236,15 +236,10 @@ function hasPresidentPosition(positions: OrgPositionAssignmentRow[]) {
   });
 }
 
-function membershipTagsFor(status: string | null) {
-  switch (status) {
-    case "active":
-      return ["KOBOT"];
-    case "course_member":
-      return ["KOSS"];
-    default:
-      return [];
-  }
+function membershipTagsFor(_status: string | null) {
+  // 동아리(KOBOT/KOSS)은 더 이상 status 에서 자동 파생되지 않는다.
+  // 회장이 /member/tags 에서 직접 부여한 태그가 단일 진리원천이다.
+  return [] as string[];
 }
 
 function localFavoriteKey(userId: string) {

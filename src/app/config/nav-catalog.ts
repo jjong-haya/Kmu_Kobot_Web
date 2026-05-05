@@ -35,6 +35,7 @@ export const NAV_CATALOG: NavCatalogEntry[] = [
   { href: "/member/space-booking", label: "공간 예약", group: "부원" },
   { href: "/member/equipment", label: "장비 대여", group: "부원" },
   { href: "/member/votes", label: "투표", group: "부원" },
+  { href: "/member/quests", label: "미션 / 퀘스트", group: "부원" },
   { href: "/member/peer-review", label: "동료 리뷰", group: "공식팀장" },
   { href: "/member/showcase", label: "쇼케이스", group: "공식팀장" },
   { href: "/member/templates", label: "템플릿", group: "공식팀장" },

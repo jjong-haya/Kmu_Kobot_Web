@@ -23,10 +23,9 @@ const CARD_STYLE: CSSProperties = {
 
 const SLUG_PATTERN = /^[a-z][a-z0-9_-]{1,30}$/;
 
-const AUTO_LABEL: Record<string, string> = {
-  active: "정규 부원에게 자동 부여",
-  course_member: "KOSS 수강생에게 자동 부여",
-};
+// auto_status 자동 부여 시스템은 폐지됨. 회장이 직접 태그 부여.
+// 시드 시점의 auto_status 컬럼 값이 남아있는 경우에만 안내용 라벨을 보여준다.
+const AUTO_LABEL: Record<string, string> = {};
 
 export default function Tags() {
   const navigate = useNavigate();

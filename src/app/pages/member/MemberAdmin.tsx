@@ -46,11 +46,14 @@ const CARD_STYLE: CSSProperties = {
   boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
 };
 
-const STATUS_FILTERS: Array<{ key: "all" | AdminMemberStatus; label: string }> = [
+type AdminFilterKey = "all" | "submitted" | "draft" | AdminMemberStatus;
+
+const STATUS_FILTERS: Array<{ key: AdminFilterKey; label: string }> = [
   { key: "all", label: "전체" },
-  { key: "pending", label: "승인 대기" },
+  { key: "submitted", label: "승인 대기 (신청 제출)" },
+  { key: "draft", label: "신청 미제출" },
   { key: "active", label: "정규 부원" },
-  { key: "course_member", label: "KOSS" },
+  { key: "course_member", label: "수강생" },
   { key: "rejected", label: "보류" },
   { key: "withdrawn", label: "탈퇴" },
 ];
@@ -58,7 +61,7 @@ const STATUS_FILTERS: Array<{ key: "all" | AdminMemberStatus; label: string }> =
 const STATUS_LABEL: Record<AdminMemberStatus, string> = {
   pending: "승인 대기",
   active: "정규 부원",
-  course_member: "KOSS",
+  course_member: "수강생",
   project_only: "프로젝트만",
   rejected: "보류",
   withdrawn: "탈퇴",
@@ -67,7 +70,7 @@ const STATUS_LABEL: Record<AdminMemberStatus, string> = {
 const STATUS_COLOR: Record<AdminMemberStatus, { bg: string; fg: string }> = {
   pending: { bg: "#fef3c7", fg: "#92400e" },
   active: { bg: "#dcfce7", fg: "#15803d" },
-  course_member: { bg: "#ede9fe", fg: "#5b21b6" },
+  course_member: { bg: "#fde68a", fg: "#7c2d12" },
   project_only: { bg: "#dbeafe", fg: "#1e3a8a" },
   rejected: { bg: "#fee2e2", fg: "#991b1b" },
   withdrawn: { bg: "#f3f4f6", fg: "#374151" },
@@ -80,7 +83,7 @@ export default function MemberAdmin() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busyUserId, setBusyUserId] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<"all" | AdminMemberStatus>("all");
+  const [statusFilter, setStatusFilter] = useState<AdminFilterKey>("all");
   const [query, setQuery] = useState("");
   const [editingUser, setEditingUser] = useState<AdminMemberRow | null>(null);
 
@@ -105,7 +108,17 @@ export default function MemberAdmin() {
   const filtered = useMemo(() => {
     const q = query.trim().toLocaleLowerCase("ko-KR");
     return members.filter((member) => {
-      if (statusFilter !== "all" && member.status !== statusFilter) return false;
+      if (statusFilter === "submitted") {
+        // 신청 제출됨(=membership_applications.status='submitted') AND 아직 승인 전(status=pending)
+        if (member.applicationStatus !== "submitted") return false;
+        if (member.status === "active" || member.status === "course_member") return false;
+      } else if (statusFilter === "draft") {
+        // 신청 미제출: 가입 폼은 시작했지만 약관·정보 입력 후 "신청"을 안 누른 상태
+        if (member.applicationStatus === "submitted") return false;
+        if (member.status !== "pending" && member.status !== null) return false;
+      } else if (statusFilter !== "all") {
+        if (member.status !== statusFilter) return false;
+      }
       if (!q) return true;
       const haystack = [
         member.displayName,
@@ -545,10 +558,24 @@ function MemberRow({
 
       {/* actions */}
       <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "flex-end", gap: 6 }}>
-        {status === "pending" ? (
+        {status === "pending" && member.applicationStatus === "submitted" ? (
           <ActionButton tone="primary" icon={<UserCheck style={{ width: 12, height: 12 }} />} onClick={onApprove}>
             승인
           </ActionButton>
+        ) : null}
+        {status === "pending" && member.applicationStatus !== "submitted" ? (
+          <span
+            title="가입 폼을 끝까지 입력하고 신청 제출을 해야 승인 가능"
+            style={{
+              fontSize: 11,
+              padding: "2px 8px",
+              borderRadius: 999,
+              background: "#f3f4f6",
+              color: "#6b7280",
+            }}
+          >
+            신청 미제출
+          </span>
         ) : null}
         <ActionButton icon={<Edit3 style={{ width: 12, height: 12 }} />} onClick={onEdit}>
           수정

@@ -139,6 +139,7 @@ const NAVIGATION: NavigationSection[] = [
         permissions: ["resources.read"],
       },
       { name: "투표", href: "/member/votes", icon: Vote },
+      { name: "미션", href: "/member/quests", icon: Target },
     ],
   },
   {

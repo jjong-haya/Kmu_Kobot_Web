@@ -49,6 +49,7 @@ import NavConfig from "./pages/member/NavConfig";
 import Tags from "./pages/member/Tags";
 import TagDetail from "./pages/member/TagDetail";
 import MemberAdmin from "./pages/member/MemberAdmin";
+import Quests from "./pages/member/Quests";
 import InviteCodes from "./pages/member/InviteCodes";
 import ApprovalPending from "./pages/member/ApprovalPending";
 import ProfileSettings from "./pages/member/ProfileSettings";
@@ -245,6 +246,10 @@ export const router = createBrowserRouter([
       {
         path: "member-admin",
         element: memberElement(MemberAdmin, ["members.manage", "permissions.manage"]),
+      },
+      {
+        path: "quests",
+        element: memberElement(Quests, undefined, { allowCourseMember: true }),
       },
       {
         path: "invite-codes",

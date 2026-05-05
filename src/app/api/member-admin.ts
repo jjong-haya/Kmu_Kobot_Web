@@ -11,6 +11,12 @@ export type AdminMemberStatus =
   | "rejected"
   | "withdrawn";
 
+export type AdminApplicationStatus =
+  | "submitted"
+  | "approved"
+  | "rejected"
+  | null;
+
 export type AdminMemberRow = {
   id: string;
   email: string | null;
@@ -27,6 +33,8 @@ export type AdminMemberRow = {
   createdAt: string | null;
   tags: AdminMemberTag[];
   isPresident: boolean;
+  applicationStatus: AdminApplicationStatus;
+  applicationSubmittedAt: string | null;
 };
 
 export type AdminMemberTag = {
@@ -107,6 +115,7 @@ export async function listAdminMembers(): Promise<AdminMemberRow[]> {
     accountsResult,
     assignmentsResult,
     positionsResult,
+    applicationsResult,
   ] = await Promise.all([
     supabase.from("profiles").select(PROFILE_SELECT).order("created_at", { ascending: false }),
     supabase.from("member_accounts").select("user_id, status, approved_at, created_at"),
@@ -117,12 +126,32 @@ export async function listAdminMembers(): Promise<AdminMemberRow[]> {
       .from("org_position_assignments")
       .select("user_id, org_positions(slug)")
       .eq("active", true),
+    supabase
+      .from("membership_applications")
+      .select("user_id, status, submitted_at"),
   ]);
 
   if (profilesResult.error) throw new Error(sanitizeUserError(profilesResult.error, FALLBACK));
   if (accountsResult.error) throw new Error(sanitizeUserError(accountsResult.error, FALLBACK));
   if (assignmentsResult.error)
     throw new Error(sanitizeUserError(assignmentsResult.error, FALLBACK));
+  // applications fetch may fail if RLS doesn't expose it; degrade silently.
+  const applicationByUser = new Map<
+    string,
+    { status: AdminApplicationStatus; submittedAt: string | null }
+  >();
+  if (!applicationsResult.error) {
+    for (const row of (applicationsResult.data ?? []) as Array<{
+      user_id: string;
+      status: AdminApplicationStatus;
+      submitted_at: string | null;
+    }>) {
+      applicationByUser.set(row.user_id, {
+        status: row.status,
+        submittedAt: row.submitted_at,
+      });
+    }
+  }
 
   const accountByUser = new Map(
     ((accountsResult.data ?? []) as AccountRow[]).map((row) => [row.user_id, row]),
@@ -166,6 +195,8 @@ export async function listAdminMembers(): Promise<AdminMemberRow[]> {
       createdAt: row.created_at ?? account?.created_at ?? null,
       tags: tagsByUser.get(row.id) ?? [],
       isPresident: presidentSet.has(row.id),
+      applicationStatus: applicationByUser.get(row.id)?.status ?? null,
+      applicationSubmittedAt: applicationByUser.get(row.id)?.submittedAt ?? null,
     };
   });
 }

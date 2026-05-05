@@ -93,6 +93,9 @@ export default function TagDetail() {
   const [memberQuery, setMemberQuery] = useState("");
   const [assigning, setAssigning] = useState<string | null>(null);
 
+  // Active tab in the right-side editor
+  const [activeTab, setActiveTab] = useState<"meta" | "perms" | "nav">("meta");
+
   async function load() {
     if (!slug) return;
     try {
@@ -367,13 +370,6 @@ export default function TagDetail() {
           </div>
         </header>
 
-        <SidebarPreview
-          label={label || tag.label}
-          color={color}
-          navHrefs={navHrefs}
-          permissions={permissions}
-        />
-
         {error && (
           <div
             style={{
@@ -393,111 +389,200 @@ export default function TagDetail() {
           </div>
         )}
 
-        {/* META */}
-        <section style={{ ...CARD_STYLE, marginBottom: 18 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-            <h2 style={sectionTitle}>기본 정보</h2>
-            <SaveButton
-              label="저장"
-              loading={savingMeta}
-              done={savedFlag === "meta"}
-              onClick={handleSaveMeta}
-            />
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-            <label>
-              <div style={fieldLabel}>라벨</div>
-              <input value={label} onChange={(e) => setLabel(e.target.value)} style={inputStyle} />
-            </label>
-            <label>
-              <div style={fieldLabel}>색상</div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <input
-                  type="color"
-                  value={color}
-                  onChange={(e) => setColor(e.target.value)}
-                  style={{ width: 40, height: 32, border: "none", padding: 0, cursor: "pointer" }}
-                />
-                <input
-                  value={color}
-                  onChange={(e) => setColor(e.target.value)}
-                  style={{ ...inputStyle, fontFamily: "monospace" }}
-                />
-              </div>
-            </label>
-            <label style={{ gridColumn: "1 / -1" }}>
-              <div style={fieldLabel}>설명</div>
-              <input
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="이 태그는 무엇인가요?"
-                style={inputStyle}
-              />
-            </label>
-          </div>
-        </section>
-
-        {/* PERMISSIONS */}
-        <section style={{ ...CARD_STYLE, marginBottom: 18 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-            <div>
-              <h2 style={sectionTitle}>권한</h2>
-              <div style={{ fontSize: 12.5, color: "var(--kb-ink-400)", marginTop: 2 }}>
-                이 태그를 가진 부원이 사용할 수 있는 기능
-              </div>
-            </div>
-            <SaveButton
-              label="저장"
-              loading={savingPerms}
-              done={savedFlag === "perms"}
-              onClick={handleSavePerms}
-            />
-          </div>
-          <CheckboxGrid
-            groups={permsByGroup}
-            valueOf={(item) => item.permission}
-            checkedSet={permissions}
-            onToggle={(value, next) => {
-              setPermissions((prev) => {
-                const copy = new Set(prev);
-                if (next) copy.add(value);
-                else copy.delete(value);
-                return copy;
-              });
-            }}
+        {/* GRID: 좌 라이브 사이드바 모크 / 우 탭 콘텐츠 */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "minmax(260px, 320px) minmax(0, 1fr)",
+            gap: 18,
+            marginBottom: 18,
+          }}
+        >
+          <LiveSidebarMock
+            label={label || tag.label}
+            color={color}
+            navHrefs={navHrefs}
           />
-        </section>
 
-        {/* NAV */}
-        <section style={{ ...CARD_STYLE, marginBottom: 18 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-            <div>
-              <h2 style={sectionTitle}>사이드바 메뉴</h2>
-              <div style={{ fontSize: 12.5, color: "var(--kb-ink-400)", marginTop: 2 }}>
-                태그를 가진 부원의 사이드바에 노출할 메뉴
-              </div>
+          <section style={{ ...CARD_STYLE, padding: 0, overflow: "hidden" }}>
+            <div
+              role="tablist"
+              style={{
+                display: "flex",
+                borderBottom: "1px solid #ececeb",
+                background: "#fafaf9",
+              }}
+            >
+              {([
+                { key: "meta", label: "기본 정보" },
+                { key: "perms", label: `권한 (${permissions.size})` },
+                { key: "nav", label: `메뉴 (${navHrefs.size})` },
+              ] as const).map((tab) => {
+                const active = activeTab === tab.key;
+                return (
+                  <button
+                    key={tab.key}
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => setActiveTab(tab.key)}
+                    type="button"
+                    style={{
+                      flex: 1,
+                      padding: "13px 16px",
+                      background: active ? "#fff" : "transparent",
+                      border: "none",
+                      borderBottom: active ? "2px solid #0a0a0a" : "2px solid transparent",
+                      fontSize: 13.5,
+                      fontWeight: active ? 700 : 500,
+                      color: active ? "var(--kb-ink-900)" : "var(--kb-ink-500)",
+                      cursor: "pointer",
+                    }}
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
             </div>
-            <SaveButton
-              label="저장"
-              loading={savingNav}
-              done={savedFlag === "nav"}
-              onClick={handleSaveNav}
-            />
-          </div>
-          <CheckboxGrid
-            groups={navByGroup}
-            valueOf={(item) => item.href}
-            checkedSet={navHrefs}
-            onToggle={(value, next) => {
-              setNavHrefs((prev) => {
-                const copy = new Set(prev);
-                if (next) copy.add(value);
-                else copy.delete(value);
-                return copy;
-              });
-            }}
-          />
-        </section>
+
+            <div style={{ padding: 22 }}>
+              {activeTab === "meta" ? (
+                <>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginBottom: 14,
+                    }}
+                  >
+                    <div style={{ fontSize: 12.5, color: "var(--kb-ink-400)" }}>
+                      라벨·색상·설명을 변경하면 좌측 미리보기에 즉시 반영
+                    </div>
+                    <SaveButton
+                      label="저장"
+                      loading={savingMeta}
+                      done={savedFlag === "meta"}
+                      onClick={handleSaveMeta}
+                    />
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                    <label>
+                      <div style={fieldLabel}>라벨</div>
+                      <input
+                        value={label}
+                        onChange={(e) => setLabel(e.target.value)}
+                        style={inputStyle}
+                      />
+                    </label>
+                    <label>
+                      <div style={fieldLabel}>색상</div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <input
+                          type="color"
+                          value={color}
+                          onChange={(e) => setColor(e.target.value)}
+                          style={{
+                            width: 40,
+                            height: 32,
+                            border: "none",
+                            padding: 0,
+                            cursor: "pointer",
+                          }}
+                        />
+                        <input
+                          value={color}
+                          onChange={(e) => setColor(e.target.value)}
+                          style={{ ...inputStyle, fontFamily: "monospace" }}
+                        />
+                      </div>
+                    </label>
+                    <label style={{ gridColumn: "1 / -1" }}>
+                      <div style={fieldLabel}>설명</div>
+                      <input
+                        value={description}
+                        onChange={(e) => setDescription(e.target.value)}
+                        placeholder="이 태그는 무엇인가요?"
+                        style={inputStyle}
+                      />
+                    </label>
+                  </div>
+                </>
+              ) : null}
+
+              {activeTab === "perms" ? (
+                <>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginBottom: 14,
+                    }}
+                  >
+                    <div style={{ fontSize: 12.5, color: "var(--kb-ink-400)" }}>
+                      이 태그를 가진 부원이 사용할 수 있는 기능
+                    </div>
+                    <SaveButton
+                      label="저장"
+                      loading={savingPerms}
+                      done={savedFlag === "perms"}
+                      onClick={handleSavePerms}
+                    />
+                  </div>
+                  <CheckboxGrid
+                    groups={permsByGroup}
+                    valueOf={(item) => item.permission}
+                    checkedSet={permissions}
+                    onToggle={(value, next) => {
+                      setPermissions((prev) => {
+                        const copy = new Set(prev);
+                        if (next) copy.add(value);
+                        else copy.delete(value);
+                        return copy;
+                      });
+                    }}
+                  />
+                </>
+              ) : null}
+
+              {activeTab === "nav" ? (
+                <>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginBottom: 14,
+                    }}
+                  >
+                    <div style={{ fontSize: 12.5, color: "var(--kb-ink-400)" }}>
+                      체크하면 좌측 미리보기에 즉시 반영
+                    </div>
+                    <SaveButton
+                      label="저장"
+                      loading={savingNav}
+                      done={savedFlag === "nav"}
+                      onClick={handleSaveNav}
+                    />
+                  </div>
+                  <CheckboxGrid
+                    groups={navByGroup}
+                    valueOf={(item) => item.href}
+                    checkedSet={navHrefs}
+                    onToggle={(value, next) => {
+                      setNavHrefs((prev) => {
+                        const copy = new Set(prev);
+                        if (next) copy.add(value);
+                        else copy.delete(value);
+                        return copy;
+                      });
+                    }}
+                  />
+                </>
+              ) : null}
+            </div>
+          </section>
+        </div>
 
         {/* MEMBERS */}
         <section style={CARD_STYLE}>
@@ -740,16 +825,14 @@ function CheckboxGrid<T extends GroupItem>({
   );
 }
 
-function SidebarPreview({
+function LiveSidebarMock({
   label,
   color,
   navHrefs,
-  permissions,
 }: {
   label: string;
   color: string;
   navHrefs: Set<string>;
-  permissions: Set<string>;
 }) {
   const grouped = useMemo(() => {
     const map = new Map<string, NavCatalogEntry[]>();
@@ -768,49 +851,35 @@ function SidebarPreview({
         ...CARD_STYLE,
         padding: 0,
         overflow: "hidden",
-        marginBottom: 18,
         background: "#fff",
         border: "1px solid #e8e8e4",
+        position: "sticky",
+        top: 16,
+        height: "fit-content",
       }}
     >
       <div
         style={{
-          padding: "14px 18px 8px",
+          padding: "10px 14px",
           borderBottom: "1px solid #f3f3f0",
+          fontSize: 11,
+          letterSpacing: "0.16em",
+          color: "var(--kb-ink-400)",
+          textTransform: "uppercase",
+          fontWeight: 700,
         }}
       >
-        <div
-          style={{
-            fontSize: 11,
-            letterSpacing: "0.16em",
-            color: "var(--kb-ink-400)",
-            textTransform: "uppercase",
-          }}
-        >
-          LIVE PREVIEW
-        </div>
-        <h2 style={sectionTitle}>이 태그만 가진 가상 회원의 사이드바</h2>
-        <p style={{ margin: "4px 0 0", fontSize: 12.5, color: "var(--kb-ink-500)" }}>
-          오른쪽 사이드바 메뉴 체크박스를 토글하면 즉시 반영됩니다. 권한·메뉴는
-          저장 버튼을 눌러야 실제 부원에게 적용됩니다.
-        </p>
+        LIVE PREVIEW
       </div>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "minmax(260px, 320px) 1fr",
-          gap: 0,
-          background: "#fafaf9",
-        }}
-      >
+      <div style={{ background: "#fafaf9" }}>
         {/* mock sidebar */}
         <div
           style={{
             background: "#0a0a0a",
             color: "#fff",
             padding: "16px 0",
-            minHeight: 360,
+            minHeight: 380,
           }}
         >
           <div style={{ padding: "0 18px 14px", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
@@ -917,29 +986,6 @@ function SidebarPreview({
           )}
         </div>
 
-        {/* notes */}
-        <div style={{ padding: 18, fontSize: 13, color: "var(--kb-ink-700)" }}>
-          <div style={{ ...fieldLabel, color: "var(--kb-ink-400)", marginBottom: 8 }}>
-            요약
-          </div>
-          <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
-            <li>
-              부여된 권한 <strong>{permissions.size}개</strong>
-            </li>
-            <li>
-              표시될 사이드바 메뉴 <strong>{navHrefs.size}개</strong>
-            </li>
-            <li>
-              실제 부원의 사이드바는 <strong>그 부원이 가진 모든 태그의 합집합</strong>
-              입니다. 예) 부원이 KOBOT + "신입" 태그를 가지면 두 태그 메뉴를 모두
-              볼 수 있습니다.
-            </li>
-            <li style={{ color: "var(--kb-ink-400)", fontSize: 12 }}>
-              위 미리보기는 부원 섹션만 시뮬레이션합니다. 공식팀장/부회장/회장
-              섹션은 권한 게이트가 별도라 부여 권한에 따라 추가로 노출됩니다.
-            </li>
-          </ul>
-        </div>
       </div>
     </section>
   );
