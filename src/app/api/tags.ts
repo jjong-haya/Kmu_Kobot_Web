@@ -71,6 +71,47 @@ export async function listTags(): Promise<MemberTag[]> {
   return ((data ?? []) as MemberTagDbRow[]).map(rowToTag);
 }
 
+export type MemberTagWithCounts = MemberTag & {
+  permissionCount: number;
+  navCount: number;
+  memberCount: number;
+};
+
+export async function listTagsWithCounts(): Promise<MemberTagWithCounts[]> {
+  const supabase = getSupabaseBrowserClient();
+  const [tagsResult, permsResult, navsResult, assignsResult] = await Promise.all([
+    supabase
+      .from("member_tags")
+      .select(TAG_SELECT)
+      .order("is_system", { ascending: false })
+      .order("label", { ascending: true }),
+    supabase.from("member_tag_permissions").select("tag_id"),
+    supabase.from("member_tag_nav").select("tag_id"),
+    supabase.from("member_tag_assignments").select("tag_id"),
+  ]);
+  if (tagsResult.error) throw new Error(sanitizeUserError(tagsResult.error, FALLBACK));
+  if (permsResult.error) throw new Error(sanitizeUserError(permsResult.error, FALLBACK));
+  if (navsResult.error) throw new Error(sanitizeUserError(navsResult.error, FALLBACK));
+  if (assignsResult.error) throw new Error(sanitizeUserError(assignsResult.error, FALLBACK));
+
+  function tally(rows: Array<{ tag_id: string }> | null) {
+    const map = new Map<string, number>();
+    for (const row of rows ?? []) map.set(row.tag_id, (map.get(row.tag_id) ?? 0) + 1);
+    return map;
+  }
+
+  const permMap = tally((permsResult.data ?? []) as Array<{ tag_id: string }>);
+  const navMap = tally((navsResult.data ?? []) as Array<{ tag_id: string }>);
+  const assignMap = tally((assignsResult.data ?? []) as Array<{ tag_id: string }>);
+
+  return ((tagsResult.data ?? []) as MemberTagDbRow[]).map((row) => ({
+    ...rowToTag(row),
+    permissionCount: permMap.get(row.id) ?? 0,
+    navCount: navMap.get(row.id) ?? 0,
+    memberCount: assignMap.get(row.id) ?? 0,
+  }));
+}
+
 export async function getTagBySlug(slug: string): Promise<TagDetail | null> {
   const supabase = getSupabaseBrowserClient();
   const { data, error } = await supabase

@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from "react-router";
 import {
   ArrowLeft,
   Check,
+  ChevronRight,
   Loader2,
   ShieldAlert,
   Tag as TagIcon,
@@ -24,6 +25,7 @@ import type { MemberDirectoryProfile } from "../../api/member-directory";
 import { useAuth } from "../../auth/useAuth";
 import { sanitizeUserError } from "../../utils/sanitize-error";
 import { NAV_CATALOG, PERMISSION_CATALOG } from "../../config/nav-catalog";
+import type { NavCatalogEntry } from "../../config/nav-catalog";
 
 const PAGE_STYLE: CSSProperties = {
   minHeight: "calc(100vh - 4rem)",
@@ -305,7 +307,7 @@ export default function TagDetail() {
 
   return (
     <div style={PAGE_STYLE}>
-      <div style={{ maxWidth: 980, margin: "0 auto" }}>
+      <div style={{ maxWidth: 1200, margin: "0 auto" }}>
         <Link to="/member/tags" style={backLinkStyle}>
           <ArrowLeft style={{ width: 14, height: 14 }} /> 태그 목록
         </Link>
@@ -323,7 +325,7 @@ export default function TagDetail() {
               width: 44,
               height: 44,
               borderRadius: 12,
-              background: tag.color,
+              background: color,
               display: "inline-flex",
               alignItems: "center",
               justifyContent: "center",
@@ -344,7 +346,7 @@ export default function TagDetail() {
               MEMBER TAG · {tag.slug}
             </div>
             <h1 style={{ margin: "4px 0 0", fontSize: 26, fontWeight: 800, letterSpacing: "-0.02em" }}>
-              {tag.label}
+              {label || tag.label}
               {tag.isSystem ? (
                 <span
                   style={{
@@ -358,12 +360,19 @@ export default function TagDetail() {
                     verticalAlign: "middle",
                   }}
                 >
-                  SYSTEM
+                  동아리 식별
                 </span>
               ) : null}
             </h1>
           </div>
         </header>
+
+        <SidebarPreview
+          label={label || tag.label}
+          color={color}
+          navHrefs={navHrefs}
+          permissions={permissions}
+        />
 
         {error && (
           <div
@@ -728,6 +737,211 @@ function CheckboxGrid<T extends GroupItem>({
         </div>
       ))}
     </div>
+  );
+}
+
+function SidebarPreview({
+  label,
+  color,
+  navHrefs,
+  permissions,
+}: {
+  label: string;
+  color: string;
+  navHrefs: Set<string>;
+  permissions: Set<string>;
+}) {
+  const grouped = useMemo(() => {
+    const map = new Map<string, NavCatalogEntry[]>();
+    for (const entry of NAV_CATALOG) {
+      if (!navHrefs.has(entry.href)) continue;
+      const arr = map.get(entry.group) ?? [];
+      arr.push(entry);
+      map.set(entry.group, arr);
+    }
+    return [...map.entries()];
+  }, [navHrefs]);
+
+  return (
+    <section
+      style={{
+        ...CARD_STYLE,
+        padding: 0,
+        overflow: "hidden",
+        marginBottom: 18,
+        background: "#fff",
+        border: "1px solid #e8e8e4",
+      }}
+    >
+      <div
+        style={{
+          padding: "14px 18px 8px",
+          borderBottom: "1px solid #f3f3f0",
+        }}
+      >
+        <div
+          style={{
+            fontSize: 11,
+            letterSpacing: "0.16em",
+            color: "var(--kb-ink-400)",
+            textTransform: "uppercase",
+          }}
+        >
+          LIVE PREVIEW
+        </div>
+        <h2 style={sectionTitle}>이 태그만 가진 가상 회원의 사이드바</h2>
+        <p style={{ margin: "4px 0 0", fontSize: 12.5, color: "var(--kb-ink-500)" }}>
+          오른쪽 사이드바 메뉴 체크박스를 토글하면 즉시 반영됩니다. 권한·메뉴는
+          저장 버튼을 눌러야 실제 부원에게 적용됩니다.
+        </p>
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "minmax(260px, 320px) 1fr",
+          gap: 0,
+          background: "#fafaf9",
+        }}
+      >
+        {/* mock sidebar */}
+        <div
+          style={{
+            background: "#0a0a0a",
+            color: "#fff",
+            padding: "16px 0",
+            minHeight: 360,
+          }}
+        >
+          <div style={{ padding: "0 18px 14px", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+              }}
+            >
+              <span
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: "50%",
+                  background: "#fff",
+                  color: "#0a0a0a",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontWeight: 800,
+                  fontSize: 13,
+                  flexShrink: 0,
+                }}
+              >
+                가
+              </span>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 600 }}>가상 회원</div>
+                <div
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 5,
+                    marginTop: 3,
+                    padding: "2px 7px",
+                    borderRadius: 999,
+                    background: color,
+                    color: "#fff",
+                    fontSize: 10.5,
+                    fontWeight: 700,
+                    boxShadow: "0 1px 2px rgba(0,0,0,0.4)",
+                  }}
+                >
+                  <TagIcon style={{ width: 9, height: 9 }} />
+                  {label || "(라벨 없음)"}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {grouped.length === 0 ? (
+            <div
+              style={{
+                padding: 20,
+                fontSize: 12.5,
+                color: "rgba(255,255,255,0.5)",
+                textAlign: "center",
+              }}
+            >
+              체크된 메뉴가 없습니다.
+              <br />
+              우측 "사이드바 메뉴"에서 보여줄 항목을 선택하세요.
+            </div>
+          ) : (
+            grouped.map(([groupName, items]) => (
+              <div key={groupName} style={{ padding: "12px 0 4px" }}>
+                <div
+                  style={{
+                    padding: "0 18px 6px",
+                    fontSize: 10.5,
+                    letterSpacing: "0.12em",
+                    textTransform: "uppercase",
+                    color: "rgba(255,255,255,0.4)",
+                    fontWeight: 700,
+                  }}
+                >
+                  {groupName}
+                </div>
+                {items.map((item) => (
+                  <div
+                    key={item.href}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: "7px 18px",
+                      fontSize: 13,
+                      color: "rgba(255,255,255,0.85)",
+                    }}
+                  >
+                    <span>{item.label}</span>
+                    <ChevronRight
+                      style={{
+                        width: 12,
+                        height: 12,
+                        color: "rgba(255,255,255,0.25)",
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* notes */}
+        <div style={{ padding: 18, fontSize: 13, color: "var(--kb-ink-700)" }}>
+          <div style={{ ...fieldLabel, color: "var(--kb-ink-400)", marginBottom: 8 }}>
+            요약
+          </div>
+          <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
+            <li>
+              부여된 권한 <strong>{permissions.size}개</strong>
+            </li>
+            <li>
+              표시될 사이드바 메뉴 <strong>{navHrefs.size}개</strong>
+            </li>
+            <li>
+              실제 부원의 사이드바는 <strong>그 부원이 가진 모든 태그의 합집합</strong>
+              입니다. 예) 부원이 KOBOT + "신입" 태그를 가지면 두 태그 메뉴를 모두
+              볼 수 있습니다.
+            </li>
+            <li style={{ color: "var(--kb-ink-400)", fontSize: 12 }}>
+              위 미리보기는 부원 섹션만 시뮬레이션합니다. 공식팀장/부회장/회장
+              섹션은 권한 게이트가 별도라 부여 권한에 따라 추가로 노출됩니다.
+            </li>
+          </ul>
+        </div>
+      </div>
+    </section>
   );
 }
 

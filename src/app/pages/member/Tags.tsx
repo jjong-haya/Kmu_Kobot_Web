@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import type { CSSProperties, FormEvent } from "react";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { Plus, Loader2, ShieldAlert, Trash2, Tag as TagIcon } from "lucide-react";
-import { createTag, deleteTag, listTags } from "../../api/tags";
-import type { MemberTag } from "../../api/tags";
+import { createTag, deleteTag, listTagsWithCounts } from "../../api/tags";
+import type { MemberTagWithCounts } from "../../api/tags";
 import { sanitizeUserError } from "../../utils/sanitize-error";
 
 const PAGE_STYLE: CSSProperties = {
@@ -23,8 +23,14 @@ const CARD_STYLE: CSSProperties = {
 
 const SLUG_PATTERN = /^[a-z][a-z0-9_-]{1,30}$/;
 
+const AUTO_LABEL: Record<string, string> = {
+  active: "정규 부원에게 자동 부여",
+  course_member: "KOSS 수강생에게 자동 부여",
+};
+
 export default function Tags() {
-  const [tags, setTags] = useState<MemberTag[]>([]);
+  const navigate = useNavigate();
+  const [tags, setTags] = useState<MemberTagWithCounts[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -39,7 +45,7 @@ export default function Tags() {
     try {
       setLoading(true);
       setError(null);
-      const rows = await listTags();
+      const rows = await listTagsWithCounts();
       setTags(rows);
     } catch (err) {
       setError(sanitizeUserError(err, "태그 목록을 불러오지 못했습니다."));
@@ -66,7 +72,7 @@ export default function Tags() {
     try {
       setSubmitting(true);
       setError(null);
-      await createTag({
+      const newTag = await createTag({
         slug: draftSlug.trim(),
         label: draftLabel.trim(),
         color: draftColor,
@@ -77,15 +83,15 @@ export default function Tags() {
       setDraftLabel("");
       setDraftColor("#0ea5e9");
       setDraftDescription("");
-      await load();
+      // 만든 직후 detail 페이지로 자동 이동 → 사이드바 메뉴/권한 즉시 선택
+      navigate(`/member/tags/${newTag.slug}`);
     } catch (err) {
       setError(sanitizeUserError(err, "태그를 생성하지 못했습니다."));
-    } finally {
       setSubmitting(false);
     }
   }
 
-  async function handleDelete(tag: MemberTag) {
+  async function handleDelete(tag: MemberTagWithCounts) {
     if (tag.isSystem) return;
     const confirmed = window.confirm(
       `'${tag.label}' 태그를 삭제하면 부여된 모든 부원에게서 즉시 회수됩니다. 정말 삭제할까요?`,
@@ -99,11 +105,9 @@ export default function Tags() {
     }
   }
 
-  const sortedTags = useMemo(() => tags, [tags]);
-
   return (
     <div style={PAGE_STYLE}>
-      <div style={{ maxWidth: 880, margin: "0 auto" }}>
+      <div style={{ maxWidth: 980, margin: "0 auto" }}>
         <div
           style={{
             display: "flex",
@@ -124,7 +128,7 @@ export default function Tags() {
                 marginBottom: 6,
               }}
             >
-              MEMBER TAGS
+              MEMBER TAGS · 회장 전용
             </div>
             <h1
               style={{
@@ -143,12 +147,14 @@ export default function Tags() {
                 fontSize: 14,
                 color: "var(--kb-ink-500)",
                 lineHeight: 1.6,
-                maxWidth: 600,
+                maxWidth: 640,
               }}
             >
-              태그는 권한과 사이드바 메뉴를 묶어서 부원에게 부여합니다.
-              KOBOT/KOSS는 시스템 태그로, 라벨/색/권한/사이드바는 자유롭게 수정할 수
-              있지만 삭제는 불가능합니다.
+              태그는 권한과 사이드바 메뉴를 묶어 부원에게 부여합니다.
+              KOBOT/KOSS는 동아리 식별용 시스템 태그라 삭제는 잠겨 있지만,
+              어떤 메뉴와 권한을 줄지는 자유롭게 편집할 수 있습니다.
+              새 태그를 만들면 다음 화면에서 사이드바 메뉴와 권한을 즉시
+              선택할 수 있고, 좌측에 가상 사이드바 미리보기가 함께 보입니다.
             </p>
           </div>
           <button
@@ -196,7 +202,7 @@ export default function Tags() {
           <form onSubmit={handleCreate} style={{ ...CARD_STYLE, marginBottom: 18 }}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <label style={fieldStyle}>
-                <div style={fieldLabel}>slug (영어, 부여 시 식별자)</div>
+                <div style={fieldLabel}>slug (영어, 식별자)</div>
                 <input
                   value={draftSlug}
                   onChange={(e) => setDraftSlug(e.target.value.toLowerCase())}
@@ -206,7 +212,7 @@ export default function Tags() {
                 />
               </label>
               <label style={fieldStyle}>
-                <div style={fieldLabel}>라벨 (화면에 보이는 이름)</div>
+                <div style={fieldLabel}>라벨 (화면 표시명)</div>
                 <input
                   value={draftLabel}
                   onChange={(e) => setDraftLabel(e.target.value)}
@@ -260,8 +266,10 @@ export default function Tags() {
                   gap: 6,
                 }}
               >
-                {submitting ? <Loader2 style={{ width: 14, height: 14, animation: "spin 1s linear infinite" }} /> : null}
-                만들기
+                {submitting ? (
+                  <Loader2 style={{ width: 14, height: 14, animation: "spin 1s linear infinite" }} />
+                ) : null}
+                만들고 사이드바 설정으로
               </button>
             </div>
           </form>
@@ -271,7 +279,7 @@ export default function Tags() {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "120px 1fr 110px 90px 90px 60px",
+              gridTemplateColumns: "1fr 90px 90px 90px 80px",
               padding: "12px 18px",
               fontSize: 11,
               textTransform: "uppercase",
@@ -279,20 +287,20 @@ export default function Tags() {
               color: "var(--kb-ink-400)",
               borderBottom: "1px solid #ececeb",
               fontWeight: 700,
+              gap: 12,
             }}
           >
-            <div>slug</div>
-            <div>라벨</div>
-            <div>색</div>
-            <div>자동상태</div>
-            <div>유형</div>
+            <div>태그</div>
+            <div>권한</div>
+            <div>메뉴</div>
+            <div>부원</div>
             <div></div>
           </div>
           {loading ? (
             <div style={{ padding: 24, textAlign: "center", color: "var(--kb-ink-400)" }}>
               <Loader2 style={{ width: 18, height: 18, animation: "spin 1s linear infinite" }} />
             </div>
-          ) : sortedTags.length === 0 ? (
+          ) : tags.length === 0 ? (
             <div
               style={{
                 padding: 36,
@@ -306,75 +314,106 @@ export default function Tags() {
               아직 태그가 없습니다. 우상단에서 새로 만들어 주세요.
             </div>
           ) : (
-            sortedTags.map((tag, index) => (
+            tags.map((tag, index) => (
               <div
                 key={tag.id}
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "120px 1fr 110px 90px 90px 60px",
+                  gridTemplateColumns: "1fr 90px 90px 90px 80px",
                   alignItems: "center",
-                  padding: "12px 18px",
+                  padding: "14px 18px",
                   borderTop: index === 0 ? "none" : "1px solid #f3f3f0",
                   fontSize: 14,
+                  gap: 12,
                 }}
               >
-                <code
-                  className="kb-mono"
-                  style={{ color: "var(--kb-ink-700)", fontSize: 12.5 }}
+                <Link
+                  to={`/member/tags/${tag.slug}`}
+                  style={{
+                    minWidth: 0,
+                    color: "inherit",
+                    textDecoration: "none",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                  }}
                 >
-                  {tag.slug}
-                </code>
-                <div style={{ minWidth: 0 }}>
-                  <Link
-                    to={`/member/tags/${tag.slug}`}
-                    style={{
-                      color: "var(--kb-navy-800)",
-                      textDecoration: "none",
-                      fontWeight: 700,
-                    }}
-                  >
-                    {tag.label}
-                  </Link>
-                  {tag.description ? (
-                    <div style={{ fontSize: 12, color: "var(--kb-ink-400)" }}>
-                      {tag.description}
-                    </div>
-                  ) : null}
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <span
+                    aria-hidden
                     style={{
-                      width: 16,
-                      height: 16,
-                      borderRadius: "50%",
+                      width: 32,
+                      height: 32,
+                      borderRadius: 9,
                       background: tag.color,
-                      border: "1px solid rgba(0,0,0,0.1)",
-                    }}
-                  />
-                  <span style={{ fontFamily: "monospace", fontSize: 11.5, color: "var(--kb-ink-500)" }}>
-                    {tag.color}
-                  </span>
-                </div>
-                <div style={{ fontSize: 12.5, color: "var(--kb-ink-500)" }}>
-                  {tag.autoStatus ?? "—"}
-                </div>
-                <div>
-                  <span
-                    style={{
+                      flexShrink: 0,
                       display: "inline-flex",
-                      padding: "2px 8px",
-                      borderRadius: 999,
-                      fontSize: 11,
-                      fontWeight: 700,
-                      background: tag.isSystem ? "#fef3c7" : "#dbeafe",
-                      color: tag.isSystem ? "#92400e" : "#1e40af",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      boxShadow: "0 2px 4px rgba(0,0,0,0.08)",
                     }}
                   >
-                    {tag.isSystem ? "SYSTEM" : "CUSTOM"}
+                    <TagIcon style={{ width: 14, height: 14, color: "#fff" }} />
                   </span>
-                </div>
+                  <span style={{ minWidth: 0 }}>
+                    <span
+                      style={{
+                        display: "block",
+                        fontWeight: 700,
+                        color: "var(--kb-ink-900)",
+                      }}
+                    >
+                      {tag.label}
+                      {tag.isSystem ? (
+                        <span
+                          style={{
+                            marginLeft: 6,
+                            padding: "1px 6px",
+                            borderRadius: 999,
+                            fontSize: 10,
+                            fontWeight: 700,
+                            background: "#fef3c7",
+                            color: "#92400e",
+                            verticalAlign: "middle",
+                          }}
+                        >
+                          동아리 식별
+                        </span>
+                      ) : null}
+                    </span>
+                    <span
+                      className="kb-mono"
+                      style={{
+                        display: "block",
+                        fontSize: 11.5,
+                        color: "var(--kb-ink-400)",
+                      }}
+                    >
+                      {tag.slug}
+                      {tag.autoStatus
+                        ? ` · ${AUTO_LABEL[tag.autoStatus] ?? tag.autoStatus}`
+                        : ""}
+                    </span>
+                    {tag.description ? (
+                      <span
+                        style={{
+                          display: "block",
+                          fontSize: 12,
+                          color: "var(--kb-ink-500)",
+                          marginTop: 2,
+                        }}
+                      >
+                        {tag.description}
+                      </span>
+                    ) : null}
+                  </span>
+                </Link>
+                <CountChip count={tag.permissionCount} unit="개" />
+                <CountChip count={tag.navCount} unit="개" />
+                <CountChip count={tag.memberCount} unit="명" />
                 <div style={{ textAlign: "right" }}>
-                  {tag.isSystem ? null : (
+                  {tag.isSystem ? (
+                    <span style={{ fontSize: 11, color: "var(--kb-ink-400)" }}>잠김</span>
+                  ) : (
                     <button
                       type="button"
                       onClick={() => handleDelete(tag)}
@@ -397,6 +436,25 @@ export default function Tags() {
         </section>
       </div>
     </div>
+  );
+}
+
+function CountChip({ count, unit }: { count: number; unit: string }) {
+  const empty = count === 0;
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "baseline",
+        gap: 2,
+        fontSize: 13.5,
+        color: empty ? "var(--kb-ink-400)" : "var(--kb-ink-900)",
+        fontWeight: empty ? 400 : 700,
+      }}
+    >
+      {count}
+      <span style={{ fontSize: 11, color: "var(--kb-ink-400)", fontWeight: 400 }}>{unit}</span>
+    </span>
   );
 }
 
