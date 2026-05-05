@@ -174,6 +174,12 @@ const NAVIGATION: NavigationSection[] = [
     minimumRole: "president",
     items: [
       {
+        name: "멤버 관리",
+        href: "/member/member-admin",
+        icon: Users,
+        permissions: ["members.manage", "permissions.manage"],
+      },
+      {
         name: "초대 코드",
         href: "/member/invite-codes",
         icon: IdCard,

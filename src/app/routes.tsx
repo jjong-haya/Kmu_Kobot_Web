@@ -48,6 +48,7 @@ import Permissions from "./pages/member/Permissions";
 import NavConfig from "./pages/member/NavConfig";
 import Tags from "./pages/member/Tags";
 import TagDetail from "./pages/member/TagDetail";
+import MemberAdmin from "./pages/member/MemberAdmin";
 import InviteCodes from "./pages/member/InviteCodes";
 import ApprovalPending from "./pages/member/ApprovalPending";
 import ProfileSettings from "./pages/member/ProfileSettings";
@@ -240,6 +241,10 @@ export const router = createBrowserRouter([
       {
         path: "tags/:slug",
         element: memberElement(TagDetail, ["permissions.manage"]),
+      },
+      {
+        path: "member-admin",
+        element: memberElement(MemberAdmin, ["members.manage", "permissions.manage"]),
       },
       {
         path: "invite-codes",
