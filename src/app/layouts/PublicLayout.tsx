@@ -9,9 +9,15 @@ export default function PublicLayout() {
 
   return (
     <div className="min-h-screen bg-white">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:rounded focus:bg-white focus:px-4 focus:py-2 focus:text-black focus:shadow-lg focus:outline focus:outline-2 focus:outline-[#2048A0]"
+      >
+        본문 바로가기
+      </a>
       <ScrollToTop />
       {/* Main Content */}
-      <main>
+      <main id="main-content">
         <Outlet />
       </main>
 

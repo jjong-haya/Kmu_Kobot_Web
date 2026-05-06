@@ -717,6 +717,12 @@ export default function MemberLayout() {
   if (!isActiveMember) {
     return (
       <div className="min-h-screen bg-gray-50">
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:rounded focus:bg-white focus:px-4 focus:py-2 focus:text-black focus:shadow-lg focus:outline focus:outline-2 focus:outline-[#2048A0]"
+        >
+          본문 바로가기
+        </a>
         <SecurityEventTracker />
         {notificationToastNode}
         <ScrollToTop />
@@ -735,7 +741,7 @@ export default function MemberLayout() {
           </div>
         </header>
 
-        <main className="mx-auto max-w-6xl px-6 py-8">
+        <main id="main-content" className="mx-auto max-w-6xl px-6 py-8">
           <Outlet />
         </main>
       </div>
@@ -744,6 +750,12 @@ export default function MemberLayout() {
 
   return (
     <div className="kb-root min-h-screen" style={{ background: "#ffffff" }}>
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:rounded focus:bg-white focus:px-4 focus:py-2 focus:text-black focus:shadow-lg focus:outline focus:outline-2 focus:outline-[#2048A0]"
+      >
+        본문 바로가기
+      </a>
       <SecurityEventTracker />
       {notificationToastNode}
       <aside
@@ -797,7 +809,7 @@ export default function MemberLayout() {
             )}
           </div>
 
-          <nav className="kb-no-scrollbar flex-1 overflow-y-auto py-4">
+          <nav aria-label="주 메뉴" className="kb-no-scrollbar flex-1 overflow-y-auto py-4">
             <NavigationLinks
               sections={visibleSections}
               pathname={location.pathname}
@@ -869,7 +881,7 @@ export default function MemberLayout() {
                   <X className="h-6 w-6" style={{ color: "#fff" }} />
                 </button>
               </div>
-              <nav className="kb-no-scrollbar flex-1 overflow-y-auto py-4">
+              <nav aria-label="주 메뉴 (모바일)" className="kb-no-scrollbar flex-1 overflow-y-auto py-4">
                 <NavigationLinks
                   sections={visibleSections}
                   pathname={location.pathname}
@@ -975,7 +987,12 @@ export default function MemberLayout() {
       <div className={`flex min-h-screen flex-col transition-[padding] duration-200 ease-out ${mainPaddingClass}`}>
         <header className="sticky top-0 z-40 border-b border-[var(--kb-hairline)] bg-[var(--kb-paper)]">
           <div className="flex h-16 items-center gap-4 px-6">
-            <button className="md:hidden" onClick={() => setSidebarOpen(true)}>
+            <button
+              type="button"
+              aria-label="메뉴 열기"
+              className="md:hidden"
+              onClick={() => setSidebarOpen(true)}
+            >
               <Menu className="h-6 w-6" />
             </button>
 
@@ -1010,7 +1027,7 @@ export default function MemberLayout() {
           </div>
         </header>
 
-        <main className="flex-1 p-8">
+        <main id="main-content" className="flex-1 p-8">
           <ScrollToTop />
           <Outlet />
         </main>

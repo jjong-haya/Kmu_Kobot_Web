@@ -106,6 +106,8 @@ function pickDisplayName(row: ProfileRow) {
   );
 }
 
+const MAX_ADMIN_MEMBERS = 2000;
+
 export async function listAdminMembers(): Promise<AdminMemberRow[]> {
   const supabase = getSupabaseBrowserClient();
   const [
@@ -115,18 +117,28 @@ export async function listAdminMembers(): Promise<AdminMemberRow[]> {
     positionsResult,
     applicationsResult,
   ] = await Promise.all([
-    supabase.from("profiles").select(PROFILE_SELECT).order("created_at", { ascending: false }),
-    supabase.from("member_accounts").select("user_id, status, approved_at, created_at"),
+    supabase
+      .from("profiles")
+      .select(PROFILE_SELECT)
+      .order("created_at", { ascending: false })
+      .limit(MAX_ADMIN_MEMBERS),
+    supabase
+      .from("member_accounts")
+      .select("user_id, status, approved_at, created_at")
+      .limit(MAX_ADMIN_MEMBERS),
     supabase
       .from("member_tag_assignments")
-      .select("user_id, member_tags(id, slug, label, color, is_system)"),
+      .select("user_id, member_tags(id, slug, label, color, is_system)")
+      .limit(MAX_ADMIN_MEMBERS * 5),
     supabase
       .from("org_position_assignments")
       .select("user_id, org_positions(slug)")
-      .eq("active", true),
+      .eq("active", true)
+      .limit(MAX_ADMIN_MEMBERS * 5),
     supabase
       .from("membership_applications")
-      .select("user_id, status, submitted_at"),
+      .select("user_id, status, submitted_at")
+      .limit(MAX_ADMIN_MEMBERS),
   ]);
 
   if (profilesResult.error) throw new Error(sanitizeUserError(profilesResult.error, FALLBACK));

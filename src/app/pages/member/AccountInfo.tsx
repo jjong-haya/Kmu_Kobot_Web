@@ -111,7 +111,7 @@ function ChangeRequestModal({
             borderBottom: "1px solid #f1ede4",
           }}
         >
-          <h3
+          <h2
             className="kb-display"
             style={{
               fontSize: 18,
@@ -122,7 +122,7 @@ function ChangeRequestModal({
             }}
           >
             {field} 변경 요청
-          </h3>
+          </h2>
           <button
             type="button"
             onClick={onClose}

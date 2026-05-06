@@ -345,6 +345,14 @@ function NoticeModal({
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     const nextTitle = title.trim();
@@ -393,6 +401,7 @@ function NoticeModal({
     <div
       role="dialog"
       aria-modal="true"
+      aria-labelledby="notice-modal-title"
       onClick={onClose}
       style={{
         position: "fixed",
@@ -419,7 +428,7 @@ function NoticeModal({
         }}
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "18px 22px", borderBottom: "1px solid #f1ede4" }}>
-          <h3 style={{ margin: 0, fontSize: 18, fontWeight: 750 }}>{isEdit ? "공지 수정" : "새 공지 작성"}</h3>
+          <h2 id="notice-modal-title" style={{ margin: 0, fontSize: 18, fontWeight: 750 }}>{isEdit ? "공지 수정" : "새 공지 작성"}</h2>
           <button type="button" onClick={onClose} aria-label="닫기" style={iconButtonStyle("#fff", "var(--kb-ink-500)", "transparent")}>
             <X style={{ width: 17, height: 17 }} />
           </button>

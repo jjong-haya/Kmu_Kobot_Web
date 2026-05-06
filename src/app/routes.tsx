@@ -8,61 +8,61 @@ import {
 import PublicLayout from "./layouts/PublicLayout";
 import MemberLayout from "./layouts/MemberLayout";
 import Landing from "./pages/public/Landing";
-import PublicProjects from "./pages/public/Projects";
-import PublicNotice from "./pages/public/Notice";
-import NoticeDetail from "./pages/public/NoticeDetail";
-import Recruit from "./pages/public/Recruit";
-import Contact from "./pages/public/Contact";
-import Activities from "./pages/public/Activities";
-import FAQ from "./pages/public/FAQ";
-import Privacy from "./pages/public/Privacy";
-import Terms from "./pages/public/Terms";
-import Login from "./pages/public/Login";
-import AuthCallback from "./pages/public/AuthCallback";
-import InviteCourse from "./pages/public/InviteCourse";
-import DesignLab from "./pages/public/DesignLab";
-import Dashboard from "./pages/member/Dashboard";
-import Notifications from "./pages/member/Notifications";
-import ContactRequests from "./pages/member/ContactRequests";
-import Announcements from "./pages/member/Announcements";
-import AnnouncementDetail from "./pages/member/AnnouncementDetail";
-import StudyLog from "./pages/member/StudyLog";
-import StudyProjectPosts from "./pages/member/StudyProjectPosts";
-import StudyPlaylist from "./pages/member/StudyPlaylist";
-import PeerReview from "./pages/member/PeerReview";
-import MemberProjects from "./pages/member/Projects";
-import ProjectAdmin from "./pages/member/ProjectAdmin";
-import ProjectDetail from "./pages/member/ProjectDetail";
-import Showcase from "./pages/member/Showcase";
-import Events from "./pages/member/Events";
-import SpaceBooking from "./pages/member/SpaceBooking";
-import Members from "./pages/member/Members";
-import Resources from "./pages/member/Resources";
-import Templates from "./pages/member/Templates";
-import Equipment from "./pages/member/Equipment";
-import Roadmap from "./pages/member/Roadmap";
-import Retro from "./pages/member/Retro";
-import Changelog from "./pages/member/Changelog";
-import Votes from "./pages/member/Votes";
-import Forms from "./pages/member/Forms";
-import Integrations from "./pages/member/Integrations";
-import Permissions from "./pages/member/Permissions";
-import NavConfig from "./pages/member/NavConfig";
-import Tags from "./pages/member/Tags";
-import TagDetail from "./pages/member/TagDetail";
-import MemberAdmin from "./pages/member/MemberAdmin";
-import Quests from "./pages/member/Quests";
-import InviteCodes from "./pages/member/InviteCodes";
-import ApprovalPending from "./pages/member/ApprovalPending";
-import ProfileSettings from "./pages/member/ProfileSettings";
-import Welcome from "./pages/member/Welcome";
-import Profile from "./pages/member/Profile";
-import Security from "./pages/member/Security";
-import AccountInfo from "./pages/member/AccountInfo";
-import NotFound from "./pages/NotFound";
 
+const PublicProjects = lazy(() => import("./pages/public/Projects"));
+const PublicNotice = lazy(() => import("./pages/public/Notice"));
+const NoticeDetail = lazy(() => import("./pages/public/NoticeDetail"));
+const Recruit = lazy(() => import("./pages/public/Recruit"));
+const Contact = lazy(() => import("./pages/public/Contact"));
+const Activities = lazy(() => import("./pages/public/Activities"));
+const FAQ = lazy(() => import("./pages/public/FAQ"));
+const Privacy = lazy(() => import("./pages/public/Privacy"));
+const Terms = lazy(() => import("./pages/public/Terms"));
+const Login = lazy(() => import("./pages/public/Login"));
+const AuthCallback = lazy(() => import("./pages/public/AuthCallback"));
+const InviteCourse = lazy(() => import("./pages/public/InviteCourse"));
+
+const Dashboard = lazy(() => import("./pages/member/Dashboard"));
+const Notifications = lazy(() => import("./pages/member/Notifications"));
+const ContactRequests = lazy(() => import("./pages/member/ContactRequests"));
+const Announcements = lazy(() => import("./pages/member/Announcements"));
+const AnnouncementDetail = lazy(() => import("./pages/member/AnnouncementDetail"));
+const StudyLog = lazy(() => import("./pages/member/StudyLog"));
+const StudyProjectPosts = lazy(() => import("./pages/member/StudyProjectPosts"));
+const StudyPlaylist = lazy(() => import("./pages/member/StudyPlaylist"));
+const PeerReview = lazy(() => import("./pages/member/PeerReview"));
+const MemberProjects = lazy(() => import("./pages/member/Projects"));
+const ProjectAdmin = lazy(() => import("./pages/member/ProjectAdmin"));
+const ProjectDetail = lazy(() => import("./pages/member/ProjectDetail"));
+const Showcase = lazy(() => import("./pages/member/Showcase"));
+const Events = lazy(() => import("./pages/member/Events"));
+const SpaceBooking = lazy(() => import("./pages/member/SpaceBooking"));
+const Members = lazy(() => import("./pages/member/Members"));
+const Resources = lazy(() => import("./pages/member/Resources"));
+const Templates = lazy(() => import("./pages/member/Templates"));
+const Equipment = lazy(() => import("./pages/member/Equipment"));
+const Roadmap = lazy(() => import("./pages/member/Roadmap"));
+const Retro = lazy(() => import("./pages/member/Retro"));
+const Changelog = lazy(() => import("./pages/member/Changelog"));
+const Votes = lazy(() => import("./pages/member/Votes"));
+const Forms = lazy(() => import("./pages/member/Forms"));
+const Integrations = lazy(() => import("./pages/member/Integrations"));
+const Permissions = lazy(() => import("./pages/member/Permissions"));
+const NavConfig = lazy(() => import("./pages/member/NavConfig"));
+const Tags = lazy(() => import("./pages/member/Tags"));
+const TagDetail = lazy(() => import("./pages/member/TagDetail"));
+const MemberAdmin = lazy(() => import("./pages/member/MemberAdmin"));
+const Quests = lazy(() => import("./pages/member/Quests"));
+const InviteCodes = lazy(() => import("./pages/member/InviteCodes"));
+const ApprovalPending = lazy(() => import("./pages/member/ApprovalPending"));
+const ProfileSettings = lazy(() => import("./pages/member/ProfileSettings"));
+const Welcome = lazy(() => import("./pages/member/Welcome"));
+const Profile = lazy(() => import("./pages/member/Profile"));
+const Security = lazy(() => import("./pages/member/Security"));
+const AccountInfo = lazy(() => import("./pages/member/AccountInfo"));
 const StudyPostWrite = lazy(() => import("./pages/member/StudyPostWrite"));
 const StudyPostDetail = lazy(() => import("./pages/member/StudyPostDetail"));
+const NotFound = lazy(() => import("./pages/NotFound"));
 
 type PageComponent = ComponentType | LazyExoticComponent<ComponentType>;
 
@@ -74,16 +74,20 @@ function PageFallback() {
   );
 }
 
+function lazyElement(Component: PageComponent) {
+  return (
+    <Suspense fallback={<PageFallback />}>
+      <Component />
+    </Suspense>
+  );
+}
+
 function memberElement(
   Component: PageComponent,
   requiredPermissions?: string[],
   options: { allowCourseMember?: boolean } = {},
 ) {
-  const page = (
-    <Suspense fallback={<PageFallback />}>
-      <Component />
-    </Suspense>
-  );
+  const page = lazyElement(Component);
 
   if (requiredPermissions && requiredPermissions.length > 0) {
     return (
@@ -111,33 +115,29 @@ export const router = createBrowserRouter([
     Component: PublicLayout,
     children: [
       { index: true, Component: Landing },
-      { path: "projects", Component: PublicProjects },
-      { path: "notice", Component: PublicNotice },
-      { path: "notice/:slug", Component: NoticeDetail },
-      { path: "recruit", Component: Recruit },
-      { path: "contact", Component: Contact },
-      { path: "activities", Component: Activities },
-      { path: "faq", Component: FAQ },
-      { path: "privacy", Component: Privacy },
-      { path: "terms", Component: Terms },
-      { path: "login", Component: Login },
+      { path: "projects", element: lazyElement(PublicProjects) },
+      { path: "notice", element: lazyElement(PublicNotice) },
+      { path: "notice/:slug", element: lazyElement(NoticeDetail) },
+      { path: "recruit", element: lazyElement(Recruit) },
+      { path: "contact", element: lazyElement(Contact) },
+      { path: "activities", element: lazyElement(Activities) },
+      { path: "faq", element: lazyElement(FAQ) },
+      { path: "privacy", element: lazyElement(Privacy) },
+      { path: "terms", element: lazyElement(Terms) },
+      { path: "login", element: lazyElement(Login) },
     ],
   },
   {
     path: "/invite/course",
-    Component: InviteCourse,
+    element: lazyElement(InviteCourse),
   },
   {
     path: "/invite/course/:code",
-    Component: InviteCourse,
+    element: lazyElement(InviteCourse),
   },
   {
     path: "/auth/callback",
-    Component: AuthCallback,
-  },
-  {
-    path: "/design-lab",
-    Component: DesignLab,
+    element: lazyElement(AuthCallback),
   },
   {
     path: "/member",
@@ -147,9 +147,9 @@ export const router = createBrowserRouter([
       </RequireSession>
     ),
     children: [
-      { path: "join", Component: ProfileSettings },
-      { path: "welcome", Component: Welcome },
-      { path: "pending", Component: ApprovalPending },
+      { path: "join", element: lazyElement(ProfileSettings) },
+      { path: "welcome", element: lazyElement(Welcome) },
+      { path: "pending", element: lazyElement(ApprovalPending) },
       {
         path: "profile",
         element: memberElement(Profile, undefined, { allowCourseMember: true }),
@@ -286,6 +286,6 @@ export const router = createBrowserRouter([
   },
   {
     path: "*",
-    Component: NotFound,
+    element: lazyElement(NotFound),
   },
 ]);

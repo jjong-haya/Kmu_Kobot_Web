@@ -125,6 +125,7 @@ const PROFILE_EXTENSIONS_CACHE_KEY = "kobot.memberDirectory.profileExtensionsAva
 const FAVORITES_TABLE_CACHE_KEY = "kobot.memberDirectory.favoritesTableAvailable";
 const TAG_IS_CLUB_CACHE_KEY = "kobot.memberDirectory.tagIsClubAvailable";
 const SCHEMA_CAPABILITY_TTL_MS = 5 * 60 * 1000;
+const MAX_DIRECTORY_PROFILES = 2000;
 
 const PROFILE_SELECT_WITH_DISPLAY_CLUB = [
   "id",
@@ -321,7 +322,8 @@ async function listProfiles() {
     const withDisplayClub = await supabase
       .from("profiles")
       .select(PROFILE_SELECT_WITH_DISPLAY_CLUB)
-      .order("display_name", { ascending: true });
+      .order("display_name", { ascending: true })
+      .limit(MAX_DIRECTORY_PROFILES);
 
     if (!withDisplayClub.error) {
       writeSchemaCapability(PROFILE_EXTENSIONS_CACHE_KEY, true);
@@ -338,7 +340,8 @@ async function listProfiles() {
     const extended = await supabase
       .from("profiles")
       .select(EXTENDED_PROFILE_SELECT)
-      .order("display_name", { ascending: true });
+      .order("display_name", { ascending: true })
+      .limit(MAX_DIRECTORY_PROFILES);
 
     if (!extended.error) {
       writeSchemaCapability(PROFILE_EXTENSIONS_CACHE_KEY, true);
@@ -358,7 +361,8 @@ async function listProfiles() {
   const fallback = await supabase
     .from("profiles")
     .select(BASE_PROFILE_SELECT)
-    .order("display_name", { ascending: true });
+    .order("display_name", { ascending: true })
+    .limit(MAX_DIRECTORY_PROFILES);
 
   if (fallback.error) throw new Error(sanitizeUserError(fallback.error, FALLBACK));
 

@@ -1,5 +1,5 @@
 ﻿import type { PostgrestError } from "@supabase/supabase-js";
-import { createContext, useEffect, useRef, useState, type PropsWithChildren } from "react";
+import { createContext, useEffect, useMemo, useRef, useState, type PropsWithChildren } from "react";
 import {
   EMPTY_AUTH_CONTEXT,
   type AuthContextValue,
@@ -1106,37 +1106,58 @@ export function AuthProvider({ children }: PropsWithChildren) {
     ? []
     : Array.from(new Set([...authData.permissions, ...tagPermissions]));
 
-  const value: AuthContextValue = {
-    isConfigured: configured,
-    isInitializing,
-    session,
-    user,
-    authData,
-    memberStatus: authData.account.status,
-    permissions: effectivePermissions,
-    tagNavPaths,
-    tagsLoaded,
-    tagAuthorityFailed,
-    authError,
-    hasPermission: (...codes: string[]) => {
-      if (!tagsLoaded || tagAuthorityFailed) {
-        return false;
-      }
+  const value: AuthContextValue = useMemo(
+    () => ({
+      isConfigured: configured,
+      isInitializing,
+      session,
+      user,
+      authData,
+      memberStatus: authData.account.status,
+      permissions: effectivePermissions,
+      tagNavPaths,
+      tagsLoaded,
+      tagAuthorityFailed,
+      authError,
+      hasPermission: (...codes: string[]) => {
+        if (!tagsLoaded || tagAuthorityFailed) {
+          return false;
+        }
 
-      if (authData.account.status === "active" && authData.account.isBootstrapAdmin) {
-        return true;
-      }
+        if (authData.account.status === "active" && authData.account.isBootstrapAdmin) {
+          return true;
+        }
 
-      return codes.some((code) => effectivePermissions.includes(code));
-    },
-    refreshAuthData,
-    refreshTags,
-    signInWithGoogle,
-    signInWithLoginId,
-    checkLoginIdAvailability,
-    saveProfileSettings,
-    signOut,
-  };
+        return codes.some((code) => effectivePermissions.includes(code));
+      },
+      refreshAuthData,
+      refreshTags,
+      signInWithGoogle,
+      signInWithLoginId,
+      checkLoginIdAvailability,
+      saveProfileSettings,
+      signOut,
+    }),
+    [
+      configured,
+      isInitializing,
+      session,
+      user,
+      authData,
+      effectivePermissions,
+      tagNavPaths,
+      tagsLoaded,
+      tagAuthorityFailed,
+      authError,
+      refreshAuthData,
+      refreshTags,
+      signInWithGoogle,
+      signInWithLoginId,
+      checkLoginIdAvailability,
+      saveProfileSettings,
+      signOut,
+    ],
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
