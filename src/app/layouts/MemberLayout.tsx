@@ -744,6 +744,22 @@ export default function MemberLayout() {
         <main id="main-content" className="mx-auto max-w-6xl px-6 py-8">
           <Outlet />
         </main>
+        <footer className="mt-12 border-t border-gray-200 bg-white">
+          <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-6 py-6 text-[12px] text-gray-500">
+            <div>국민대학교 KOBOT 동아리 · kobot@kookmin.ac.kr</div>
+            <div className="flex flex-wrap gap-4">
+              <Link to="/privacy" className="hover:text-[#103078] hover:underline">
+                개인정보처리방침
+              </Link>
+              <Link to="/terms" className="hover:text-[#103078] hover:underline">
+                이용약관
+              </Link>
+              <a href="mailto:kobot@kookmin.ac.kr" className="hover:text-[#103078] hover:underline">
+                문의
+              </a>
+            </div>
+          </div>
+        </footer>
       </div>
     );
   }
@@ -840,13 +856,41 @@ export default function MemberLayout() {
             )}
           </div>
           {!collapsed && (
-            <div
-              className="px-6 pb-3 text-[10px] font-mono"
-              style={{ color: "rgba(255,255,255,0.25)" }}
-              title="빌드 버전"
-            >
-              {APP_VERSION_LABEL}
-            </div>
+            <>
+              <div
+                className="flex flex-wrap gap-x-3 gap-y-1 px-6 pb-2 text-[11px]"
+                style={{ color: "rgba(255,255,255,0.5)" }}
+              >
+                <Link
+                  to="/privacy"
+                  className="hover:underline"
+                  style={{ color: "rgba(255,255,255,0.7)" }}
+                >
+                  개인정보처리방침
+                </Link>
+                <Link
+                  to="/terms"
+                  className="hover:underline"
+                  style={{ color: "rgba(255,255,255,0.7)" }}
+                >
+                  이용약관
+                </Link>
+                <a
+                  href="mailto:kobot@kookmin.ac.kr"
+                  className="hover:underline"
+                  style={{ color: "rgba(255,255,255,0.7)" }}
+                >
+                  문의
+                </a>
+              </div>
+              <div
+                className="px-6 pb-3 text-[10px] font-mono"
+                style={{ color: "rgba(255,255,255,0.25)" }}
+                title="빌드 버전"
+              >
+                {APP_VERSION_LABEL}
+              </div>
+            </>
           )}
         </div>
       </aside>

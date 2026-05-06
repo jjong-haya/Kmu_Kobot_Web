@@ -538,6 +538,12 @@ export default function AccountInfo() {
           </div>
         </div>
 
+        <WithdrawSection
+          displayName={profile.fullName ?? profile.displayName ?? ""}
+          studentId={profile.studentId ?? ""}
+          email={profile.email ?? ""}
+        />
+
         {requestField && (
           <ChangeRequestModal
             field={requestField}
@@ -546,6 +552,137 @@ export default function AccountInfo() {
             onSubmit={handleSubmit}
           />
         )}
+      </div>
+    </div>
+  );
+}
+
+function WithdrawSection({
+  displayName,
+  studentId,
+  email,
+}: {
+  displayName: string;
+  studentId: string;
+  email: string;
+}) {
+  const subject = encodeURIComponent("[KOBOT] 회원 탈퇴 / 개인정보 삭제 요청");
+  const body = encodeURIComponent(
+    [
+      "안녕하세요, KOBOT 운영진님.",
+      "",
+      "아래 계정에 대한 회원 탈퇴 및 개인정보 삭제를 요청드립니다.",
+      "",
+      `• 이름: ${displayName || "(자동 채움 실패)"}`,
+      `• 학번: ${studentId || "(자동 채움 실패)"}`,
+      `• 이메일: ${email || "(자동 채움 실패)"}`,
+      "",
+      "탈퇴 사유 (선택):",
+      "",
+      "",
+      "감사합니다.",
+    ].join("\n"),
+  );
+  const mailto = `mailto:kobot@kookmin.ac.kr?subject=${subject}&body=${body}`;
+
+  return (
+    <div
+      style={{
+        ...ACCOUNT_CARD,
+        marginTop: 28,
+        borderColor: "#f0d4d4",
+        background: "#fff",
+        overflow: "hidden",
+      }}
+    >
+      <div style={{ padding: "20px 24px", borderBottom: "1px solid #f1ede4" }}>
+        <h2
+          className="kb-display"
+          style={{
+            fontSize: 18,
+            fontWeight: 700,
+            margin: 0,
+            color: "var(--kb-ink-900)",
+          }}
+        >
+          회원 탈퇴 / 개인정보 삭제 요청
+        </h2>
+        <p
+          style={{
+            margin: "8px 0 0",
+            fontSize: 13,
+            lineHeight: 1.7,
+            color: "var(--kb-ink-500)",
+          }}
+        >
+          개인정보 보호법 제36조에 따른 정보주체의 삭제 요구권 행사 경로입니다.
+          요청 접수 후 운영진(회장·부회장)이 본인 확인을 거쳐 지체 없이
+          처리합니다.
+        </p>
+      </div>
+
+      <div style={{ padding: "20px 24px" }}>
+        <ul
+          style={{
+            margin: 0,
+            paddingLeft: 18,
+            fontSize: 13,
+            lineHeight: 1.9,
+            color: "var(--kb-ink-700)",
+          }}
+        >
+          <li>계정·프로필·연락 요청 등 식별정보는 삭제됩니다.</li>
+          <li>
+            프로젝트 산출물·스터디 기록·회의록은 동아리 활동 이력 보존을 위해
+            유지되며, 작성자 표시는 닉네임·당시 팀·당시 역할로 최소화됩니다.
+          </li>
+          <li>감사 기록은 분쟁 대응을 위해 1년간 별도 보관 후 삭제됩니다.</li>
+          <li>
+            특정 산출물에 본인의 개인정보가 포함되어 있다고 판단되는 경우 메일
+            본문에 함께 기재해 주시면 별도 검토 후 비공개 또는 삭제 조치합니다.
+          </li>
+        </ul>
+      </div>
+
+      <div
+        style={{
+          padding: "14px 24px",
+          borderTop: "1px solid #f1ede4",
+          background: "#fdfaf6",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 10,
+          flexWrap: "wrap",
+        }}
+      >
+        <span
+          style={{
+            fontSize: 12.5,
+            color: "var(--kb-ink-500)",
+          }}
+        >
+          접수: kobot@kookmin.ac.kr · 본인 확인 후 즉시 처리
+        </span>
+        <a
+          href={mailto}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            padding: "9px 16px",
+            fontSize: 13,
+            fontWeight: 600,
+            border: "1px solid #d97070",
+            background: "#fff",
+            color: "#a23b3b",
+            borderRadius: 8,
+            textDecoration: "none",
+            fontFamily: "inherit",
+          }}
+        >
+          탈퇴 요청 메일 작성
+        </a>
       </div>
     </div>
   );
