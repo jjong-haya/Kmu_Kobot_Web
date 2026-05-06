@@ -10,6 +10,7 @@ import {
   FolderKanban,
   FolderOpen,
   GitBranch,
+  Home,
   IdCard,
   LayoutDashboard,
   Link2,
@@ -661,6 +662,15 @@ export default function MemberLayout() {
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-64">
           <DropdownMenuLabel>내 계정</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onSelect={() => navigate("/")}>
+            <Home className="mr-2 h-4 w-4" />
+            홈
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => navigate("/member")}>
+            <LayoutDashboard className="mr-2 h-4 w-4" />
+            대시보드
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={() => navigate("/member/profile")}>
             <User className="mr-2 h-4 w-4" />
