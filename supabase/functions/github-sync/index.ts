@@ -705,8 +705,8 @@ async function processMemberInviteJob(token: string, job: GithubSyncJob) {
 }
 
 async function processMemberRemoveJob(token: string, job: GithubSyncJob) {
-  if (!job.project_team_id || !job.user_id) {
-    throw new Error("Member remove job is missing project_team_id or user_id.");
+  if (!job.project_team_id) {
+    throw new Error("Member remove job is missing project_team_id.");
   }
 
   const org = String(job.payload.githubOrg ?? defaultGithubOrg);
@@ -714,25 +714,34 @@ async function processMemberRemoveJob(token: string, job: GithubSyncJob) {
   const teams = await ensureProjectGithub(token, project, org, {
     readOnly: project.status === "archived",
   });
-  const identities = await loadIdentities([job.user_id]);
-  const identity = identities.get(job.user_id);
+  const payloadLogin =
+    typeof job.payload.githubLogin === "string" ? job.payload.githubLogin.trim() : "";
+  const removedUserId =
+    typeof job.payload.removedUserId === "string" ? job.payload.removedUserId : null;
+  let githubLogin = payloadLogin;
 
-  if (!identity?.github_login) {
+  if (!githubLogin && job.user_id) {
+    const identities = await loadIdentities([job.user_id]);
+    const identity = identities.get(job.user_id);
+    githubLogin = identity?.github_login?.trim() ?? "";
+  }
+
+  if (!githubLogin) {
     await recordEvent(job, "github.member.remove_skipped", {
-      userId: job.user_id,
+      userId: job.user_id ?? removedUserId,
       reason: "missing_known_login",
     }, "warning");
     return { removed: false, reason: "missing_known_login" };
   }
 
-  await removeFromTeam(token, org, teams.leads.slug, identity.github_login);
-  await removeFromTeam(token, org, teams.members.slug, identity.github_login);
+  await removeFromTeam(token, org, teams.leads.slug, githubLogin);
+  await removeFromTeam(token, org, teams.members.slug, githubLogin);
   await recordEvent(job, "github.member.removed", {
-    userId: job.user_id,
-    githubLogin: identity.github_login,
+    userId: job.user_id ?? removedUserId,
+    githubLogin,
   });
 
-  return { removed: true, githubLogin: identity.github_login };
+  return { removed: true, githubLogin };
 }
 
 async function processFreezeJob(token: string, job: GithubSyncJob) {
