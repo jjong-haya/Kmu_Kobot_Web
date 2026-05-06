@@ -264,7 +264,7 @@ export default function Login() {
           </div>
         </section>
 
-        <div className="login-intro-panel pointer-events-none absolute inset-0 z-30 hidden overflow-hidden bg-[#061b4c] text-white lg:block" aria-hidden="true">
+        <div className="login-intro-panel pointer-events-none absolute inset-0 z-30 block overflow-hidden bg-[#061b4c] text-white" aria-hidden="true">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_22%_22%,rgba(73,123,255,0.62),transparent_28%),radial-gradient(circle_at_72%_76%,rgba(17,53,143,0.82),transparent_34%)]" />
           <div className="absolute inset-0 opacity-[0.12] [background-image:linear-gradient(rgba(255,255,255,.65)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.65)_1px,transparent_1px)] [background-size:38px_38px]" />
           <div className="login-kobot-lockup">
