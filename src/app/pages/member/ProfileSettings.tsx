@@ -35,6 +35,7 @@ import { useAuth } from "../../auth/useAuth";
 import { isJoinRequestComplete } from "../../auth/onboarding";
 import type { MemberStatus } from "../../auth/types";
 import { getSafeInternalPath, withNextPath } from "../../auth/redirects";
+import { sanitizeUserError } from "../../utils/sanitize-error";
 
 const NICKNAME_DISPLAY_PATTERN = /^[\uAC00-\uD7A3A-Za-z0-9 ]{2,12}$/u;
 const NICKNAME_SPECIAL_CHARACTER_PATTERN = /[^\uAC00-\uD7A3A-Za-z0-9 ]/u;
@@ -122,7 +123,7 @@ function getInvitationClubAffiliation(searchParams: URLSearchParams) {
 }
 
 function getSafeProfileError(error: unknown) {
-  const message = error instanceof Error ? error.message : "프로필 설정을 저장하지 못했습니다.";
+  const message = sanitizeUserError(error, "프로필 설정을 저장하지 못했습니다.");
   const normalized = message.toLowerCase();
 
   if (
@@ -597,7 +598,6 @@ export default function ProfileSettings() {
         publicCreditNameMode: isJoinRequest
           ? "anonymous"
           : (authData.profile.publicCreditNameMode ?? "anonymous"),
-        techTags: authData.profile.techTags,
         loginId: loginId.trim() ? loginId : null,
         password: password.trim() ? password : undefined,
       });

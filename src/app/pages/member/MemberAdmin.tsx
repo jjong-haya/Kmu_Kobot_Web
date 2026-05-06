@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties, FormEvent } from "react";
+import { useLocation } from "react-router";
 import {
   Check,
+  ChevronDown,
   Crown,
   Edit3,
-  Filter,
   Loader2,
   Search,
   ShieldAlert,
@@ -14,6 +15,7 @@ import {
   UserX,
   X,
 } from "lucide-react";
+import { TagChip } from "../../components/TagChip";
 import {
   adminDeleteMember,
   adminSetMemberStatus,
@@ -46,23 +48,41 @@ const CARD_STYLE: CSSProperties = {
   boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
 };
 
-type AdminFilterKey = "all" | "submitted" | "draft" | AdminMemberStatus;
+// 필터 키 형식:
+//   "all"               — 전체
+//   "submitted"         — 신청 제출 후 승인 대기
+//   "draft"             — 신청 미제출 (가입 절차 중간)
+//   "status:rejected"   — 보류
+//   "status:withdrawn"  — 탈퇴
+//   "tag:<uuid>"        — 해당 태그를 가진 부원만 (DB의 member_tags 그대로)
+type AdminFilterKey = string;
 
-const STATUS_FILTERS: Array<{ key: AdminFilterKey; label: string }> = [
+const FIXED_FILTERS: Array<{ key: AdminFilterKey; label: string }> = [
   { key: "all", label: "전체" },
   { key: "submitted", label: "승인 대기 (신청 제출)" },
   { key: "draft", label: "신청 미제출" },
-  { key: "active", label: "정규 부원" },
-  { key: "course_member", label: "수강생" },
-  { key: "rejected", label: "보류" },
-  { key: "withdrawn", label: "탈퇴" },
 ];
+
+const STATUS_FILTERS: Array<{ key: AdminFilterKey; label: string }> = [
+  { key: "status:rejected", label: "보류" },
+  { key: "status:withdrawn", label: "탈퇴" },
+];
+
+function filterKeyFromSearch(search: string): AdminFilterKey | null {
+  const filter = new URLSearchParams(search).get("filter");
+
+  if (!filter) return null;
+  if (["all", "submitted", "draft"].includes(filter)) return filter;
+  if (filter === "rejected") return "status:rejected";
+  if (filter === "withdrawn") return "status:withdrawn";
+  if (filter.startsWith("tag:") || filter.startsWith("status:")) return filter;
+
+  return null;
+}
 
 const STATUS_LABEL: Record<AdminMemberStatus, string> = {
   pending: "승인 대기",
-  active: "정규 부원",
-  course_member: "수강생",
-  project_only: "프로젝트만",
+  active: "활동중",
   rejected: "보류",
   withdrawn: "탈퇴",
 };
@@ -70,22 +90,27 @@ const STATUS_LABEL: Record<AdminMemberStatus, string> = {
 const STATUS_COLOR: Record<AdminMemberStatus, { bg: string; fg: string }> = {
   pending: { bg: "#fef3c7", fg: "#92400e" },
   active: { bg: "#dcfce7", fg: "#15803d" },
-  course_member: { bg: "#fde68a", fg: "#7c2d12" },
-  project_only: { bg: "#dbeafe", fg: "#1e3a8a" },
   rejected: { bg: "#fee2e2", fg: "#991b1b" },
   withdrawn: { bg: "#f3f4f6", fg: "#374151" },
 };
 
+// 태그 칩 / 아이콘은 components/TagChip.tsx 단일 컴포넌트가 그린다.
+// 새 슬러그 아이콘 매핑은 거기 SLUG_ICONS 에만 추가.
+
 export default function MemberAdmin() {
+  const location = useLocation();
   const { user: viewer } = useAuth();
   const [members, setMembers] = useState<AdminMemberRow[]>([]);
   const [tagsCatalog, setTagsCatalog] = useState<MemberTag[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busyUserId, setBusyUserId] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<AdminFilterKey>("all");
+  const [statusFilter, setStatusFilter] = useState<AdminFilterKey>(
+    () => filterKeyFromSearch(location.search) ?? "all",
+  );
   const [query, setQuery] = useState("");
   const [editingUser, setEditingUser] = useState<AdminMemberRow | null>(null);
+  const [tagModalFor, setTagModalFor] = useState<AdminMemberRow | null>(null);
 
   async function load() {
     try {
@@ -105,19 +130,32 @@ export default function MemberAdmin() {
     void load();
   }, []);
 
+  useEffect(() => {
+    const nextFilter = filterKeyFromSearch(location.search);
+    if (nextFilter) {
+      setStatusFilter(nextFilter);
+    }
+  }, [location.search]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLocaleLowerCase("ko-KR");
     return members.filter((member) => {
       if (statusFilter === "submitted") {
-        // 신청 제출됨(=membership_applications.status='submitted') AND 아직 승인 전(status=pending)
+        // 신청 제출됨 AND 아직 승인 전
         if (member.applicationStatus !== "submitted") return false;
-        if (member.status === "active" || member.status === "course_member") return false;
+        if (member.status === "active") return false;
       } else if (statusFilter === "draft") {
-        // 신청 미제출: 가입 폼은 시작했지만 약관·정보 입력 후 "신청"을 안 누른 상태
+        // 신청 미제출: 가입 폼만 일부 채운 상태
         if (member.applicationStatus === "submitted") return false;
         if (member.status !== "pending" && member.status !== null) return false;
+      } else if (statusFilter.startsWith("status:")) {
+        const wanted = statusFilter.slice("status:".length);
+        if (member.status !== wanted) return false;
+      } else if (statusFilter.startsWith("tag:")) {
+        const wantedTagId = statusFilter.slice("tag:".length);
+        if (!member.tags.some((tag) => tag.id === wantedTagId)) return false;
       } else if (statusFilter !== "all") {
-        if (member.status !== statusFilter) return false;
+        return false;
       }
       if (!q) return true;
       const haystack = [
@@ -222,31 +260,11 @@ export default function MemberAdmin() {
 
         <section style={{ ...CARD_STYLE, padding: 14, marginBottom: 14 }}>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
-            <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-              <Filter style={{ width: 14, height: 14, color: "var(--kb-ink-400)" }} />
-              {STATUS_FILTERS.map((filter) => {
-                const active = statusFilter === filter.key;
-                return (
-                  <button
-                    key={filter.key}
-                    type="button"
-                    onClick={() => setStatusFilter(filter.key)}
-                    style={{
-                      padding: "6px 12px",
-                      borderRadius: 999,
-                      fontSize: 12.5,
-                      fontWeight: 600,
-                      border: active ? "1px solid #0a0a0a" : "1px solid #e8e8e4",
-                      background: active ? "#0a0a0a" : "#fff",
-                      color: active ? "#fff" : "var(--kb-ink-700)",
-                      cursor: "pointer",
-                    }}
-                  >
-                    {filter.label}
-                  </button>
-                );
-              })}
-            </div>
+            <FilterDropdown
+              currentKey={statusFilter}
+              onChange={setStatusFilter}
+              tagsCatalog={tagsCatalog}
+            />
             <div style={{ flex: 1, minWidth: 220, display: "flex", alignItems: "center", gap: 6 }}>
               <Search style={{ width: 14, height: 14, color: "var(--kb-ink-400)" }} />
               <input
@@ -298,14 +316,13 @@ export default function MemberAdmin() {
                 <MemberRow
                   key={member.id}
                   member={member}
-                  tagsCatalog={tagsCatalog}
                   busy={busyUserId === member.id}
                   divider={index !== 0}
                   onApprove={() => handleApprove(member)}
                   onSetStatus={(next) => handleSetStatus(member, next)}
                   onDelete={() => handleDelete(member)}
                   onEdit={() => setEditingUser(member)}
-                  onAssignTag={(tagId) => handleAssignTag(member, tagId)}
+                  onOpenTagMenu={() => setTagModalFor(member)}
                   onRemoveTag={(tagId) => handleRemoveTag(member, tagId)}
                 />
               ))}
@@ -324,39 +341,50 @@ export default function MemberAdmin() {
           }}
         />
       ) : null}
+
+      {tagModalFor ? (
+        <TagAssignModal
+          member={
+            // 가장 최신 멤버 데이터를 보여주기 위해 현재 members 배열에서 다시 찾는다.
+            members.find((row) => row.id === tagModalFor.id) ?? tagModalFor
+          }
+          tagsCatalog={tagsCatalog}
+          busy={busyUserId === tagModalFor.id}
+          onClose={() => setTagModalFor(null)}
+          onAssign={async (tagId) => {
+            await handleAssignTag(tagModalFor, tagId);
+          }}
+          onRemove={async (tagId) => {
+            await handleRemoveTag(tagModalFor, tagId);
+          }}
+        />
+      ) : null}
     </div>
   );
 }
 
 function MemberRow({
   member,
-  tagsCatalog,
   busy,
   divider,
   onApprove,
   onSetStatus,
   onDelete,
   onEdit,
-  onAssignTag,
+  onOpenTagMenu,
   onRemoveTag,
 }: {
   member: AdminMemberRow;
-  tagsCatalog: MemberTag[];
   busy: boolean;
   divider: boolean;
   onApprove: () => void;
   onSetStatus: (next: AdminMemberStatus) => void;
   onDelete: () => void;
   onEdit: () => void;
-  onAssignTag: (tagId: string) => void;
+  onOpenTagMenu: () => void;
   onRemoveTag: (tagId: string) => void;
 }) {
-  const [showTagMenu, setShowTagMenu] = useState(false);
   const status = member.status;
-  const statusColor = status ? STATUS_COLOR[status] : { bg: "#f3f4f6", fg: "#374151" };
-  const availableTags = tagsCatalog.filter(
-    (tag) => !member.tags.some((assigned) => assigned.id === tag.id),
-  );
 
   return (
     <li
@@ -412,160 +440,48 @@ function MemberRow({
         </div>
       </div>
 
-      {/* status + tags */}
+      {/* tags only — status는 lifecycle 컬럼이라 행에 노출하지 않는다.
+          (docs/product/member-status.md / docs/product/tag-system.md) */}
       <div style={{ minWidth: 0 }}>
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 5 }}>
-          {status ? (
-            <span
-              style={{
-                display: "inline-block",
-                padding: "2px 8px",
-                borderRadius: 999,
-                fontSize: 11,
-                fontWeight: 700,
-                background: statusColor.bg,
-                color: statusColor.fg,
-              }}
-            >
-              {STATUS_LABEL[status]}
+          {member.tags.length === 0 ? (
+            <span style={{ fontSize: 11, color: "var(--kb-ink-400)" }}>
+              부여된 태그 없음
             </span>
-          ) : (
-            <span
-              style={{
-                padding: "2px 8px",
-                borderRadius: 999,
-                fontSize: 11,
-                fontWeight: 700,
-                background: "#f3f4f6",
-                color: "#374151",
-              }}
-            >
-              상태 없음
-            </span>
-          )}
+          ) : null}
           {member.tags.map((tag) => (
-            <span
+            <TagChip
               key={tag.id}
-              title={tag.slug}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 4,
-                padding: "2px 8px",
-                borderRadius: 999,
-                fontSize: 11,
-                fontWeight: 700,
-                background: hexToTint(tag.color, 0.15),
-                color: hexToShade(tag.color, 0.45),
-                border: `1px solid ${hexToTint(tag.color, 0.4)}`,
-              }}
-            >
-              {tag.label}
-              {tag.isSystem ? null : (
-                <button
-                  type="button"
-                  onClick={() => onRemoveTag(tag.id)}
-                  style={{
-                    background: "transparent",
-                    border: "none",
-                    cursor: "pointer",
-                    padding: 0,
-                    color: "inherit",
-                    opacity: 0.7,
-                  }}
-                  aria-label={`${tag.label} 회수`}
-                >
-                  <X style={{ width: 11, height: 11 }} />
-                </button>
-              )}
-            </span>
+              tag={{ slug: tag.slug, label: tag.label, color: tag.color }}
+              onRemove={() => onRemoveTag(tag.id)}
+            />
           ))}
-          <div style={{ position: "relative" }}>
-            <button
-              type="button"
-              onClick={() => setShowTagMenu((v) => !v)}
-              style={{
-                padding: "2px 8px",
-                borderRadius: 999,
-                fontSize: 11,
-                background: "#fff",
-                border: "1px dashed #c4c4c0",
-                color: "var(--kb-ink-500)",
-                cursor: "pointer",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 3,
-              }}
-            >
-              <TagIcon style={{ width: 10, height: 10 }} /> 태그
-            </button>
-            {showTagMenu && availableTags.length > 0 ? (
-              <div
-                style={{
-                  position: "absolute",
-                  top: "calc(100% + 4px)",
-                  left: 0,
-                  background: "#fff",
-                  border: "1px solid #e8e8e4",
-                  borderRadius: 8,
-                  boxShadow: "0 6px 18px rgba(0,0,0,0.08)",
-                  padding: 4,
-                  minWidth: 160,
-                  zIndex: 10,
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 2,
-                }}
-              >
-                {availableTags.map((tag) => (
-                  <button
-                    key={tag.id}
-                    type="button"
-                    onClick={() => {
-                      onAssignTag(tag.id);
-                      setShowTagMenu(false);
-                    }}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 6,
-                      padding: "6px 8px",
-                      border: "none",
-                      background: "transparent",
-                      cursor: "pointer",
-                      textAlign: "left",
-                      fontSize: 12.5,
-                      borderRadius: 6,
-                    }}
-                  >
-                    <span
-                      style={{
-                        width: 10,
-                        height: 10,
-                        borderRadius: "50%",
-                        background: tag.color,
-                        flexShrink: 0,
-                      }}
-                    />
-                    {tag.label}
-                  </button>
-                ))}
-              </div>
-            ) : null}
-          </div>
+          <button
+            type="button"
+            onClick={onOpenTagMenu}
+            style={{
+              padding: "2px 8px",
+              borderRadius: 999,
+              fontSize: 11,
+              background: "#fff",
+              border: "1px dashed #c4c4c0",
+              color: "var(--kb-ink-500)",
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 3,
+            }}
+          >
+            <TagIcon style={{ width: 10, height: 10 }} /> 태그
+          </button>
         </div>
       </div>
 
-      {/* actions */}
+      {/* actions — 회장은 모든 부원에 대해 모든 액션 가능. 표시는 의미가 명확한 것만 가린다. */}
       <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "flex-end", gap: 6 }}>
-        {status === "pending" && member.applicationStatus === "submitted" ? (
-          <ActionButton tone="primary" icon={<UserCheck style={{ width: 12, height: 12 }} />} onClick={onApprove}>
-            승인
-          </ActionButton>
-        ) : null}
         {status === "pending" && member.applicationStatus !== "submitted" ? (
           <span
-            title="가입 폼을 끝까지 입력하고 신청 제출을 해야 승인 가능"
+            title="가입 폼을 끝까지 입력하고 신청 제출을 해야 정상적인 승인 절차가 가능합니다."
             style={{
               fontSize: 11,
               padding: "2px 8px",
@@ -577,10 +493,19 @@ function MemberRow({
             신청 미제출
           </span>
         ) : null}
+        {status === "pending" && member.applicationStatus === "submitted" ? (
+          <ActionButton
+            tone="primary"
+            icon={<UserCheck style={{ width: 12, height: 12 }} />}
+            onClick={onApprove}
+          >
+            승인
+          </ActionButton>
+        ) : null}
         <ActionButton icon={<Edit3 style={{ width: 12, height: 12 }} />} onClick={onEdit}>
           수정
         </ActionButton>
-        {status === "active" ? (
+        {status !== "withdrawn" ? (
           <ActionButton
             icon={<UserX style={{ width: 12, height: 12 }} />}
             onClick={() => onSetStatus("withdrawn")}
@@ -588,7 +513,7 @@ function MemberRow({
             탈퇴 처리
           </ActionButton>
         ) : null}
-        {status !== "active" && status !== "course_member" ? (
+        {status !== "rejected" ? (
           <ActionButton onClick={() => onSetStatus("rejected")}>보류</ActionButton>
         ) : null}
         <ActionButton tone="danger" icon={<Trash2 style={{ width: 12, height: 12 }} />} onClick={onDelete}>
@@ -809,6 +734,226 @@ function EditMemberModal({
   );
 }
 
+function TagAssignModal({
+  member,
+  tagsCatalog,
+  busy,
+  onClose,
+  onAssign,
+  onRemove,
+}: {
+  member: AdminMemberRow;
+  tagsCatalog: MemberTag[];
+  busy: boolean;
+  onClose: () => void;
+  onAssign: (tagId: string) => Promise<void> | void;
+  onRemove: (tagId: string) => Promise<void> | void;
+}) {
+  const [search, setSearch] = useState("");
+
+  const assignedIds = new Set(member.tags.map((tag) => tag.id));
+  const sorted = [...tagsCatalog].sort((a, b) =>
+    a.label.localeCompare(b.label, "ko"),
+  );
+  const q = search.trim().toLocaleLowerCase("ko-KR");
+  const filtered = q
+    ? sorted.filter(
+        (tag) =>
+          tag.label.toLocaleLowerCase("ko-KR").includes(q) ||
+          tag.slug.toLowerCase().includes(q),
+      )
+    : sorted;
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.45)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 100,
+        padding: 16,
+      }}
+    >
+      <div
+        onClick={(event) => event.stopPropagation()}
+        style={{
+          width: "100%",
+          maxWidth: 460,
+          background: "#fff",
+          borderRadius: 16,
+          padding: 22,
+          boxShadow: "0 20px 50px rgba(0,0,0,0.18)",
+          maxHeight: "84vh",
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            marginBottom: 14,
+            gap: 12,
+          }}
+        >
+          <div>
+            <div
+              style={{
+                fontSize: 11,
+                letterSpacing: "0.16em",
+                color: "var(--kb-ink-400)",
+                textTransform: "uppercase",
+                marginBottom: 4,
+              }}
+            >
+              MANAGE TAGS
+            </div>
+            <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800 }}>
+              {member.displayName} <span style={{ fontWeight: 500, color: "var(--kb-ink-400)" }}>의 태그</span>
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              background: "transparent",
+              border: "none",
+              cursor: "pointer",
+              color: "var(--kb-ink-500)",
+              flexShrink: 0,
+            }}
+            aria-label="닫기"
+          >
+            <X style={{ width: 18, height: 18 }} />
+          </button>
+        </div>
+
+        <p style={{ fontSize: 12.5, color: "var(--kb-ink-500)", margin: "0 0 12px", lineHeight: 1.55 }}>
+          체크된 태그를 누르면 회수, 안 체크된 태그를 누르면 부여됩니다.
+        </p>
+
+        <div style={{ position: "relative", marginBottom: 10 }}>
+          <Search
+            style={{
+              width: 13,
+              height: 13,
+              position: "absolute",
+              left: 10,
+              top: "50%",
+              transform: "translateY(-50%)",
+              color: "var(--kb-ink-400)",
+            }}
+          />
+          <input
+            autoFocus
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="태그 검색"
+            style={{
+              width: "100%",
+              padding: "8px 12px 8px 30px",
+              border: "1px solid #e8e8e4",
+              borderRadius: 8,
+              fontSize: 13,
+              outline: "none",
+              fontFamily: "inherit",
+            }}
+          />
+        </div>
+
+        <div
+          style={{
+            overflowY: "auto",
+            display: "flex",
+            flexDirection: "column",
+            gap: 4,
+            paddingRight: 2,
+          }}
+        >
+          {filtered.length === 0 ? (
+            <div
+              style={{
+                padding: 28,
+                textAlign: "center",
+                color: "var(--kb-ink-400)",
+                fontSize: 13,
+              }}
+            >
+              일치하는 태그가 없습니다. 태그 관리 페이지에서 새로 만들 수 있어요.
+            </div>
+          ) : (
+            filtered.map((tag) => {
+              const assigned = assignedIds.has(tag.id);
+              return (
+                <button
+                  key={tag.id}
+                  type="button"
+                  disabled={busy}
+                  onClick={() => (assigned ? onRemove(tag.id) : onAssign(tag.id))}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 10,
+                    padding: "8px 12px",
+                    border: assigned ? "1px solid #0a0a0a" : "1px solid #e8e8e4",
+                    background: assigned ? "#fafaf9" : "#fff",
+                    cursor: busy ? "not-allowed" : "pointer",
+                    textAlign: "left",
+                    borderRadius: 10,
+                  }}
+                >
+                  <TagChip
+                    tag={{ slug: tag.slug, label: tag.label, color: tag.color }}
+                    size="md"
+                    selected={assigned}
+                  />
+                  {assigned ? (
+                    <Check style={{ width: 14, height: 14, color: "var(--kb-ink-700)" }} />
+                  ) : (
+                    <span
+                      className="kb-mono"
+                      style={{ fontSize: 11, color: "var(--kb-ink-400)" }}
+                    >
+                      {tag.slug}
+                    </span>
+                  )}
+                </button>
+              );
+            })
+          )}
+        </div>
+
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 14 }}>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              padding: "8px 16px",
+              borderRadius: 8,
+              background: "#fff",
+              border: "1px solid #e8e8e4",
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            완료
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label style={{ display: "flex", flexDirection: "column", gap: 5 }}>
@@ -837,6 +982,188 @@ const inputStyle: CSSProperties = {
   outline: "none",
   fontFamily: "inherit",
 };
+
+function FilterDropdown({
+  currentKey,
+  onChange,
+  tagsCatalog,
+}: {
+  currentKey: AdminFilterKey;
+  onChange: (next: AdminFilterKey) => void;
+  tagsCatalog: MemberTag[];
+}) {
+  const [open, setOpen] = useState(false);
+
+  const currentLabel = (() => {
+    const fixed = FIXED_FILTERS.find((entry) => entry.key === currentKey);
+    if (fixed) return fixed.label;
+    const status = STATUS_FILTERS.find((entry) => entry.key === currentKey);
+    if (status) return status.label;
+    if (currentKey.startsWith("tag:")) {
+      const tagId = currentKey.slice("tag:".length);
+      const tag = tagsCatalog.find((entry) => entry.id === tagId);
+      return tag ? `태그: ${tag.label}` : "태그";
+    }
+    return "전체";
+  })();
+
+  const sortedTags = [...tagsCatalog].sort((a, b) =>
+    a.label.localeCompare(b.label, "ko"),
+  );
+
+  return (
+    <div style={{ position: "relative", minWidth: 240 }}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 6,
+          padding: "8px 12px",
+          borderRadius: 8,
+          background: "#fff",
+          border: "1px solid #e8e8e4",
+          fontSize: 13,
+          fontWeight: 700,
+          color: "var(--kb-ink-700)",
+          cursor: "pointer",
+          width: "100%",
+          justifyContent: "space-between",
+        }}
+      >
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+          <TagIcon style={{ width: 13, height: 13, color: "var(--kb-ink-400)" }} />
+          {currentLabel}
+        </span>
+        <ChevronDown style={{ width: 13, height: 13, color: "var(--kb-ink-400)" }} />
+      </button>
+      {open ? (
+        <div
+          style={{
+            position: "absolute",
+            top: "calc(100% + 4px)",
+            left: 0,
+            right: 0,
+            background: "#fff",
+            border: "1px solid #e8e8e4",
+            borderRadius: 10,
+            boxShadow: "0 8px 22px rgba(0,0,0,0.12)",
+            padding: 6,
+            zIndex: 20,
+            maxHeight: 360,
+            overflowY: "auto",
+            display: "flex",
+            flexDirection: "column",
+            gap: 1,
+          }}
+        >
+          {FIXED_FILTERS.map((filter) => (
+            <FilterRow
+              key={filter.key}
+              active={currentKey === filter.key}
+              onClick={() => {
+                onChange(filter.key);
+                setOpen(false);
+              }}
+            >
+              {filter.label}
+            </FilterRow>
+          ))}
+          {sortedTags.length > 0 ? (
+            <>
+              <div
+                style={{
+                  fontSize: 10.5,
+                  fontWeight: 800,
+                  letterSpacing: "0.1em",
+                  textTransform: "uppercase",
+                  color: "var(--kb-ink-400)",
+                  padding: "8px 8px 4px",
+                }}
+              >
+                태그
+              </div>
+              {sortedTags.map((tag) => (
+                <FilterRow
+                  key={tag.id}
+                  active={currentKey === `tag:${tag.id}`}
+                  onClick={() => {
+                    onChange(`tag:${tag.id}`);
+                    setOpen(false);
+                  }}
+                >
+                  <TagChip
+                    tag={{ slug: tag.slug, label: tag.label, color: tag.color }}
+                    size="sm"
+                    withDot
+                  />
+                </FilterRow>
+              ))}
+            </>
+          ) : null}
+          <div
+            style={{
+              fontSize: 10.5,
+              fontWeight: 800,
+              letterSpacing: "0.1em",
+              textTransform: "uppercase",
+              color: "var(--kb-ink-400)",
+              padding: "8px 8px 4px",
+            }}
+          >
+            상태
+          </div>
+          {STATUS_FILTERS.map((filter) => (
+            <FilterRow
+              key={filter.key}
+              active={currentKey === filter.key}
+              onClick={() => {
+                onChange(filter.key);
+                setOpen(false);
+              }}
+            >
+              {filter.label}
+            </FilterRow>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function FilterRow({
+  children,
+  active,
+  onClick,
+}: {
+  children: React.ReactNode;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 4,
+        padding: "7px 10px",
+        border: "none",
+        background: active ? "#0a0a0a" : "transparent",
+        color: active ? "#fff" : "var(--kb-ink-700)",
+        cursor: "pointer",
+        textAlign: "left",
+        fontSize: 13,
+        fontWeight: 600,
+        borderRadius: 6,
+      }}
+    >
+      {children}
+    </button>
+  );
+}
 
 // --- Color helpers (very small) ---
 function clampHex(value: number) {

@@ -23,7 +23,7 @@ const CATEGORY_BY_SIGNAL = [
   },
   {
     category: "project",
-    signals: ["project", "showcase"],
+    signals: ["project", "showcase", "study"],
   },
   {
     category: "approval",
@@ -35,8 +35,16 @@ const CATEGORY_BY_SIGNAL = [
   },
 ];
 
+const MEMBERSHIP_APPLICATION_TARGET = "/member/member-admin?filter=submitted";
+
 function normalizeSignal(value) {
   return typeof value === "string" ? value.trim().toLowerCase() : "";
+}
+
+function isMembershipApplicationContext(context = {}) {
+  const type = normalizeSignal(context.type);
+
+  return type === "membership_application_submitted";
 }
 
 export function getNotificationCategory({ type, relatedEntityTable } = {}) {
@@ -74,7 +82,11 @@ export function getUnreadNotificationCount(items) {
   return items.filter((item) => !item.readAt).length;
 }
 
-export function getNotificationTargetHref(href) {
+export function getNotificationTargetHref(href, context = {}) {
+  if (isMembershipApplicationContext(context)) {
+    return MEMBERSHIP_APPLICATION_TARGET;
+  }
+
   if (typeof href !== "string") {
     return null;
   }
@@ -86,4 +98,12 @@ export function getNotificationTargetHref(href) {
   }
 
   return trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
+}
+
+export function getNotificationActionLabel(context = {}) {
+  if (isMembershipApplicationContext(context)) {
+    return "멤버 관리에서 승인하기";
+  }
+
+  return "보러가기";
 }

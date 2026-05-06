@@ -65,7 +65,6 @@ export default function Profile() {
         department: profile.department ?? "",
         clubAffiliation: profile.clubAffiliation ?? null,
         publicCreditNameMode: profile.publicCreditNameMode,
-        techTags: profile.techTags ?? [],
         loginId: profile.loginId ?? null,
         password: "",
       });

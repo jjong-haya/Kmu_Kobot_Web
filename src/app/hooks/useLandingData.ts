@@ -56,9 +56,8 @@ export function useLandingData(): LandingData {
 
       // Recent published notices (5)
       const noticesP = supabase
-        .from("notices")
+        .from("public_notices")
         .select("id, title, body, created_at")
-        .eq("status", "published")
         .order("created_at", { ascending: false })
         .limit(5);
 

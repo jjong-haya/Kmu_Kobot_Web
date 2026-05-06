@@ -25,6 +25,7 @@ These files are primarily for AI agents and developers, so the working language 
 | 12 | `12-supabase-migration-plan.md` | Supabase migration strategy |
 | 13 | `13-domain-risk-review-2026-05-01.md` | Working risk review for the current domain slice |
 | 14 | `14-verification-question-ledger.md` | Active verification question queue and resolved archive |
+| 18 | `18-system-ddd-reanalysis-2026-05-05.md` | Full-system DDD remap, context map, issue register, and decision queue |
 | KO | `SUMMARY-ko.md` | Korean human-readable summary |
 
 ## 3. Working Rule

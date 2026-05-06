@@ -5,6 +5,14 @@ const FALLBACK = "멤버 정보를 처리하지 못했습니다.";
 
 export type DirectoryViewMode = "cards" | "list";
 
+export type MemberDirectoryTag = {
+  id: string;
+  slug: string;
+  label: string;
+  color: string;
+  isClub: boolean;
+};
+
 export type MemberDirectoryProfile = {
   id: string;
   displayName: string;
@@ -16,6 +24,7 @@ export type MemberDirectoryProfile = {
   college: string | null;
   department: string | null;
   clubAffiliation: string | null;
+  displayClubTagId: string | null;
   profileBio: string | null;
   githubUrl: string | null;
   linkedinUrl: string | null;
@@ -25,7 +34,10 @@ export type MemberDirectoryProfile = {
   officialTeamLabels: string[];
   projectLabels: string[];
   roleLabels: string[];
+  /** 라벨 문자열 배열. 검색·필터 호환용으로 유지. */
   tags: string[];
+  /** 실제 태그 객체 (slug+label+color+isClub). 카드 칩 렌더용 — TagChip 에 그대로 전달 가능. */
+  memberTags: MemberDirectoryTag[];
   projectCount: number;
   isPresident: boolean;
   isSelf: boolean;
@@ -46,7 +58,8 @@ export type UpdateOwnDirectoryProfileInput = {
   publicEmail: string;
   githubUrl: string;
   linkedinUrl: string;
-  clubAffiliation: string;
+  clubAffiliation?: string | null;
+  displayClubTagId?: string | null;
 };
 
 type ProfileRow = {
@@ -60,7 +73,7 @@ type ProfileRow = {
   college?: string | null;
   department?: string | null;
   club_affiliation?: string | null;
-  tech_tags?: string[] | null;
+  display_club_tag_id?: string | null;
   profile_bio?: string | null;
   public_email?: string | null;
   github_url?: string | null;
@@ -96,10 +109,41 @@ type FavoriteRow = {
   target_user_id: string;
 };
 
+type TagAssignmentRow = {
+  user_id: string;
+  member_tags?: {
+    id?: string | null;
+    slug?: string | null;
+    label?: string | null;
+    color?: string | null;
+    is_club?: boolean | null;
+  } | null;
+};
+
 const LOCAL_FAVORITES_KEY = "kobot.memberDirectory.favorites";
 const PROFILE_EXTENSIONS_CACHE_KEY = "kobot.memberDirectory.profileExtensionsAvailable";
 const FAVORITES_TABLE_CACHE_KEY = "kobot.memberDirectory.favoritesTableAvailable";
+const TAG_IS_CLUB_CACHE_KEY = "kobot.memberDirectory.tagIsClubAvailable";
 const SCHEMA_CAPABILITY_TTL_MS = 5 * 60 * 1000;
+
+const PROFILE_SELECT_WITH_DISPLAY_CLUB = [
+  "id",
+  "email",
+  "display_name",
+  "nickname_display",
+  "login_id",
+  "full_name",
+  "avatar_url",
+  "college",
+  "department",
+  "club_affiliation",
+  "display_club_tag_id",
+  "profile_bio",
+  "public_email",
+  "github_url",
+  "linkedin_url",
+  "created_at",
+].join(", ");
 
 const EXTENDED_PROFILE_SELECT = [
   "id",
@@ -112,7 +156,6 @@ const EXTENDED_PROFILE_SELECT = [
   "college",
   "department",
   "club_affiliation",
-  "tech_tags",
   "profile_bio",
   "public_email",
   "github_url",
@@ -131,7 +174,6 @@ const BASE_PROFILE_SELECT = [
   "college",
   "department",
   "club_affiliation",
-  "tech_tags",
   "created_at",
 ].join(", ");
 
@@ -276,6 +318,23 @@ async function listProfiles() {
   const profileExtensionsKnown = readSchemaCapability(PROFILE_EXTENSIONS_CACHE_KEY);
 
   if (profileExtensionsKnown !== false) {
+    const withDisplayClub = await supabase
+      .from("profiles")
+      .select(PROFILE_SELECT_WITH_DISPLAY_CLUB)
+      .order("display_name", { ascending: true });
+
+    if (!withDisplayClub.error) {
+      writeSchemaCapability(PROFILE_EXTENSIONS_CACHE_KEY, true);
+      return {
+        rows: (withDisplayClub.data ?? []) as ProfileRow[],
+        profileExtensionsAvailable: true,
+      };
+    }
+
+    if (!isMissingSchemaError(withDisplayClub.error)) {
+      throw new Error(sanitizeUserError(withDisplayClub.error, FALLBACK));
+    }
+
     const extended = await supabase
       .from("profiles")
       .select(EXTENDED_PROFILE_SELECT)
@@ -346,8 +405,15 @@ async function listFavorites(currentUserId: string) {
 
 export async function listMemberDirectory(currentUserId: string): Promise<MemberDirectoryData> {
   const supabase = getSupabaseBrowserClient();
-  const [{ rows: profileRows, profileExtensionsAvailable }, accountRows, positionRows, teamRows, projectRows, favoriteData] =
-    await Promise.all([
+  const [
+    { rows: profileRows, profileExtensionsAvailable },
+    accountRows,
+    positionRows,
+    teamRows,
+    projectRows,
+    tagAssignmentRows,
+    favoriteData,
+  ] = await Promise.all([
       listProfiles(),
       safeRows<AccountRow>(
         supabase
@@ -372,6 +438,33 @@ export async function listMemberDirectory(currentUserId: string): Promise<Member
           .select("user_id, role, project_teams(name, slug, status)")
           .eq("status", "active"),
       ),
+      // 진짜 태그 assignments — 부원 카드 칩의 단일 진리원천.
+      // (docs/product/tag-system.md)
+      // is_club 컬럼이 운영 DB 에 없을 수도 있어 (마이그 전) 명시적 fallback 으로 재시도.
+      // safeRows 가 에러를 통째 삼키기 때문에, 1차 SELECT 결과의 error 를 직접 검사하고
+      // 컬럼 부재 / 스키마 오류면 is_club 빠진 SELECT 로 재시도해야 한다.
+      (async () => {
+        const useClubColumn = readSchemaCapability(TAG_IS_CLUB_CACHE_KEY) !== false;
+        const first = await supabase
+          .from("member_tag_assignments")
+          .select(
+            useClubColumn
+              ? "user_id, member_tags(id, slug, label, color, is_club)"
+              : "user_id, member_tags(id, slug, label, color)",
+          );
+        if (!first.error) {
+          if (useClubColumn) writeSchemaCapability(TAG_IS_CLUB_CACHE_KEY, true);
+          return (first.data ?? []) as TagAssignmentRow[];
+        }
+        if (isMissingSchemaError(first.error)) {
+          writeSchemaCapability(TAG_IS_CLUB_CACHE_KEY, false);
+        }
+        const fallback = await supabase
+          .from("member_tag_assignments")
+          .select("user_id, member_tags(id, slug, label, color)");
+        if (fallback.error) return [] as TagAssignmentRow[];
+        return (fallback.data ?? []) as TagAssignmentRow[];
+      })(),
       listFavorites(currentUserId),
     ]);
 
@@ -379,6 +472,7 @@ export async function listMemberDirectory(currentUserId: string): Promise<Member
   const positionsByUser = groupByUser(positionRows);
   const teamsByUser = groupByUser(teamRows);
   const projectsByUser = groupByUser(projectRows);
+  const tagsByUser = groupByUser(tagAssignmentRows);
 
   const members = profileRows
     .map((profile) => {
@@ -393,12 +487,44 @@ export async function listMemberDirectory(currentUserId: string): Promise<Member
       const projectRoleLabels = unique(projects.map((row) => roleLabel(row.role)));
       const status = account?.status ?? null;
       const isPresident = hasPresidentPosition(positions);
-      const profileTags = unique(profile.tech_tags ?? []);
+      // 자유 문자열 기반 프로필 태그는 더 이상 쓰지 않는다. 모든 태그는 member_tag_assignments 단일 출처.
+      const profileTags: string[] = [];
+      const memberTagRows = (tagsByUser.get(profile.id) ?? [])
+        .map((row) => row.member_tags)
+        .filter(
+          (m): m is { id: string; slug: string; label: string; color: string; is_club?: boolean | null } =>
+            !!m &&
+            typeof m.id === "string" &&
+            typeof m.slug === "string" &&
+            typeof m.label === "string" &&
+            typeof m.color === "string",
+        );
+      // 동일 슬러그 중복 제거
+      const seenTagSlugs = new Set<string>();
+      const memberTags: MemberDirectoryTag[] = [];
+      for (const m of memberTagRows) {
+        const key = m.slug.toLowerCase();
+        if (seenTagSlugs.has(key)) continue;
+        seenTagSlugs.add(key);
+        memberTags.push({
+          id: m.id,
+          slug: m.slug,
+          label: m.label,
+          color: m.color,
+          isClub: m.is_club === true,
+        });
+      }
+      // 레거시 org_position 이 아직 남아 있더라도, 실제 member_tags가 있으면 그 태그를 우선한다.
+      // 아직 백필되지 않은 회장만 화면 깨짐 방지용 가상 태그로 보정한다.
+      if (isPresident && !seenTagSlugs.has("president")) {
+        memberTags.unshift({ id: "position:president", slug: "president", label: "회장", color: "#7c2d12", isClub: false });
+        seenTagSlugs.add("president");
+      }
+      const assignedTagLabels = memberTags.map((m) => m.label);
       const systemTags = unique([
-        isPresident ? "회장" : null,
-        ...membershipTagsFor(status),
-        profile.department,
-        profile.club_affiliation,
+        // 동아리·소속·회장 칩은 memberTags 로 옮겨졌다. profile.department/club_affiliation 은 보조 메타라
+        // 별도 칩으로 노출하지 않는다 (status 와 동일하게 lifecycle/메타 컬럼).
+        ...assignedTagLabels,
       ]);
       const tags = unique([...systemTags, ...profileTags]);
 
@@ -413,6 +539,7 @@ export async function listMemberDirectory(currentUserId: string): Promise<Member
         college: normalizeString(profile.college),
         department: normalizeString(profile.department),
         clubAffiliation: normalizeString(profile.club_affiliation),
+        displayClubTagId: normalizeString(profile.display_club_tag_id),
         profileBio: normalizeString(profile.profile_bio),
         githubUrl: normalizeString(profile.github_url),
         linkedinUrl: normalizeString(profile.linkedin_url),
@@ -423,6 +550,7 @@ export async function listMemberDirectory(currentUserId: string): Promise<Member
         projectLabels,
         roleLabels: unique([...teamRoleLabels, ...projectRoleLabels]),
         tags,
+        memberTags,
         projectCount: projectLabels.length,
         isPresident,
         isSelf: profile.id === currentUserId,
@@ -458,16 +586,29 @@ export async function updateOwnDirectoryProfile(input: UpdateOwnDirectoryProfile
   const basePayload = {
     display_name: input.nicknameDisplay.trim(),
     nickname_display: input.nicknameDisplay.trim(),
-    club_affiliation: input.clubAffiliation.trim() || null,
+    club_affiliation: input.clubAffiliation?.trim() || null,
+    display_club_tag_id: input.displayClubTagId ?? null,
     profile_completed_at: new Date().toISOString(),
+  };
+  const basePayloadWithoutDisplayClub = {
+    display_name: basePayload.display_name,
+    nickname_display: basePayload.nickname_display,
+    club_affiliation: basePayload.club_affiliation,
+    profile_completed_at: basePayload.profile_completed_at,
   };
 
   const profileExtensionsKnown = readSchemaCapability(PROFILE_EXTENSIONS_CACHE_KEY);
   if (profileExtensionsKnown === false) {
-    const fallback = await supabase
+    let fallback = await supabase
       .from("profiles")
       .update(basePayload)
       .eq("id", userData.user.id);
+    if (fallback.error && isMissingSchemaError(fallback.error)) {
+      fallback = await supabase
+        .from("profiles")
+        .update(basePayloadWithoutDisplayClub)
+        .eq("id", userData.user.id);
+    }
 
     if (fallback.error) throw new Error(sanitizeUserError(fallback.error, FALLBACK));
 
@@ -481,6 +622,13 @@ export async function updateOwnDirectoryProfile(input: UpdateOwnDirectoryProfile
     github_url: input.githubUrl.trim() || null,
     linkedin_url: input.linkedinUrl.trim() || null,
   };
+  const payloadWithoutDisplayClub = {
+    ...basePayloadWithoutDisplayClub,
+    profile_bio: payload.profile_bio,
+    public_email: payload.public_email,
+    github_url: payload.github_url,
+    linkedin_url: payload.linkedin_url,
+  };
 
   const { error } = await supabase
     .from("profiles")
@@ -493,12 +641,31 @@ export async function updateOwnDirectoryProfile(input: UpdateOwnDirectoryProfile
   }
 
   if (!isMissingSchemaError(error)) throw new Error(sanitizeUserError(error, FALLBACK));
+
+  const retryWithoutDisplayClub = await supabase
+    .from("profiles")
+    .update(payloadWithoutDisplayClub)
+    .eq("id", userData.user.id);
+  if (!retryWithoutDisplayClub.error) {
+    writeSchemaCapability(PROFILE_EXTENSIONS_CACHE_KEY, true);
+    return { profileExtensionsSaved: true };
+  }
+  if (!isMissingSchemaError(retryWithoutDisplayClub.error)) {
+    throw new Error(sanitizeUserError(retryWithoutDisplayClub.error, FALLBACK));
+  }
+
   writeSchemaCapability(PROFILE_EXTENSIONS_CACHE_KEY, false);
 
-  const fallback = await supabase
+  let fallback = await supabase
     .from("profiles")
     .update(basePayload)
     .eq("id", userData.user.id);
+  if (fallback.error && isMissingSchemaError(fallback.error)) {
+    fallback = await supabase
+      .from("profiles")
+      .update(basePayloadWithoutDisplayClub)
+      .eq("id", userData.user.id);
+  }
 
   if (fallback.error) throw new Error(sanitizeUserError(fallback.error, FALLBACK));
 

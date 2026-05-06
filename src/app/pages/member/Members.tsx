@@ -4,7 +4,6 @@ import {
   AlertCircle,
   Building2,
   Check,
-  Crown,
   Edit3,
   Filter,
   FolderKanban,
@@ -28,18 +27,16 @@ import {
   type DirectoryViewMode,
   type MemberDirectoryData,
   type MemberDirectoryProfile,
+  type MemberDirectoryTag,
 } from "../../api/member-directory";
 import { useAuth } from "../../auth/useAuth";
 import { sanitizeUserError } from "../../utils/sanitize-error";
 import { safeImageUrl } from "../../utils/safe-image-url";
+import { TagChip } from "../../components/TagChip";
 
-type MemberScopeFilter = "all" | "kobot" | "course";
-
-const MEMBER_SCOPE_FILTERS: Array<{ key: MemberScopeFilter; label: string }> = [
-  { key: "all", label: "전체" },
-  { key: "kobot", label: "코봇" },
-  { key: "course", label: "코스" },
-];
+// "all" 또는 임의 태그 라벨. 사이드바·권한과 마찬가지로 부원 디렉토리 필터도
+// member_tag_assignments 만 본다 (status 컬럼은 사용하지 않음).
+type MemberScopeFilter = "all" | (string & {});
 
 function nameWithReal(member: MemberDirectoryProfile): string {
   const display = member.displayName?.trim();
@@ -104,41 +101,67 @@ function formatDate(iso: string | null) {
   return `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, "0")}`;
 }
 
-function statusLabel(status: string | null) {
-  switch (status) {
-    case "active":
-      return "정식 부원";
-    case "course_member":
-      return "코스 부원";
-    case "project_only":
-      return "프로젝트";
-    case "alumni":
-      return "졸업/수료";
-    case "pending":
-      return "승인 대기";
-    default:
-      return status ?? "상태 없음";
-  }
+// member.tags 는 tagOptions / 검색용 라벨 배열. 카드에선 member.memberTags 가 색상 칩으로
+// 별도 렌더되니까, 그 라벨들을 빼고 남은 메타 라벨(예: 회장)만 회색 Chip 으로 보여 준다.
+function extraChipLabels(member: MemberDirectoryProfile): string[] {
+  const tagged = new Set(member.memberTags.map((t) => t.label));
+  return member.tags.filter((label) => !tagged.has(label));
 }
 
 function roleDisplayLabel(label: string | null | undefined) {
-  const normalized = label?.trim().toLocaleLowerCase("ko-KR");
+  const normalized = label?.trim().replace(/[-_]+/g, " ").toLocaleLowerCase("ko-KR");
 
   if (!normalized) return null;
-  if (normalized === "president") return "회장";
-  if (normalized === "vice president") return "부회장";
-  if (normalized === "team lead") return "팀장";
-  if (normalized === "team member") return "팀원";
+  if (normalized === "president" || normalized === "회장") return "회장";
+  if (normalized === "vice president" || normalized === "부회장") return "부회장";
+  if (normalized === "member" || normalized === "부원") return "부원";
+  if (normalized === "team lead" || normalized === "팀장") return "팀장";
+  if (normalized === "team member" || normalized === "팀원") return "팀원";
+  if (normalized.includes("팀장")) return label?.trim() ?? "팀장";
+  if (normalized.startsWith("official team lead")) return "공식 팀장";
 
-  return label?.trim() ?? null;
+  return null;
 }
 
-function organizationDisplayLabel(member: MemberDirectoryProfile) {
-  const normalizedClub = member.clubAffiliation?.trim();
+function isRoleTag(tag: MemberDirectoryProfile["memberTags"][number]) {
+  return roleDisplayLabel(tag.slug) !== null || roleDisplayLabel(tag.label) !== null;
+}
 
-  if (member.status === "active") return normalizedClub || "KOBOT";
-  if (member.status === "course_member") return normalizedClub || "KOSS";
-  return normalizedClub ?? null;
+function roleTagRank(tag: MemberDirectoryProfile["memberTags"][number]) {
+  const normalized = `${tag.slug} ${tag.label}`.replace(/[-_]+/g, " ").toLocaleLowerCase("ko-KR");
+  if (normalized.includes("vice president") || normalized.includes("부회장")) return 1;
+  if (normalized.includes("president") || normalized.includes("회장")) return 0;
+  if (normalized.includes("team lead") || normalized.includes("팀장")) return 2;
+  return 9;
+}
+
+function isClubTag(tag: MemberDirectoryProfile["memberTags"][number]) {
+  const slug = tag.slug.trim().toLocaleLowerCase("ko-KR");
+  const label = tag.label.trim().toLocaleLowerCase("ko-KR");
+
+  return tag.isClub || slug === "kobot" || slug === "koss" || label === "kobot" || label === "koss";
+}
+
+function compareTagSlugAsc(a: Pick<MemberDirectoryTag, "slug">, b: Pick<MemberDirectoryTag, "slug">) {
+  return a.slug.localeCompare(b.slug, "en", { sensitivity: "base" });
+}
+
+function clubTagsFor(member: MemberDirectoryProfile) {
+  return member.memberTags.filter(isClubTag).sort(compareTagSlugAsc);
+}
+
+function displayClubTagFor(member: MemberDirectoryProfile) {
+  const clubTags = clubTagsFor(member);
+  if (member.displayClubTagId) {
+    const preferred = clubTags.find((tag) => tag.id === member.displayClubTagId);
+    if (preferred) return preferred;
+  }
+  return clubTags[0] ?? null;
+}
+
+function displayTagsForMember(member: MemberDirectoryProfile) {
+  // 위 메타에는 직위/동아리를 별도 요약하지만, 실제 태그 칩 목록은 원본 그대로 보여준다.
+  return member.memberTags;
 }
 
 function normalizeUrl(url: string | null) {
@@ -185,15 +208,17 @@ function filterMembers({
   scopeFilter: MemberScopeFilter;
 }) {
   return members.filter((member) => {
-    if (scopeFilter === "kobot" && member.status !== "active") return false;
-    if (scopeFilter === "course" && member.status !== "course_member") return false;
+    if (scopeFilter !== "all") {
+      // 태그 라벨 정확 일치 (member-directory.tagOptions가 그대로 라벨을 줌)
+      if (!member.tags.some((tag) => tag === scopeFilter)) return false;
+    }
     return includesText(member, query.trim());
   });
 }
 
 function Avatar({ member, size = 52 }: { member: MemberDirectoryProfile; size?: number }) {
+  // 회장 표시는 카드 아래 '회장' TagChip 이 단독으로 담당. 아바타 위 왕관 데코는 제거.
   const image = safeImageUrl(member.avatarUrl);
-  const crownSize = Math.max(18, Math.round(size * 0.34));
 
   return (
     <div style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
@@ -223,36 +248,6 @@ function Avatar({ member, size = 52 }: { member: MemberDirectoryProfile; size?: 
           initialsFor(member.displayName)
         )}
       </div>
-      {member.isPresident ? (
-        <span
-          aria-label="회장"
-          title="회장"
-          style={{
-            position: "absolute",
-            top: -Math.round(crownSize * 0.7),
-            left: "50%",
-            transform: "translateX(-50%) rotate(-12deg)",
-            width: crownSize,
-            height: crownSize,
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            color: "#b45309",
-            filter:
-              "drop-shadow(0 2px 3px rgba(0,0,0,0.22)) drop-shadow(0 0 1px rgba(0,0,0,0.35))",
-            pointerEvents: "none",
-            zIndex: 1,
-          }}
-        >
-          <Crown
-            color="#b45309"
-            fill="#facc15"
-            strokeWidth={2}
-            size={crownSize}
-            style={{ display: "block" }}
-          />
-        </span>
-      ) : null}
     </div>
   );
 }
@@ -416,8 +411,16 @@ function FavoriteButton({
 }
 
 function MemberMeta({ member }: { member: MemberDirectoryProfile }) {
-  const primaryRole = roleDisplayLabel(member.positionLabels[0]) ?? statusLabel(member.status);
-  const organization = organizationDisplayLabel(member);
+  // 쉴드 옆에는 "직위"만 둔다. 태그가 권한/표시를 들더라도 일반 기술 태그를 직위로 끌어오지 않는다.
+  const roleTag = member.memberTags.filter(isRoleTag).sort((a, b) => roleTagRank(a) - roleTagRank(b))[0];
+  const primaryRole =
+    roleDisplayLabel(roleTag?.label) ??
+    roleDisplayLabel(roleTag?.slug) ??
+    roleDisplayLabel(member.positionLabels[0]) ??
+    "부원";
+
+  // 건물 옆에는 동아리 태그만 둔다. 기존 KOBOT/KOSS 데이터가 is_club 백필 전이어도 표시한다.
+  const clubLabel = displayClubTagFor(member)?.label ?? null;
 
   return (
     <div style={{ display: "flex", flexWrap: "wrap", gap: 8, color: "var(--kb-ink-500)", fontSize: 13 }}>
@@ -425,10 +428,10 @@ function MemberMeta({ member }: { member: MemberDirectoryProfile }) {
         <ShieldCheck style={{ width: 13, height: 13 }} />
         {primaryRole}
       </span>
-      {organization ? (
+      {clubLabel ? (
         <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
           <Building2 style={{ width: 13, height: 13 }} />
-          {organization}
+          {clubLabel}
         </span>
       ) : null}
       {member.projectCount > 0 ? (
@@ -510,13 +513,10 @@ function MemberCard({
         {member.profileBio ?? `${member.department ?? "소속 정보 없음"} · ${formatDate(member.joinedAt)} 합류`}
       </p>
 
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-        {member.tags.slice(0, 9).map((tag, index) => (
-          <Chip key={`${member.id}-${tag}`} tone={index < 2 ? "strong" : "neutral"}>
-            {tag}
-          </Chip>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+        {displayTagsForMember(member).map((tag) => (
+          <TagChip key={`${member.id}-tag-${tag.slug}`} tag={tag} />
         ))}
-        {member.tags.length > 9 ? <Chip tone="muted">+{member.tags.length - 9}</Chip> : null}
       </div>
 
       <div
@@ -609,11 +609,10 @@ function MemberListRow({
         </div>
         <div style={{ color: "var(--kb-ink-400)" }}>합류 {formatDate(member.joinedAt)}</div>
       </div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, minWidth: 0 }}>
-        {member.tags.slice(0, 6).map((tag) => (
-          <Chip key={`${member.id}-row-${tag}`}>{tag}</Chip>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, minWidth: 0, alignItems: "center" }}>
+        {displayTagsForMember(member).map((tag) => (
+          <TagChip key={`${member.id}-row-tag-${tag.slug}`} tag={tag} />
         ))}
-        {member.tags.length > 6 ? <Chip tone="muted">+{member.tags.length - 6}</Chip> : null}
       </div>
       <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
         <FavoriteButton
@@ -642,10 +641,12 @@ function ProfileEditor({
   const [publicEmail, setPublicEmail] = useState(member.publicEmail ?? member.email ?? "");
   const [githubUrl, setGithubUrl] = useState(member.githubUrl ?? "");
   const [linkedinUrl, setLinkedinUrl] = useState(member.linkedinUrl ?? "");
-  const [clubAffiliation, setClubAffiliation] = useState(member.clubAffiliation ?? "");
+  const [displayClubTagId, setDisplayClubTagId] = useState(member.displayClubTagId ?? "");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const clubTags = clubTagsFor(member);
+  const selectedClubTag = clubTags.find((tag) => tag.id === displayClubTagId) ?? null;
 
   useEffect(() => {
     setNicknameDisplay(member.displayName);
@@ -653,7 +654,7 @@ function ProfileEditor({
     setPublicEmail(member.publicEmail ?? member.email ?? "");
     setGithubUrl(member.githubUrl ?? "");
     setLinkedinUrl(member.linkedinUrl ?? "");
-    setClubAffiliation(member.clubAffiliation ?? "");
+    setDisplayClubTagId(member.displayClubTagId ?? "");
   }, [member]);
 
   async function handleSubmit(event: FormEvent) {
@@ -673,7 +674,8 @@ function ProfileEditor({
         publicEmail,
         githubUrl,
         linkedinUrl,
-        clubAffiliation,
+        clubAffiliation: selectedClubTag?.label ?? displayClubTagFor(member)?.label ?? null,
+        displayClubTagId: selectedClubTag?.id ?? null,
       });
 
       setSaved(true);
@@ -791,15 +793,22 @@ function ProfileEditor({
             </div>
             <div>
               <label htmlFor="directory-club" style={labelStyle}>
-                동아리/소속
+                대표 동아리
               </label>
-              <input
+              <select
                 id="directory-club"
-                value={clubAffiliation}
-                onChange={(event) => setClubAffiliation(event.target.value)}
-                style={{ ...inputStyle, padding: "11px 13px" }}
-                placeholder="KOBOT"
-              />
+                value={displayClubTagId}
+                onChange={(event) => setDisplayClubTagId(event.target.value)}
+                disabled={clubTags.length === 0}
+                style={{ ...inputStyle, padding: "11px 13px", height: 43 }}
+              >
+                <option value="">자동 선택 (slug 오름차순)</option>
+                {clubTags.map((tag) => (
+                  <option key={tag.id} value={tag.id}>
+                    {tag.label}
+                  </option>
+                ))}
+              </select>
             </div>
             <div style={{ gridColumn: "1 / -1" }}>
               <label htmlFor="directory-bio" style={labelStyle}>
@@ -872,11 +881,9 @@ function ProfileEditor({
             </div>
           </div>
         ) : (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 16 }}>
-            {member.tags.slice(0, 12).map((tag) => (
-              <Chip key={`self-${tag}`} tone="strong">
-                {tag}
-              </Chip>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 16, alignItems: "center" }}>
+            {displayTagsForMember(member).map((tag) => (
+              <TagChip key={`self-tag-${tag.slug}`} tag={tag} />
             ))}
           </div>
         )}
@@ -1123,11 +1130,12 @@ export default function Members() {
             <select
               value={scopeFilter}
               onChange={(event) => setScopeFilter(event.target.value as MemberScopeFilter)}
-              style={{ ...inputStyle, width: 136, height: 36, padding: "0 10px", fontWeight: 800 }}
+              style={{ ...inputStyle, minWidth: 160, height: 36, padding: "0 10px", fontWeight: 800 }}
             >
-              {MEMBER_SCOPE_FILTERS.map((filter) => (
-                <option key={filter.key} value={filter.key}>
-                  {filter.label}
+              <option value="all">전체</option>
+              {(data?.tagOptions ?? []).map((tagLabel) => (
+                <option key={tagLabel} value={tagLabel}>
+                  {tagLabel}
                 </option>
               ))}
             </select>

@@ -6,8 +6,6 @@ const FALLBACK = "처리에 실패했습니다.";
 export type AdminMemberStatus =
   | "pending"
   | "active"
-  | "course_member"
-  | "project_only"
   | "rejected"
   | "withdrawn";
 

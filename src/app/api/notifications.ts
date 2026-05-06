@@ -26,6 +26,15 @@ export type NotificationActor = {
   avatarUrl: string | null;
 };
 
+export type NotificationMembershipApplication = {
+  id: string;
+  userId: string;
+  status: string;
+  submittedAt: string | null;
+  profileSnapshot: Record<string, unknown>;
+  source: string | null;
+};
+
 export type NotificationItem = {
   id: string;
   recipientUserId: string;
@@ -41,6 +50,7 @@ export type NotificationItem = {
   relatedEntityId: string | null;
   href: string | null;
   targetHref: string | null;
+  membershipApplication: NotificationMembershipApplication | null;
   metadata: Record<string, unknown>;
   readAt: string | null;
   createdAt: string;
@@ -73,12 +83,25 @@ type ProfileDbRow = {
   avatar_url: string | null;
 };
 
+type MembershipApplicationDbRow = {
+  id: string;
+  user_id: string;
+  status: string;
+  submitted_at: string | null;
+  profile_snapshot: unknown;
+  metadata: unknown;
+};
+
 function normalizeMetadata(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return {};
   }
 
   return value as Record<string, unknown>;
+}
+
+function readString(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
 function toActor(row: ProfileDbRow): NotificationActor {
@@ -90,9 +113,25 @@ function toActor(row: ProfileDbRow): NotificationActor {
   };
 }
 
+function toMembershipApplication(
+  row: MembershipApplicationDbRow,
+): NotificationMembershipApplication {
+  const metadata = normalizeMetadata(row.metadata);
+
+  return {
+    id: row.id,
+    userId: row.user_id,
+    status: row.status,
+    submittedAt: row.submitted_at,
+    profileSnapshot: normalizeMetadata(row.profile_snapshot),
+    source: readString(metadata.source),
+  };
+}
+
 function mapNotificationRow(
   row: NotificationDbRow,
   actorsById: Map<string, NotificationActor>,
+  applicationsById: Map<string, NotificationMembershipApplication>,
 ): NotificationItem {
   const relatedEntityTable = row.related_entity_table;
   const category = getNotificationCategory({
@@ -114,7 +153,14 @@ function mapNotificationRow(
     relatedEntityTable,
     relatedEntityId: row.related_entity_id,
     href: row.href,
-    targetHref: getNotificationTargetHref(row.href),
+    targetHref: getNotificationTargetHref(row.href, {
+      type: row.type,
+      relatedEntityTable,
+    }),
+    membershipApplication:
+      row.type === "membership_application_submitted" && row.related_entity_id
+        ? applicationsById.get(row.related_entity_id) ?? null
+        : null,
     metadata: normalizeMetadata(row.metadata),
     readAt: row.read_at,
     createdAt: row.created_at,
@@ -139,6 +185,29 @@ async function listActors(actorIds: string[]) {
 
   return new Map(
     ((data ?? []) as ProfileDbRow[]).map((row) => [row.id, toActor(row)]),
+  );
+}
+
+async function listMembershipApplications(applicationIds: string[]) {
+  if (applicationIds.length === 0) {
+    return new Map<string, NotificationMembershipApplication>();
+  }
+
+  const supabase = getSupabaseBrowserClient();
+  const { data, error } = await supabase
+    .from("membership_applications")
+    .select("id, user_id, status, submitted_at, profile_snapshot, metadata")
+    .in("id", applicationIds);
+
+  if (error) {
+    throw new Error(sanitizeUserError(error, "가입 신청 상세를 불러오지 못했습니다."));
+  }
+
+  return new Map(
+    ((data ?? []) as MembershipApplicationDbRow[]).map((row) => [
+      row.id,
+      toMembershipApplication(row),
+    ]),
   );
 }
 
@@ -179,9 +248,26 @@ export async function listNotifications(userId: string, limit = 80) {
   const actorIds = [
     ...new Set(rows.map((row) => row.actor_user_id).filter((id): id is string => Boolean(id))),
   ];
-  const actorsById = await listActors(actorIds);
+  const applicationIds = [
+    ...new Set(
+      rows
+        .filter(
+          (row) =>
+            row.type === "membership_application_submitted" &&
+            row.related_entity_table === "membership_applications",
+        )
+        .map((row) => row.related_entity_id)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  const [actorsById, applicationsById] = await Promise.all([
+    listActors(actorIds),
+    listMembershipApplications(applicationIds).catch(
+      () => new Map<string, NotificationMembershipApplication>(),
+    ),
+  ]);
 
-  return rows.map((row) => mapNotificationRow(row, actorsById));
+  return rows.map((row) => mapNotificationRow(row, actorsById, applicationsById));
 }
 
 export async function getUnreadNotificationsCount(userId: string) {

@@ -5,6 +5,7 @@ import { ArrowRight, Sparkles, Ticket } from "lucide-react";
 import { useAuth } from "../../auth/useAuth";
 import { isJoinRequestComplete } from "../../auth/onboarding";
 import { getSupabaseBrowserClient } from "../../auth/supabase";
+import { normalizeInviteCode } from "../../api/invite-codes";
 import { sanitizeUserError } from "../../utils/sanitize-error";
 
 export default function Welcome() {
@@ -29,14 +30,15 @@ export default function Welcome() {
 
   async function handleRedeem(e: FormEvent) {
     e.preventDefault();
-    if (!code.trim()) return;
+    const normalizedCode = normalizeInviteCode(code);
+    if (!normalizedCode) return;
     setError(null);
     setSubmitting(true);
     try {
       const supabase = getSupabaseBrowserClient();
       const { data, error: rpcErr } = await supabase.rpc(
         "redeem_course_invite",
-        { invite_code: code.trim() },
+        { invite_code: normalizedCode },
       );
       if (rpcErr) {
         setError(
@@ -181,10 +183,10 @@ export default function Welcome() {
             <input
               type="text"
               value={code}
-              onChange={(e) => setCode(e.target.value.toUpperCase())}
-              placeholder="예: SLAM2026"
+              onChange={(e) => setCode(normalizeInviteCode(e.target.value))}
+              placeholder="예: A7KC9Q"
               autoFocus
-              maxLength={32}
+              maxLength={16}
               style={{
                 width: "100%",
                 padding: "13px 16px",
@@ -275,7 +277,7 @@ export default function Welcome() {
               fontFamily: "inherit",
             }}
           >
-            건너뛰고 정식 가입 진행
+            건너뛰고 회원 가입 진행
           </button>
 
           <p

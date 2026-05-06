@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import {
   Archive,
+  ArrowRight,
   Bell,
   Check,
   Handshake,
@@ -12,6 +13,7 @@ import {
   ShieldCheck,
   UserPlus,
   Vote,
+  X,
 } from "lucide-react";
 import { useAuth } from "../../auth/useAuth";
 import {
@@ -24,13 +26,20 @@ import {
 } from "../../api/notifications";
 import {
   filterNotifications,
+  getNotificationActionLabel,
   getUnreadNotificationCount,
   NOTIFICATION_FILTERS,
 } from "../../api/notification-policy.js";
+import { sanitizeUserError } from "../../utils/sanitize-error";
 
 type FilterKey = "all" | "unread" | "member" | "contact" | "vote" | "approval" | "system";
 
 const FILTERS = NOTIFICATION_FILTERS as { key: FilterKey; label: string }[];
+
+type DetailRow = {
+  label: string;
+  value: string;
+};
 
 const CATEGORY_META: Record<
   NotificationCategory,
@@ -132,6 +141,60 @@ function formatRelativeTime(value: string) {
   });
 }
 
+function formatDateTime(value: string | null | undefined) {
+  if (!value) return "기록 없음";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "기록 없음";
+
+  return date.toLocaleString("ko-KR", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function readSnapshotText(snapshot: Record<string, unknown>, key: string) {
+  const value = snapshot[key];
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function getActorLabel(item: NotificationItem) {
+  return (
+    item.actor?.displayName?.trim() ||
+    item.actor?.loginId?.trim() ||
+    readSnapshotText(item.membershipApplication?.profileSnapshot ?? {}, "fullName") ||
+    readSnapshotText(item.membershipApplication?.profileSnapshot ?? {}, "nicknameDisplay") ||
+    "알 수 없음"
+  );
+}
+
+function getApplicationStatusLabel(status: string | null | undefined) {
+  switch (status) {
+    case "submitted":
+      return "승인 대기";
+    case "approved":
+      return "승인됨";
+    case "rejected":
+      return "보류/반려";
+    case "canceled":
+      return "취소됨";
+    default:
+      return status ?? "상태 없음";
+  }
+}
+
+function getApplicationSourceLabel(source: string | null | undefined) {
+  switch (source) {
+    case "member_profile_settings":
+      return "프로필 설정에서 가입 신청 제출";
+    default:
+      return source ?? "기록 없음";
+  }
+}
+
 function getNotificationTitle(item: NotificationItem) {
   if (item.type === "membership_application_submitted") {
     return "가입 신청이 도착했습니다";
@@ -140,10 +203,54 @@ function getNotificationTitle(item: NotificationItem) {
   return item.title;
 }
 
+function getNotificationDescription(item: NotificationItem) {
+  if (item.type === "membership_application_submitted") {
+    return `${getActorLabel(item)} 님이 가입 신청서를 제출했습니다. 승인 여부는 멤버 관리에서 처리합니다.`;
+  }
+
+  return item.body ?? "알림 상세 내용을 확인하세요.";
+}
+
 function getNotificationStatus(item: NotificationItem) {
   if (item.importance === "important" && !item.readAt) return "중요";
   if (!item.readAt) return "새 알림";
   return "읽음";
+}
+
+function buildDetailRows(item: NotificationItem) {
+  const application = item.membershipApplication;
+  const snapshot = application?.profileSnapshot ?? {};
+  const compact = (rows: Array<[string, string | null | undefined]>): DetailRow[] =>
+    rows
+      .filter(([, value]) => typeof value === "string" && value.trim().length > 0)
+      .map(([label, value]) => ({ label, value: value as string }));
+
+  if (item.type === "membership_application_submitted") {
+    return compact([
+      ["작업", "가입 신청 제출"],
+      ["신청자", getActorLabel(item)],
+      ["로그인 ID", item.actor?.loginId ?? null],
+      ["실명", readSnapshotText(snapshot, "fullName")],
+      ["닉네임", readSnapshotText(snapshot, "nicknameDisplay")],
+      ["이메일", readSnapshotText(snapshot, "email")],
+      ["학번", readSnapshotText(snapshot, "studentId")],
+      ["연락처", readSnapshotText(snapshot, "phone")],
+      ["단과대", readSnapshotText(snapshot, "college")],
+      ["학과", readSnapshotText(snapshot, "department")],
+      ["프로필 동아리", readSnapshotText(snapshot, "clubAffiliation")],
+      ["신청 상태", getApplicationStatusLabel(application?.status)],
+      ["신청 시각", formatDateTime(application?.submittedAt ?? item.createdAt)],
+      ["신청 경로", getApplicationSourceLabel(application?.source)],
+    ]);
+  }
+
+  return compact([
+    ["분류", CATEGORY_META[item.category]?.label ?? "시스템"],
+    ["상태", getNotificationStatus(item)],
+    ["보낸 사람", getActorLabel(item)],
+    ["생성 시각", formatDateTime(item.createdAt)],
+    ["연결 데이터", item.relatedEntityTable ?? null],
+  ]);
 }
 
 function NotificationRow({
@@ -265,20 +372,203 @@ function NotificationRow({
   );
 }
 
+function NotificationDetailModal({
+  item,
+  onClose,
+  onAction,
+}: {
+  item: NotificationItem;
+  onClose: () => void;
+  onAction: (item: NotificationItem) => void;
+}) {
+  const meta = CATEGORY_META[item.category] ?? CATEGORY_META.system;
+  const Icon = meta.icon;
+  const rows = buildDetailRows(item);
+  const actionLabel = getNotificationActionLabel({
+    type: item.type,
+    relatedEntityTable: item.relatedEntityTable,
+  });
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="notification-detail-title"
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 120,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 18,
+        background: "rgba(0,0,0,0.42)",
+      }}
+    >
+      <div
+        onClick={(event) => event.stopPropagation()}
+        style={{
+          width: "100%",
+          maxWidth: 680,
+          maxHeight: "90vh",
+          overflowY: "auto",
+          borderRadius: 12,
+          background: "#fff",
+          border: "1px solid #e8e8e4",
+          boxShadow: "0 24px 70px rgba(0,0,0,0.22)",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            gap: 16,
+            padding: "22px 24px 16px",
+            borderBottom: "1px solid #f1ede4",
+          }}
+        >
+          <div style={{ minWidth: 0 }}>
+            <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+              <span
+                className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-semibold"
+                style={{ background: meta.chipBg, color: meta.chipFg }}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {meta.label}
+              </span>
+              <span className="text-[12.5px] font-medium text-[var(--kb-ink-500)]">
+                {getNotificationStatus(item)}
+              </span>
+            </div>
+            <h2
+              id="notification-detail-title"
+              className="m-0 mt-3 text-[22px] font-bold leading-8 text-[var(--kb-ink-900)]"
+              style={{ letterSpacing: 0 }}
+            >
+              {getNotificationTitle(item)}
+            </h2>
+            <p className="m-0 mt-2 text-[14.5px] leading-6 text-[var(--kb-ink-600)]">
+              {getNotificationDescription(item)}
+            </p>
+          </div>
+          <button
+            type="button"
+            aria-label="닫기"
+            onClick={onClose}
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-[#ebe8e0] text-[var(--kb-ink-500)] hover:text-[var(--kb-ink-900)]"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="px-6 py-5">
+          <dl
+            style={{
+              display: "grid",
+              gridTemplateColumns: "minmax(110px, 0.34fr) minmax(0, 1fr)",
+              rowGap: 0,
+              borderTop: "1px solid #f1ede4",
+            }}
+          >
+            {rows.map(({ label, value }) => (
+              <div
+                key={label}
+                style={{
+                  display: "contents",
+                }}
+              >
+                <dt
+                  style={{
+                    padding: "11px 12px 11px 0",
+                    borderBottom: "1px solid #f1ede4",
+                    color: "var(--kb-ink-500)",
+                    fontSize: 13,
+                    fontWeight: 700,
+                  }}
+                >
+                  {label}
+                </dt>
+                <dd
+                  style={{
+                    margin: 0,
+                    padding: "11px 0",
+                    borderBottom: "1px solid #f1ede4",
+                    color: "var(--kb-ink-900)",
+                    fontSize: 14,
+                    lineHeight: 1.6,
+                    overflowWrap: "anywhere",
+                  }}
+                >
+                  {value}
+                </dd>
+              </div>
+            ))}
+          </dl>
+
+          {item.type === "membership_application_submitted" ? (
+            <div
+              className="mt-4 rounded-md border border-[#e8e8e4] bg-[#fafaf9] px-4 py-3 text-[13px] leading-6 text-[var(--kb-ink-600)]"
+            >
+              이 알림은 신청 내용을 확인하는 입구입니다. 승인은 공개 멤버 목록이 아니라
+              멤버 관리의 "승인 대기 (신청 제출)" 흐름에서 처리합니다.
+            </div>
+          ) : null}
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            justifyContent: "flex-end",
+            gap: 8,
+            padding: "14px 24px 20px",
+            borderTop: "1px solid #f1ede4",
+          }}
+        >
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex items-center justify-center rounded-md border border-[#ebe8e0] bg-white px-4 py-2.5 text-[14px] font-semibold text-[var(--kb-ink-700)] hover:border-[var(--kb-ink-300)]"
+          >
+            닫기
+          </button>
+          {item.targetHref ? (
+            <button
+              type="button"
+              onClick={() => onAction(item)}
+              className="inline-flex items-center justify-center gap-2 rounded-md bg-[#0a0a0a] px-4 py-2.5 text-[14px] font-semibold text-white hover:bg-[#202020]"
+            >
+              {actionLabel}
+              <ArrowRight className="h-4 w-4" />
+            </button>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Notifications() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [activeFilter, setActiveFilter] = useState<FilterKey>("all");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [workingId, setWorkingId] = useState<string | null>(null);
+  const [selectedItem, setSelectedItem] = useState<NotificationItem | null>(null);
 
   const filtered = useMemo(
     () => filterNotifications(items, activeFilter) as NotificationItem[],
     [items, activeFilter],
   );
   const unreadCount = useMemo(() => getUnreadNotificationCount(items), [items]);
+  const deepLinkedNotificationId = useMemo(
+    () => new URLSearchParams(location.search).get("notification"),
+    [location.search],
+  );
 
   async function refreshNotifications() {
     if (!user) {
@@ -293,11 +583,7 @@ export default function Notifications() {
     try {
       setItems(await listNotifications(user.id));
     } catch (requestError) {
-      setError(
-        requestError instanceof Error
-          ? requestError.message
-          : "알림을 불러오지 못했습니다.",
-      );
+      setError(sanitizeUserError(requestError, "알림을 불러오지 못했습니다."));
     } finally {
       setLoading(false);
     }
@@ -307,23 +593,38 @@ export default function Notifications() {
     void refreshNotifications();
   }, [user?.id]);
 
+  useEffect(() => {
+    if (!deepLinkedNotificationId || loading || selectedItem?.id === deepLinkedNotificationId) {
+      return;
+    }
+
+    const deepLinkedItem = items.find((item) => item.id === deepLinkedNotificationId);
+    if (deepLinkedItem) {
+      void handleOpen(deepLinkedItem);
+    }
+  }, [deepLinkedNotificationId, items, loading, selectedItem?.id]);
+
   async function handleOpen(item: NotificationItem) {
     if (!user) return;
 
-    if (!item.readAt) {
-      await handleMarkRead(item, { keepWorking: true });
-    }
+    setSelectedItem(item);
 
-    if (item.targetHref) {
-      navigate(item.targetHref);
+    if (!item.readAt) {
+      const readAt = await handleMarkRead(item, { keepWorking: true });
+      if (readAt) {
+        setSelectedItem((current) =>
+          current?.id === item.id ? { ...current, readAt } : current,
+        );
+      }
     }
   }
 
   async function handleMarkRead(
     item: NotificationItem,
     options: { keepWorking?: boolean } = {},
-  ) {
-    if (!user || item.readAt) return;
+  ): Promise<string | null> {
+    if (!user) return null;
+    if (item.readAt) return item.readAt;
 
     if (!options.keepWorking) {
       setWorkingId(item.id);
@@ -336,12 +637,10 @@ export default function Notifications() {
           currentItem.id === item.id ? { ...currentItem, readAt } : currentItem,
         ),
       );
+      return readAt;
     } catch (requestError) {
-      setError(
-        requestError instanceof Error
-          ? requestError.message
-          : "알림 읽음 처리를 완료하지 못했습니다.",
-      );
+      setError(sanitizeUserError(requestError, "알림 읽음 처리를 완료하지 못했습니다."));
+      return null;
     } finally {
       if (!options.keepWorking) {
         setWorkingId(null);
@@ -358,11 +657,7 @@ export default function Notifications() {
       const readAt = await markAllNotificationsRead(user.id);
       setItems((current) => current.map((item) => ({ ...item, readAt: item.readAt ?? readAt })));
     } catch (requestError) {
-      setError(
-        requestError instanceof Error
-          ? requestError.message
-          : "모두 읽음 처리를 완료하지 못했습니다.",
-      );
+      setError(sanitizeUserError(requestError, "모두 읽음 처리를 완료하지 못했습니다."));
     } finally {
       setWorkingId(null);
     }
@@ -376,14 +671,24 @@ export default function Notifications() {
     try {
       await dismissNotification(user.id, item.id);
       setItems((current) => current.filter((currentItem) => currentItem.id !== item.id));
+      setSelectedItem((current) => (current?.id === item.id ? null : current));
     } catch (requestError) {
-      setError(
-        requestError instanceof Error
-          ? requestError.message
-          : "알림을 삭제하지 못했습니다.",
-      );
+      setError(sanitizeUserError(requestError, "알림을 삭제하지 못했습니다."));
     } finally {
       setWorkingId(null);
+    }
+  }
+
+  function handleAction(item: NotificationItem) {
+    if (!item.targetHref) return;
+    setSelectedItem(null);
+    navigate(item.targetHref);
+  }
+
+  function closeDetailModal() {
+    setSelectedItem(null);
+    if (deepLinkedNotificationId) {
+      navigate("/member/notifications", { replace: true });
     }
   }
 
@@ -506,6 +811,14 @@ export default function Notifications() {
           </div>
         </section>
       </div>
+
+      {selectedItem ? (
+        <NotificationDetailModal
+          item={selectedItem}
+          onClose={closeDetailModal}
+          onAction={handleAction}
+        />
+      ) : null}
     </div>
   );
 }

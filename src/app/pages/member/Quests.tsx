@@ -28,6 +28,7 @@ import {
 import { listTags, type MemberTag } from "../../api/tags";
 import { useAuth } from "../../auth/useAuth";
 import { sanitizeUserError } from "../../utils/sanitize-error";
+import { TagChip as SharedTagChip } from "../../components/TagChip";
 
 const PAGE_STYLE: CSSProperties = {
   minHeight: "calc(100vh - 4rem)",
@@ -405,24 +406,12 @@ function CompletionBadge({ status }: { status: "submitted" | "approved" | "rejec
 }
 
 function TagChip({ tag }: { tag: QuestTagRef }) {
+  // 단일 칩 컴포넌트로 통일 — 슬러그→아이콘 매핑(KOBOT 로봇 등)도 자동 반영.
   return (
-    <span
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 4,
-        padding: "2px 8px",
-        borderRadius: 999,
-        fontSize: 10.5,
-        fontWeight: 700,
-        background: "rgba(0,0,0,0.04)",
-        color: "var(--kb-ink-700)",
-        border: `1px solid ${tag.color}33`,
-      }}
-    >
-      <span style={{ width: 7, height: 7, borderRadius: "50%", background: tag.color }} />
-      {tag.label}
-    </span>
+    <SharedTagChip
+      tag={{ slug: tag.slug, label: tag.label, color: tag.color }}
+      size="sm"
+    />
   );
 }
 

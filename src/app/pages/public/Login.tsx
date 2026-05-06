@@ -12,6 +12,7 @@ import { Input } from "../../components/ui/input";
 import { useAuth } from "../../auth/useAuth";
 import { getPostAuthMemberPath } from "../../auth/onboarding";
 import { getSafeInternalPath, withNextPath } from "../../auth/redirects";
+import { sanitizeUserError } from "../../utils/sanitize-error";
 
 function getSafeLoginError(message: string | null) {
   if (!message) {
@@ -89,9 +90,7 @@ export default function Login() {
     try {
       await signInWithGoogle(nextPath ?? undefined);
     } catch (error) {
-      setSubmitError(
-        error instanceof Error ? error.message : "Google 로그인을 시작하지 못했습니다.",
-      );
+      setSubmitError(sanitizeUserError(error, "Google 로그인을 시작하지 못했습니다."));
       setIsSubmittingGoogleLogin(false);
     }
   }
@@ -121,9 +120,7 @@ export default function Login() {
         { replace: true },
       );
     } catch (error) {
-      setSubmitError(
-        error instanceof Error ? error.message : "아이디 로그인을 진행하지 못했습니다.",
-      );
+      setSubmitError(sanitizeUserError(error, "아이디 로그인을 진행하지 못했습니다."));
     } finally {
       setIsSubmittingIdLogin(false);
     }

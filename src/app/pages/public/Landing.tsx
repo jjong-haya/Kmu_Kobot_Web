@@ -221,7 +221,7 @@ export default function Landing() {
     return () => document.removeEventListener('click', handleClickOutside);
   }, []);
 
-  const techTags = [
+  const trackChips = [
     { name: "ROS", icon: Cog, anchor: "#tracks" },
     { name: "Arduino", icon: Cpu, anchor: "#tracks" },
     { name: "Vision", icon: Target, anchor: "#tracks" },
@@ -811,7 +811,7 @@ export default function Landing() {
               {/* Tech Tags - 2 rows fixed */}
               <div className="flex flex-col gap-2 items-center">
                 <div className="flex gap-2">
-                  {techTags.slice(0, 3).map((tag, index) => {
+                  {trackChips.slice(0, 3).map((tag, index) => {
                     const Icon = tag.icon;
                     return (
                       <Badge
@@ -826,7 +826,7 @@ export default function Landing() {
                   })}
                 </div>
                 <div className="flex gap-2">
-                  {techTags.slice(3).map((tag, index) => {
+                  {trackChips.slice(3).map((tag, index) => {
                     const Icon = tag.icon;
                     return (
                       <Badge

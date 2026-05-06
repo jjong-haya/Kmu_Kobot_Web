@@ -35,21 +35,8 @@ const MEMBER_STATUSES: Exclude<MemberStatus, null>[] = [
   "course_member",
   "withdrawn",
 ];
-const ACTIVE_MEMBER_BASE_PERMISSIONS = [
-  "dashboard.read",
-  "notifications.read",
-  "announcements.read",
-  "members.read",
-  "projects.read",
-  "resources.read",
-  "events.read",
-];
-const COURSE_MEMBER_BASE_PERMISSIONS = [
-  "dashboard.read",
-  "notifications.read",
-  "announcements.read",
-  "members.read",
-];
+const TAG_AUTHORITY_ERROR_MESSAGE =
+  "태그 기반 권한 정보를 불러오지 못했습니다. 운영진은 권한 태그 RPC 상태를 확인해 주세요.";
 
 export const AuthContext = createContext<AuthContextValue | null>(null);
 
@@ -184,35 +171,6 @@ function createNicknameSlug(value: string) {
   return normalizeNicknameDisplay(value).toLocaleLowerCase("ko-KR").replace(/\s+/g, "_");
 }
 
-function normalizeTechTags(value: unknown) {
-  const rawTags = Array.isArray(value)
-    ? value
-    : typeof value === "string"
-      ? value.split(/[\s,]+/)
-      : [];
-
-  const seen = new Set<string>();
-  const tags: string[] = [];
-
-  for (const rawTag of rawTags) {
-    if (typeof rawTag !== "string") {
-      continue;
-    }
-
-    const tag = rawTag.trim().replace(/^#+/, "");
-    const key = tag.toLocaleLowerCase("ko-KR");
-
-    if (!tag || seen.has(key)) {
-      continue;
-    }
-
-    seen.add(key);
-    tags.push(tag);
-  }
-
-  return tags;
-}
-
 function requireTrimmed(value: string, label: string) {
   const normalized = value.trim();
 
@@ -271,22 +229,25 @@ function normalizeAuthorizationContext(data: unknown): AuthorizationContextData 
       publicCreditNameMode: normalizePublicCreditNameMode(
         profile.publicCreditNameMode ?? profile.public_credit_name_mode,
       ),
-      techTags: normalizeTechTags(profile.techTags ?? profile.tech_tags),
       avatarUrl: readProfileString(profile, "avatarUrl", "avatar_url"),
       loginId: readProfileString(profile, "loginId", "login_id"),
     },
     account: {
       status:
-        account.status === "pending" ||
-        account.status === "active" ||
-        account.status === "suspended" ||
-        account.status === "rejected" ||
-        account.status === "alumni" ||
-        account.status === "project_only" ||
-        account.status === "course_member" ||
-        account.status === "withdrawn"
-          ? account.status
-          : null,
+        // course_member 는 동아리 구분일 뿐 활동 상태 자체는 active 와 동일.
+        // 단일 진리원천을 태그로 옮긴 후 상태축은 lifecycle 만 표현하므로 active 로 정규화한다.
+        // (docs/product/member-status.md)
+        account.status === "course_member"
+          ? "active"
+          : account.status === "pending" ||
+              account.status === "active" ||
+              account.status === "suspended" ||
+              account.status === "rejected" ||
+              account.status === "alumni" ||
+              account.status === "project_only" ||
+              account.status === "withdrawn"
+            ? account.status
+            : null,
       hasLoginPassword: account.hasLoginPassword === true,
       isBootstrapAdmin: account.isBootstrapAdmin === true,
     },
@@ -387,7 +348,6 @@ async function fetchProfileFallback(
         "department",
         "club_affiliation",
         "public_credit_name_mode",
-        "tech_tags",
         "avatar_url",
         "login_id",
       ].join(","),
@@ -465,7 +425,6 @@ async function buildNonActiveAuthorizationFallback(
       department: normalizeString(profileRecord.department),
       clubAffiliation: normalizeString(profileRecord.club_affiliation),
       publicCreditNameMode: profileRecord.public_credit_name_mode ?? "anonymous",
-      techTags: profileRecord.tech_tags ?? [],
       avatarUrl:
         normalizeString(profileRecord.avatar_url) ??
         readUserMetadataString(user, "avatar_url", "picture"),
@@ -518,7 +477,6 @@ async function buildSessionOnlyAuthorizationFallback(
       department: null,
       clubAffiliation: null,
       publicCreditNameMode: "anonymous",
-      techTags: [],
       avatarUrl: readUserMetadataString(user, "avatar_url", "picture"),
       loginId: null,
     },
@@ -547,23 +505,68 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const [tagPermissions, setTagPermissions] = useState<string[]>([]);
   const [tagNavPaths, setTagNavPaths] = useState<string[]>([]);
   const [tagsLoaded, setTagsLoaded] = useState(false);
-  const refreshAuthDataPromiseRef = useRef<Promise<AuthorizationContextData | null> | null>(null);
+  const [tagAuthorityFailed, setTagAuthorityFailed] = useState(false);
+  const refreshAuthDataPromiseRef = useRef<{
+    userId: string | null;
+    promise: Promise<AuthorizationContextData | null>;
+  } | null>(null);
   const isWorkspaceSchemaMissingRef = useRef(false);
+  const authRefreshSequenceRef = useRef(0);
+  const tagRefreshSequenceRef = useRef(0);
+  const currentUserIdRef = useRef<string | null>(null);
   const configured = isSupabaseConfigured();
+  currentUserIdRef.current = user?.id ?? null;
 
   async function refreshTags() {
+    const requestId = tagRefreshSequenceRef.current + 1;
+    tagRefreshSequenceRef.current = requestId;
+    const requestUserId = currentUserIdRef.current;
+
     if (!configured) {
       setTagPermissions([]);
       setTagNavPaths([]);
       setTagsLoaded(true);
+      setTagAuthorityFailed(false);
       return;
     }
+
+    if (!requestUserId) {
+      setTagPermissions([]);
+      setTagNavPaths([]);
+      setTagsLoaded(true);
+      setTagAuthorityFailed(false);
+      return;
+    }
+
+    setTagPermissions([]);
+    setTagNavPaths([]);
+    setTagsLoaded(false);
+    setTagAuthorityFailed(false);
+
     try {
       const supabase = getSupabaseBrowserClient();
       const [permsResult, navsResult] = await Promise.all([
         supabase.rpc("current_user_tag_permissions"),
         supabase.rpc("current_user_tag_nav_paths"),
       ]);
+
+      const tagError = permsResult.error ?? navsResult.error;
+
+      if (
+        tagRefreshSequenceRef.current !== requestId ||
+        currentUserIdRef.current !== requestUserId
+      ) {
+        return;
+      }
+
+      if (tagError) {
+        setTagPermissions([]);
+        setTagNavPaths([]);
+        setTagAuthorityFailed(true);
+        setAuthError((current) => current ?? TAG_AUTHORITY_ERROR_MESSAGE);
+        return;
+      }
+
       const perms = ((permsResult.data ?? []) as Array<string | { permission?: string }>)
         .map((row) =>
           typeof row === "string"
@@ -584,29 +587,69 @@ export function AuthProvider({ children }: PropsWithChildren) {
         .filter((value): value is string => Boolean(value));
       setTagPermissions(perms);
       setTagNavPaths(navs);
+      setTagAuthorityFailed(false);
+      setAuthError((current) =>
+        current === TAG_AUTHORITY_ERROR_MESSAGE ? null : current,
+      );
     } catch {
-      // tag RPC failed — keep previous values, fall back to legacy hardcoded sets
+      if (
+        tagRefreshSequenceRef.current !== requestId ||
+        currentUserIdRef.current !== requestUserId
+      ) {
+        return;
+      }
+      setTagPermissions([]);
+      setTagNavPaths([]);
+      setTagAuthorityFailed(true);
+      setAuthError((current) => current ?? TAG_AUTHORITY_ERROR_MESSAGE);
     } finally {
-      setTagsLoaded(true);
+      if (
+        tagRefreshSequenceRef.current === requestId &&
+        currentUserIdRef.current === requestUserId
+      ) {
+        setTagsLoaded(true);
+      }
     }
   }
 
-  async function refreshAuthData() {
-    if (refreshAuthDataPromiseRef.current) {
-      return refreshAuthDataPromiseRef.current;
+  async function refreshAuthData(expectedUserId = currentUserIdRef.current) {
+    const requestUserId = expectedUserId;
+
+    if (
+      refreshAuthDataPromiseRef.current &&
+      refreshAuthDataPromiseRef.current.userId === requestUserId
+    ) {
+      return refreshAuthDataPromiseRef.current.promise;
     }
 
-    refreshAuthDataPromiseRef.current = refreshAuthDataInternal().finally(() => {
-      refreshAuthDataPromiseRef.current = null;
+    const requestId = authRefreshSequenceRef.current + 1;
+    authRefreshSequenceRef.current = requestId;
+    const requestPromise = refreshAuthDataInternal(requestId, requestUserId).finally(() => {
+      if (refreshAuthDataPromiseRef.current?.promise === requestPromise) {
+        refreshAuthDataPromiseRef.current = null;
+      }
     });
+    refreshAuthDataPromiseRef.current = { userId: requestUserId, promise: requestPromise };
 
-    return refreshAuthDataPromiseRef.current;
+    return requestPromise;
   }
 
-  async function refreshAuthDataInternal() {
+  function shouldCommitAuthRefresh(requestId: number, requestUserId: string | null) {
+    return (
+      authRefreshSequenceRef.current === requestId &&
+      currentUserIdRef.current === requestUserId
+    );
+  }
+
+  async function refreshAuthDataInternal(
+    requestId: number,
+    requestUserId: string | null,
+  ) {
     if (!configured) {
-      setAuthData(EMPTY_AUTH_CONTEXT);
-      setAuthError("서비스 설정을 확인하지 못했습니다. 운영진에게 문의해 주세요.");
+      if (shouldCommitAuthRefresh(requestId, requestUserId)) {
+        setAuthData(EMPTY_AUTH_CONTEXT);
+        setAuthError("서비스 설정을 확인하지 못했습니다. 운영진에게 문의해 주세요.");
+      }
       return null;
     }
 
@@ -616,8 +659,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
       const sessionOnlyAuthData = await buildSessionOnlyAuthorizationFallback(supabase);
 
       if (sessionOnlyAuthData) {
-        setAuthData(sessionOnlyAuthData);
-        setAuthError(null);
+        if (shouldCommitAuthRefresh(requestId, requestUserId)) {
+          setAuthData(sessionOnlyAuthData);
+          setAuthError(null);
+        }
         return sessionOnlyAuthData;
       }
     }
@@ -630,8 +675,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
         const sessionOnlyAuthData = await buildSessionOnlyAuthorizationFallback(supabase);
 
         if (sessionOnlyAuthData) {
-          setAuthData(sessionOnlyAuthData);
-          setAuthError(null);
+          if (shouldCommitAuthRefresh(requestId, requestUserId)) {
+            setAuthData(sessionOnlyAuthData);
+            setAuthError(null);
+          }
           return sessionOnlyAuthData;
         }
       }
@@ -639,30 +686,44 @@ export function AuthProvider({ children }: PropsWithChildren) {
       const fallbackAuthData = await buildNonActiveAuthorizationFallback(supabase);
 
       if (fallbackAuthData) {
-        setAuthData(fallbackAuthData);
-        setAuthError(null);
+        if (shouldCommitAuthRefresh(requestId, requestUserId)) {
+          setAuthData(fallbackAuthData);
+          setAuthError(null);
+        }
         return fallbackAuthData;
       }
 
       const message = toErrorMessage(error, "권한 정보를 불러오지 못했습니다.");
-      setAuthError(message);
+      if (shouldCommitAuthRefresh(requestId, requestUserId)) {
+        setAuthError(message);
+      }
       throw new Error(message);
     }
 
     const normalized = normalizeAuthorizationContext(data);
-    isWorkspaceSchemaMissingRef.current = false;
-    setAuthData(normalized);
-    setAuthError(null);
+    if (shouldCommitAuthRefresh(requestId, requestUserId)) {
+      isWorkspaceSchemaMissingRef.current = false;
+      setAuthData(normalized);
+      setAuthError(null);
+    }
     return normalized;
   }
 
   async function syncFromSession(nextSession: AuthContextValue["session"]) {
     setSession(nextSession);
     setUser(nextSession?.user ?? null);
+    currentUserIdRef.current = nextSession?.user?.id ?? null;
 
     if (!nextSession?.user) {
+      authRefreshSequenceRef.current += 1;
+      tagRefreshSequenceRef.current += 1;
+      currentUserIdRef.current = null;
       setAuthData(EMPTY_AUTH_CONTEXT);
       setAuthError(null);
+      setTagPermissions([]);
+      setTagNavPaths([]);
+      setTagsLoaded(true);
+      setTagAuthorityFailed(false);
       return null;
     }
 
@@ -670,13 +731,19 @@ export function AuthProvider({ children }: PropsWithChildren) {
       return null;
     }
 
-    return refreshAuthData();
+    return refreshAuthData(nextSession.user.id);
   }
 
   useEffect(() => {
     if (!configured) {
+      authRefreshSequenceRef.current += 1;
+      tagRefreshSequenceRef.current += 1;
       setIsInitializing(false);
       setAuthError("서비스 설정을 확인하지 못했습니다. 운영진에게 문의해 주세요.");
+      setTagPermissions([]);
+      setTagNavPaths([]);
+      setTagsLoaded(true);
+      setTagAuthorityFailed(false);
       return;
     }
 
@@ -736,9 +803,12 @@ export function AuthProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     if (!configured) return;
     if (!user) {
+      tagRefreshSequenceRef.current += 1;
+      currentUserIdRef.current = null;
       setTagPermissions([]);
       setTagNavPaths([]);
       setTagsLoaded(true);
+      setTagAuthorityFailed(false);
       return;
     }
     void refreshTags();
@@ -860,7 +930,6 @@ export function AuthProvider({ children }: PropsWithChildren) {
     const department = requireTrimmed(input.department, "학과");
     const clubAffiliation = normalizeString(input.clubAffiliation);
     const publicCreditNameMode = normalizePublicCreditNameMode(input.publicCreditNameMode);
-    const techTags = normalizeTechTags(input.techTags);
     const normalizedLoginId = input.loginId?.trim().toLowerCase() || null;
     const password = input.password?.trim() || "";
     const currentLoginId = authData.profile.loginId;
@@ -917,7 +986,6 @@ export function AuthProvider({ children }: PropsWithChildren) {
       department,
       club_affiliation: clubAffiliation,
       public_credit_name_mode: publicCreditNameMode,
-      tech_tags: techTags,
       login_id: normalizedLoginId,
       profile_completed_at: new Date().toISOString(),
     };
@@ -987,10 +1055,17 @@ export function AuthProvider({ children }: PropsWithChildren) {
   }
 
   async function signOut() {
+    authRefreshSequenceRef.current += 1;
+    tagRefreshSequenceRef.current += 1;
+    currentUserIdRef.current = null;
     if (!configured) {
       setSession(null);
       setUser(null);
       setAuthData(EMPTY_AUTH_CONTEXT);
+      setTagPermissions([]);
+      setTagNavPaths([]);
+      setTagsLoaded(true);
+      setTagAuthorityFailed(false);
       return;
     }
 
@@ -1019,25 +1094,17 @@ export function AuthProvider({ children }: PropsWithChildren) {
     setUser(null);
     setAuthData(EMPTY_AUTH_CONTEXT);
     setAuthError(null);
+    setTagPermissions([]);
+    setTagNavPaths([]);
+    setTagsLoaded(true);
+    setTagAuthorityFailed(false);
   }
 
-  // Tag-driven permissions are authoritative once loaded. The hardcoded
-  // status-base sets remain as a cold fallback for the first few hundred
-  // ms before the tag RPCs resolve, and as a safety net if RLS blocks the
-  // RPC call entirely.
-  const fallbackPermissions =
-    authData.account.status === "active"
-      ? ACTIVE_MEMBER_BASE_PERMISSIONS
-      : authData.account.status === "course_member"
-        ? COURSE_MEMBER_BASE_PERMISSIONS
-        : [];
-  const effectivePermissions = Array.from(
-    new Set([
-      ...authData.permissions,
-      ...tagPermissions,
-      ...(tagsLoaded && tagPermissions.length > 0 ? [] : fallbackPermissions),
-    ]),
-  );
+  // Tag-driven permissions are authoritative. If tag authority cannot be
+  // confirmed, the client fails closed; server RLS/RPC remains final.
+  const effectivePermissions = !tagsLoaded || tagAuthorityFailed
+    ? []
+    : Array.from(new Set([...authData.permissions, ...tagPermissions]));
 
   const value: AuthContextValue = {
     isConfigured: configured,
@@ -1048,9 +1115,15 @@ export function AuthProvider({ children }: PropsWithChildren) {
     memberStatus: authData.account.status,
     permissions: effectivePermissions,
     tagNavPaths,
+    tagsLoaded,
+    tagAuthorityFailed,
     authError,
     hasPermission: (...codes: string[]) => {
-      if (authData.account.isBootstrapAdmin) {
+      if (!tagsLoaded || tagAuthorityFailed) {
+        return false;
+      }
+
+      if (authData.account.status === "active" && authData.account.isBootstrapAdmin) {
         return true;
       }
 

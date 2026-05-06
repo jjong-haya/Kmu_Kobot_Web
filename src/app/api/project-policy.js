@@ -1,6 +1,7 @@
 export const PROJECT_FILTERS = [
   { key: "all", label: "전체" },
   { key: "mine", label: "내 프로젝트" },
+  { key: "recruiting", label: "모집중" },
   { key: "active", label: "진행중" },
   { key: "pending", label: "검토중" },
   { key: "archived", label: "종료" },
@@ -10,6 +11,8 @@ export function getProjectStatusLabel(status) {
   switch (status) {
     case "active":
       return "진행중";
+    case "recruiting":
+      return "모집중";
     case "pending":
       return "검토중";
     case "rejected":
@@ -42,6 +45,8 @@ export function filterProjects(items, key) {
       return items;
     case "mine":
       return items.filter((item) => item.isMember);
+    case "recruiting":
+      return items.filter((item) => item.isRecruiting);
     default:
       return items.filter((item) => item.status === key);
   }

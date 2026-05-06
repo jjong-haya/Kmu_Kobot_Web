@@ -10,7 +10,6 @@ import {
   type NoticeCommentRow,
   type NoticeRow,
 } from "../../api/notices";
-import { canManageAnnouncements } from "../../api/announcement-policy.js";
 import { useAuth } from "../../auth/useAuth";
 import { sanitizeUserError } from "../../utils/sanitize-error";
 
@@ -28,9 +27,9 @@ function initialsFor(name: string | null | undefined) {
 export default function AnnouncementDetail() {
   const navigate = useNavigate();
   const { noticeId } = useParams();
-  const { authData, permissions } = useAuth();
+  const { authData, hasPermission } = useAuth();
   const userId = authData.profile.id;
-  const canManage = canManageAnnouncements(permissions);
+  const canManage = hasPermission("announcements.manage");
 
   const [notice, setNotice] = useState<NoticeRow | null>(null);
   const [comments, setComments] = useState<NoticeCommentRow[]>([]);

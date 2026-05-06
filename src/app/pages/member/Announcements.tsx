@@ -7,10 +7,12 @@ import {
   deleteNotice,
   listNotices,
   updateNotice,
+  type NoticeAudienceMode,
   type NoticeRow,
   type NoticeStatus,
 } from "../../api/notices";
-import { canManageAnnouncements, getNoticeDetailPath } from "../../api/announcement-policy.js";
+import { listTags, type MemberTag } from "../../api/tags";
+import { getNoticeDetailPath } from "../../api/announcement-policy.js";
 import { useAuth } from "../../auth/useAuth";
 import { sanitizeUserError } from "../../utils/sanitize-error";
 
@@ -36,11 +38,18 @@ function statusText(status: NoticeStatus) {
   return status === "published" ? "게시됨" : "초안";
 }
 
+function visibilityText(row: NoticeRow) {
+  if (row.audienceMode === "public") return "전체 공개";
+  if (row.audienceTags.length === 0) return "태그 한정";
+  if (row.audienceTags.length <= 2) return row.audienceTags.map((tag) => tag.label).join(", ");
+  return `${row.audienceTags[0]?.label ?? "태그"} 외 ${row.audienceTags.length - 1}`;
+}
+
 export default function Announcements() {
   const navigate = useNavigate();
-  const { authData, permissions } = useAuth();
+  const { authData, hasPermission } = useAuth();
   const userId = authData.profile.id;
-  const canManage = canManageAnnouncements(permissions);
+  const canManage = hasPermission("announcements.manage");
 
   const [rows, setRows] = useState<NoticeRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -48,6 +57,7 @@ export default function Announcements() {
   const [filter, setFilter] = useState<"all" | NoticeStatus>("all");
   const [editing, setEditing] = useState<NoticeRow | null>(null);
   const [creating, setCreating] = useState(false);
+  const [tagsCatalog, setTagsCatalog] = useState<MemberTag[]>([]);
 
   async function load() {
     setLoading(true);
@@ -64,6 +74,22 @@ export default function Announcements() {
   useEffect(() => {
     void load();
   }, []);
+
+  useEffect(() => {
+    if (!canManage) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const tags = await listTags();
+        if (!cancelled) setTagsCatalog(tags);
+      } catch (err) {
+        if (!cancelled) setError(sanitizeUserError(err, "태그 목록을 불러오지 못했습니다."));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [canManage]);
 
   const filtered = useMemo(() => {
     if (!canManage) return rows.filter((row) => row.status === "published");
@@ -203,6 +229,23 @@ export default function Announcements() {
                     >
                       {statusText(row.status)}
                     </span>
+                    <span
+                      style={{
+                        padding: "3px 8px",
+                        borderRadius: 999,
+                        background: row.audienceMode === "public" ? "#eef2ff" : "#fff7ed",
+                        color: row.audienceMode === "public" ? "#3730a3" : "#9a3412",
+                        fontSize: 11,
+                        fontWeight: 750,
+                        maxWidth: 180,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                      title={row.audienceTags.map((tag) => tag.label).join(", ")}
+                    >
+                      {visibilityText(row)}
+                    </span>
                     <span style={{ fontSize: 12.5, color: "var(--kb-ink-500)" }}>
                       {row.author?.displayName ?? "운영진"} · {formatDate(row.created_at)}
                     </span>
@@ -247,6 +290,7 @@ export default function Announcements() {
         <NoticeModal
           row={editing}
           authorId={userId ?? ""}
+          tags={tagsCatalog}
           onClose={() => {
             setCreating(false);
             setEditing(null);
@@ -282,16 +326,22 @@ function NoticeModal({
   onClose,
   onSaved,
   row,
+  tags,
 }: {
   authorId: string;
   onClose: () => void;
   onSaved: () => void | Promise<void>;
   row: NoticeRow | null;
+  tags: MemberTag[];
 }) {
   const isEdit = Boolean(row);
   const [title, setTitle] = useState(row?.title ?? "");
   const [body, setBody] = useState(row?.body ?? "");
   const [status, setStatus] = useState<NoticeStatus>(row?.status ?? "published");
+  const [audienceMode, setAudienceMode] = useState<NoticeAudienceMode>(row?.audienceMode ?? "public");
+  const [audienceTagIds, setAudienceTagIds] = useState<Set<string>>(
+    new Set(row?.audienceTags.map((tag) => tag.id) ?? []),
+  );
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -304,14 +354,31 @@ function NoticeModal({
     if (!nextBody) return setError("본문을 입력해주세요.");
     if (!authorId && !isEdit) return setError("작성자 정보를 확인할 수 없습니다.");
 
+    if (audienceMode === "tag_in" && audienceTagIds.size === 0) {
+      return setError("태그 한정 공개를 선택한 경우 최소 1개 이상의 태그를 선택해주세요.");
+    }
+
     setSubmitting(true);
     setError(null);
 
     try {
       if (row) {
-        await updateNotice(row.id, { title: nextTitle, body: nextBody, status });
+        await updateNotice(row.id, {
+          title: nextTitle,
+          body: nextBody,
+          status,
+          audienceMode,
+          audienceTagIds: audienceMode === "tag_in" ? [...audienceTagIds] : [],
+        });
       } else {
-        await createNotice({ title: nextTitle, body: nextBody, status, authorId });
+        await createNotice({
+          title: nextTitle,
+          body: nextBody,
+          status,
+          audienceMode,
+          audienceTagIds: audienceMode === "tag_in" ? [...audienceTagIds] : [],
+          authorId,
+        });
       }
 
       await onSaved();
@@ -404,6 +471,81 @@ function NoticeModal({
                 </button>
               );
             })}
+          </div>
+
+          <div style={{ display: "grid", gap: 8 }}>
+            <div style={{ fontSize: 13, fontWeight: 650, color: "var(--kb-ink-700)" }}>공개 범위</div>
+            <div style={{ display: "flex", gap: 8 }}>
+              {[
+                { key: "public", label: "전체 공개" },
+                { key: "tag_in", label: "태그 한정" },
+              ].map((item) => {
+                const selected = audienceMode === item.key;
+                return (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() => setAudienceMode(item.key as NoticeAudienceMode)}
+                    style={{
+                      flex: 1,
+                      padding: "9px 12px",
+                      borderRadius: 9,
+                      border: selected ? "2px solid #0a0a0a" : "1px solid #ebe8e0",
+                      background: selected ? "#fafaf9" : "#fff",
+                      color: "var(--kb-ink-900)",
+                      fontFamily: "inherit",
+                      cursor: "pointer",
+                      fontWeight: selected ? 750 : 600,
+                    }}
+                  >
+                    {item.label}
+                  </button>
+                );
+              })}
+            </div>
+            {audienceMode === "tag_in" ? (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {tags.length === 0 ? (
+                  <div style={{ color: "var(--kb-ink-500)", fontSize: 13 }}>선택 가능한 태그가 없습니다.</div>
+                ) : (
+                  tags.map((tag) => {
+                    const checked = audienceTagIds.has(tag.id);
+                    return (
+                      <label
+                        key={tag.id}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 6,
+                          padding: "6px 9px",
+                          borderRadius: 999,
+                          border: checked ? `1px solid ${tag.color}` : "1px solid #e8e8e4",
+                          background: checked ? `${tag.color}15` : "#fff",
+                          color: "var(--kb-ink-800)",
+                          fontSize: 12,
+                          fontWeight: 650,
+                          cursor: "pointer",
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(event) => {
+                            const next = new Set(audienceTagIds);
+                            if (event.target.checked) next.add(tag.id);
+                            else next.delete(tag.id);
+                            setAudienceTagIds(next);
+                          }}
+                          style={{ margin: 0 }}
+                        />
+                        <span style={{ width: 8, height: 8, borderRadius: "50%", background: tag.color }} />
+                        {tag.label}
+                      </label>
+                    );
+                  })
+                )}
+              </div>
+            ) : null}
           </div>
 
           {error ? <div style={{ padding: 11, borderRadius: 8, background: "#fef2f2", color: "#991b1b", fontSize: 13 }}>{error}</div> : null}

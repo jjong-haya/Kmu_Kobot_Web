@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   filterNotifications,
+  getNotificationActionLabel,
   getNotificationCategory,
   getNotificationTargetHref,
   getUnreadNotificationCount,
@@ -57,4 +58,34 @@ test("allows only internal notification hrefs", () => {
   assert.equal(getNotificationTargetHref("member/members"), "/member/members");
   assert.equal(getNotificationTargetHref("https://example.com/phishing"), null);
   assert.equal(getNotificationTargetHref("//example.com/phishing"), null);
+});
+
+test("routes membership application notifications to member admin approval flow", () => {
+  const context = {
+    type: "membership_application_submitted",
+    relatedEntityTable: "membership_applications",
+  };
+
+  assert.equal(
+    getNotificationTargetHref("/member/members", context),
+    "/member/member-admin?filter=submitted",
+  );
+  assert.equal(getNotificationActionLabel(context), "멤버 관리에서 승인하기");
+});
+
+test("does not force every membership_applications row to the submitted approval CTA", () => {
+  assert.equal(
+    getNotificationTargetHref("/member/notifications", {
+      type: "membership_application_approved",
+      relatedEntityTable: "membership_applications",
+    }),
+    "/member/notifications",
+  );
+  assert.equal(
+    getNotificationActionLabel({
+      type: "membership_application_approved",
+      relatedEntityTable: "membership_applications",
+    }),
+    "보러가기",
+  );
 });

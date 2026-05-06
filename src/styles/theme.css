@@ -112,6 +112,9 @@
 }
 
 @theme inline {
+  --font-sans: var(--kb-font-body);
+  --font-mono: var(--kb-font-mono);
+  --font-serif: var(--kb-font-serif);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -519,5 +522,189 @@
   .login-intro-note {
     opacity: 1;
     transform: translateX(calc(-50% - 242px));
+  }
+}
+
+.study-blocknote {
+  --bn-colors-editor-background: transparent;
+  --bn-colors-menu-background: #ffffff;
+  --bn-colors-tooltip-background: #111111;
+  --bn-colors-tooltip-text: #ffffff;
+  --bn-border-radius: 8px;
+}
+
+.study-blocknote .bn-container,
+.study-blocknote .bn-editor {
+  background: transparent;
+}
+
+.study-blocknote .bn-editor {
+  padding-inline: 0;
+  font-family: var(--kb-font-body);
+  font-size: 1.0625rem;
+  line-height: 1.85;
+}
+
+.study-blocknote-editor .bn-editor {
+  min-height: 32rem;
+}
+
+.study-blocknote-readonly .bn-editor {
+  min-height: 0;
+}
+
+.study-blocknote img {
+  max-height: 34rem;
+  object-fit: contain;
+  border-radius: 8px;
+  background: #fbfbf8;
+}
+
+.kb-notification-toast {
+  --kb-toast-duration: 5600ms;
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 90;
+  width: min(380px, calc(100vw - 32px));
+  overflow: hidden;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 8px;
+  background: #111827;
+  color: #ffffff;
+  box-shadow: 0 18px 38px rgba(15, 23, 42, 0.24);
+  transform: translateX(120%);
+  animation: kb-notification-toast-enter 240ms cubic-bezier(0.2, 0.9, 0.2, 1) forwards;
+}
+
+.kb-notification-toast__body {
+  display: grid;
+  width: 100%;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 14px 42px 16px 14px;
+  text-align: left;
+}
+
+.kb-notification-toast__icon {
+  display: inline-flex;
+  height: 30px;
+  width: 30px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+.kb-notification-toast__content {
+  min-width: 0;
+}
+
+.kb-notification-toast__meta {
+  display: block;
+  margin-bottom: 2px;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.kb-notification-toast__title,
+.kb-notification-toast__message {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+}
+
+.kb-notification-toast__title {
+  -webkit-line-clamp: 1;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.kb-notification-toast__message {
+  margin-top: 3px;
+  -webkit-line-clamp: 2;
+  color: rgba(255, 255, 255, 0.76);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.kb-notification-toast__chevron {
+  color: rgba(255, 255, 255, 0.52);
+}
+
+.kb-notification-toast__close {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  display: inline-flex;
+  height: 24px;
+  width: 24px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.68);
+  transition: background-color 160ms ease, color 160ms ease;
+}
+
+.kb-notification-toast__close:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+.kb-notification-toast__progress {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  background: #6aa6ff;
+  transform-origin: left center;
+  animation: kb-notification-toast-progress var(--kb-toast-duration) linear forwards;
+}
+
+@keyframes kb-notification-toast-enter {
+  from {
+    opacity: 0;
+    transform: translateX(120%);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes kb-notification-toast-progress {
+  from {
+    transform: scaleX(1);
+  }
+
+  to {
+    transform: scaleX(0);
+  }
+}
+
+@media (max-width: 640px) {
+  .kb-notification-toast {
+    right: 16px;
+    bottom: 16px;
+    width: calc(100vw - 32px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kb-notification-toast,
+  .kb-notification-toast__progress {
+    animation: none;
+  }
+
+  .kb-notification-toast {
+    transform: none;
   }
 }

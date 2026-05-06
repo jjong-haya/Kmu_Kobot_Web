@@ -96,7 +96,7 @@ const STATUS_COPY: Record<
     eyebrow: "KOSS",
     title: "KOSS 회원으로 가입되었습니다",
     description: "초대 링크를 통해 가입한 KOSS 멤버입니다. 일부 메뉴만 접근 가능해요.",
-    note: "정식 부원 전환이 필요하면 운영진에게 문의해 주세요.",
+    note: "전체 권한이 필요하면 운영진에게 문의해 주세요.",
     accentClassName: "bg-amber-500",
     icon: CheckCircle2,
   },

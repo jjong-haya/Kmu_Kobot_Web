@@ -1,17 +1,24 @@
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 import {
   Archive,
   ChevronRight,
   CircleDot,
   FolderKanban,
+  Plus,
   RefreshCw,
   Search,
   ShieldCheck,
+  Sparkles,
+  Settings,
   Users,
 } from "lucide-react";
-import { listProjects, type ProjectStatus, type ProjectSummary } from "../../api/projects";
+import {
+  listProjects,
+  type ProjectStatus,
+  type ProjectSummary,
+} from "../../api/projects";
 import {
   filterProjects,
   getProjectDetailPath,
@@ -19,9 +26,10 @@ import {
   PROJECT_FILTERS,
 } from "../../api/project-policy.js";
 import { useAuth } from "../../auth/useAuth";
+import { ProjectFormModal } from "../../components/member/ProjectFormModal";
 import { sanitizeUserError } from "../../utils/sanitize-error";
 
-type FilterKey = "all" | "mine" | "active" | "pending" | "archived";
+type FilterKey = "all" | "mine" | "recruiting" | "active" | "pending" | "archived";
 
 const FILTERS = PROJECT_FILTERS as { key: FilterKey; label: string }[];
 
@@ -40,6 +48,11 @@ const CONTAINER_STYLE: CSSProperties = {
 };
 
 const STATUS_META: Record<ProjectStatus, { bg: string; fg: string; dot: string }> = {
+  recruiting: {
+    bg: "#f0f6ff",
+    fg: "#183b80",
+    dot: "#2563eb",
+  },
   active: {
     bg: "#e7efff",
     fg: "#183b80",
@@ -137,6 +150,12 @@ function ProjectRow({ project }: { project: ProjectSummary }) {
               {project.myRoleLabel}
             </span>
           )}
+          {project.isRecruiting && project.status !== "recruiting" && (
+            <span className="inline-flex items-center gap-1 rounded-full border border-[#bfd7ff] bg-[#f0f6ff] px-2.5 py-1 text-[12px] font-semibold text-[#183b80]">
+              <Sparkles className="h-3 w-3" />
+              모집중
+            </span>
+          )}
         </div>
 
         <p className="m-0 line-clamp-2 text-[14.5px] leading-6 text-[var(--kb-ink-500)]">
@@ -174,14 +193,17 @@ function ProjectRow({ project }: { project: ProjectSummary }) {
 }
 
 export default function Projects() {
-  const { user } = useAuth();
+  const { user, hasPermission } = useAuth();
+  const navigate = useNavigate();
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
-  const [activeFilter, setActiveFilter] = useState<FilterKey>("all");
+  const [activeFilter, setActiveFilter] = useState<FilterKey>("mine");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
 
   const keyword = search.trim().toLocaleLowerCase("ko-KR");
+  const canCreate = hasPermission("projects.create", "projects.manage");
   const filtered = useMemo(
     () =>
       (filterProjects(projects, activeFilter) as ProjectSummary[]).filter((project) =>
@@ -189,12 +211,12 @@ export default function Projects() {
       ),
     [activeFilter, keyword, projects],
   );
-  const activeCount = useMemo(
-    () => projects.filter((project) => project.status === "active").length,
-    [projects],
-  );
   const myProjectCount = useMemo(
     () => projects.filter((project) => project.isMember).length,
+    [projects],
+  );
+  const recruitingCount = useMemo(
+    () => projects.filter((project) => project.isRecruiting).length,
     [projects],
   );
 
@@ -238,19 +260,41 @@ export default function Projects() {
             >
               프로젝트
               <span className="ml-3 text-[17px] font-normal text-[var(--kb-ink-500)]">
-                진행중 {activeCount}건 / 참여 {myProjectCount}건
+                내 프로젝트 {myProjectCount}건 / 모집중 {recruitingCount}건
               </span>
             </h1>
           </div>
 
-          <button
-            type="button"
-            onClick={() => void refresh()}
-            className="inline-flex items-center gap-2 rounded-md border border-[#ebe8e0] bg-white px-4 py-2.5 text-[14px] font-medium text-[var(--kb-ink-700)] hover:border-[var(--kb-ink-300)]"
-          >
-            <RefreshCw className="h-4 w-4" />
-            새로고침
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            {canCreate ? (
+              <button
+                type="button"
+                onClick={() => setCreateOpen(true)}
+                className="inline-flex items-center gap-2 rounded-md bg-[#0a0a0a] px-4 py-2.5 text-[14px] font-semibold text-white hover:bg-[var(--kb-ink-800)]"
+              >
+                <Plus className="h-4 w-4" />
+                새 프로젝트
+              </button>
+            ) : null}
+            {hasPermission("projects.manage", "members.manage", "admin.access") ? (
+              <button
+                type="button"
+                onClick={() => navigate("/member/project-admin")}
+                className="inline-flex items-center gap-2 rounded-md border border-[#ebe8e0] bg-white px-4 py-2.5 text-[14px] font-semibold text-[var(--kb-ink-800)] hover:border-[var(--kb-ink-300)]"
+              >
+                <Settings className="h-4 w-4" />
+                생성 관리
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => void refresh()}
+              className="inline-flex items-center gap-2 rounded-md border border-[#ebe8e0] bg-white px-4 py-2.5 text-[14px] font-medium text-[var(--kb-ink-700)] hover:border-[var(--kb-ink-300)]"
+            >
+              <RefreshCw className="h-4 w-4" />
+              새로고침
+            </button>
+          </div>
         </div>
 
         <section style={{ ...CONTAINER_STYLE, overflow: "hidden" }}>
@@ -281,6 +325,7 @@ export default function Projects() {
                     }}
                   >
                     {filter.key === "archived" && <Archive className="h-3.5 w-3.5" />}
+                    {filter.key === "recruiting" && <Sparkles className="h-3.5 w-3.5" />}
                     {filter.label}
                     <span className="text-[12px]" style={{ opacity: active ? 0.8 : 0.55 }}>
                       {filterCount(projects, filter.key)}
@@ -328,9 +373,22 @@ export default function Projects() {
 
         <div className="flex items-center gap-2 rounded-md bg-[#f8f9fc] px-4 py-3 text-[14px] text-[var(--kb-ink-500)]">
           <ShieldCheck className="h-4 w-4 shrink-0 text-[var(--kb-navy-800)]" />
-          프로젝트 생성과 태스크 관리는 별도 데이터 모델이 붙을 때 활성화됩니다.
+              기본 목록은 내 프로젝트를 먼저 보여주고, 모집중 프로젝트는 별도 필터에서 참여 신청할 수 있습니다.
         </div>
       </div>
+
+      {createOpen && user ? (
+        <ProjectFormModal
+          userId={user.id}
+          onClose={() => setCreateOpen(false)}
+          onSaved={async (project) => {
+            setCreateOpen(false);
+            await refresh();
+            navigate(getProjectDetailPath(project.slug));
+          }}
+          onError={setError}
+        />
+      ) : null}
     </div>
   );
 }

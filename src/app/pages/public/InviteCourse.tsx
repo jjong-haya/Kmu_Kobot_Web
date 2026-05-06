@@ -8,6 +8,8 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { useAuth } from "../../auth/useAuth";
+import { normalizeInviteCode } from "../../api/invite-codes";
+import { sanitizeUserError } from "../../utils/sanitize-error";
 
 const COURSE_INVITE_KEY = "kobot:course-invite-code";
 
@@ -41,15 +43,15 @@ export default function InviteCourse() {
   //   4. raw window.location.search (defensive fallback if useSearchParams misfires)
   const inviteCode = useMemo(() => {
     const fromPath = pathParams.code?.trim();
-    if (fromPath) return fromPath;
+    if (fromPath) return normalizeInviteCode(fromPath);
     const fromQuery = params.get("code")?.trim();
-    if (fromQuery) return fromQuery;
+    if (fromQuery) return normalizeInviteCode(fromQuery);
     if (typeof window !== "undefined") {
       const fromRaw = new URLSearchParams(window.location.search).get("code")?.trim();
-      if (fromRaw) return fromRaw;
+      if (fromRaw) return normalizeInviteCode(fromRaw);
       try {
         const stored = window.localStorage.getItem(COURSE_INVITE_KEY)?.trim();
-        if (stored) return stored;
+        if (stored) return normalizeInviteCode(stored);
       } catch {
         /* localStorage unavailable */
       }
@@ -86,9 +88,7 @@ export default function InviteCourse() {
     try {
       await signInWithGoogle("/auth/callback?course=1");
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Google 로그인을 시작하지 못했습니다.",
-      );
+      setError(sanitizeUserError(err, "Google 로그인을 시작하지 못했습니다."));
       setSubmitting(false);
     }
   }

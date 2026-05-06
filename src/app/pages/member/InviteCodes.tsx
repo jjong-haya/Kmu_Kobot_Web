@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties, FormEvent } from "react";
+import { Link } from "react-router";
 import {
   Check,
   Copy,
@@ -13,12 +14,14 @@ import {
   createInviteCode,
   generateInviteCode,
   listInviteCodes,
-  normalizeInviteTags,
+  normalizeInviteCode,
   setInviteCodeActive,
   type InviteCodeRow,
 } from "../../api/invite-codes";
+import { listTagsForInviteDefaults, type MemberTagPolicySummary } from "../../api/tags";
 import { copyTextToClipboard } from "../../api/clipboard.js";
 import { sanitizeUserError } from "../../utils/sanitize-error";
+import { TagChip } from "../../components/TagChip";
 
 const CONTAINER_STYLE: CSSProperties = {
   background: "#ffffff",
@@ -302,19 +305,16 @@ export default function InviteCodes() {
                         </span>
                       </td>
                       <td style={{ padding: "14px 16px" }}>
-                        {row.club_affiliation ? (
+                        {row.clubLabel ? (
                           <span
                             style={{
                               fontSize: 12,
-                              fontWeight: 700,
-                              padding: "3px 10px",
-                              borderRadius: 4,
-                              background: "#e3ecfb",
-                              color: "#163b86",
+                              fontWeight: 650,
+                              color: "var(--kb-ink-800)",
                               whiteSpace: "nowrap",
                             }}
                           >
-                            {row.club_affiliation}
+                            {row.clubLabel}
                           </span>
                         ) : (
                           <span style={{ color: "var(--kb-ink-400)" }}>—</span>
@@ -322,27 +322,9 @@ export default function InviteCodes() {
                       </td>
                       <td style={{ padding: "14px 16px" }}>
                         <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
-                          {row.default_tags.map((tag) => {
-                            const normalized = tag.toLocaleLowerCase("ko-KR");
-                            const isKoss = normalized === "koss" || normalized === "코스";
-                            return (
-                              <span
-                                key={`${row.id}-${tag}`}
-                                style={{
-                                  fontSize: 11.5,
-                                  fontWeight: 800,
-                                  padding: "4px 9px",
-                                  borderRadius: 999,
-                                  background: isKoss ? "#eee7ff" : "#fff7dc",
-                                  color: isKoss ? "#5b3f96" : "#7a5a18",
-                                  border: isKoss ? "1px solid #d6c6ff" : "1px solid #f4dfa0",
-                                  whiteSpace: "nowrap",
-                                }}
-                              >
-                                {tag}
-                              </span>
-                            );
-                          })}
+                          {row.defaultTagObjects.map((tag) => (
+                            <TagChip key={`${row.id}-${tag.slug}`} tag={tag} />
+                          ))}
                         </div>
                       </td>
                       <td
@@ -490,12 +472,45 @@ function CreateModal({
 }) {
   const [code, setCode] = useState(() => generateInviteCode());
   const [label, setLabel] = useState("");
-  const [clubAffiliation, setClubAffiliation] = useState("");
-  const [defaultTags, setDefaultTags] = useState("KOSS");
+  // member_tags 의 slug 배열. redeem_course_invite() 가 lower(slug) 매칭으로
+  // member_tag_assignments 에 자동 INSERT 한다. (docs/product/invite-codes.md)
+  const [selectedTagSlugs, setSelectedTagSlugs] = useState<string[]>([]);
+  const [tagsCatalog, setTagsCatalog] = useState<MemberTagPolicySummary[]>([]);
+  const [tagsLoading, setTagsLoading] = useState(true);
   const [maxUses, setMaxUses] = useState<string>("");
   const [expiresAt, setExpiresAt] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const list = await listTagsForInviteDefaults();
+        if (cancelled) return;
+        setTagsCatalog(list);
+        // 기본값: KOSS 태그가 있으면 미리 선택해 두기
+        const koss = list.find((tag) => tag.slug.toLowerCase() === "koss" && tag.inviteAssignable);
+        if (koss) setSelectedTagSlugs([koss.slug]);
+      } catch {
+        // 태그 목록 로드 실패해도 코드는 발급할 수 있도록 무시
+      } finally {
+        if (!cancelled) setTagsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  function toggleTag(tag: MemberTagPolicySummary) {
+    if (!tag.inviteAssignable) return;
+    setSelectedTagSlugs((prev) =>
+      prev.some((entry) => entry.toLowerCase() === tag.slug.toLowerCase())
+        ? prev.filter((entry) => entry.toLowerCase() !== tag.slug.toLowerCase())
+        : [...prev, tag.slug],
+    );
+  }
 
   // ESC + scroll lock
   useEffect(() => {
@@ -513,15 +528,15 @@ function CreateModal({
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!code.trim()) return;
+    const normalizedCode = normalizeInviteCode(code);
+    if (!normalizedCode) return;
     setSubmitting(true);
     setError(null);
     try {
       await createInviteCode({
-        code: code.trim().toUpperCase(),
+        code: normalizedCode,
         label: label.trim() || null,
-        clubAffiliation: clubAffiliation.trim() || null,
-        defaultTags: normalizeInviteTags(defaultTags),
+        defaultTags: selectedTagSlugs,
         maxUses: maxUses ? Math.max(1, parseInt(maxUses, 10)) : null,
         expiresAt: expiresAt
           ? new Date(`${expiresAt}T23:59:59`).toISOString()
@@ -594,7 +609,7 @@ function CreateModal({
               color: "var(--kb-ink-900)",
             }}
           >
-            새 KOSS 초대 코드 발급
+            새 초대 코드 발급
           </h3>
           <button
             type="button"
@@ -634,8 +649,9 @@ function CreateModal({
               <input
                 type="text"
                 value={code}
-                onChange={(e) => setCode(e.target.value.toUpperCase())}
+                onChange={(e) => setCode(normalizeInviteCode(e.target.value))}
                 style={{ ...inputStyle, fontFamily: "var(--kb-font-mono)", fontWeight: 700 }}
+                maxLength={16}
                 required
               />
               <button
@@ -658,6 +674,9 @@ function CreateModal({
                 <Wand2 style={{ width: 14, height: 14 }} />
                 랜덤
               </button>
+            </div>
+            <div style={{ marginTop: 6, fontSize: 12, color: "var(--kb-ink-400)", lineHeight: 1.45 }}>
+              새 코드는 KOBOT- 없이 전체가 랜덤으로 생성됩니다. 기존 KOBOT- 코드도 그대로 사용할 수 있습니다.
             </div>
           </div>
 
@@ -683,58 +702,169 @@ function CreateModal({
           </div>
 
           <div>
-            <label
+            <div
               style={{
-                display: "block",
-                fontSize: 13,
-                fontWeight: 600,
-                color: "var(--kb-ink-700)",
-                marginBottom: 6,
+                display: "flex",
+                alignItems: "flex-end",
+                justifyContent: "space-between",
+                gap: 12,
+                marginBottom: 10,
               }}
             >
-              동아리 / 소속 이름{" "}
-              <span style={{ color: "var(--kb-ink-400)", fontWeight: 400 }}>(선택)</span>
-            </label>
-            <input
-              type="text"
-              value={clubAffiliation}
-              onChange={(e) => setClubAffiliation(e.target.value)}
-              placeholder="예: KOSS, AI Society, 외부 워크숍"
-              style={inputStyle}
-              maxLength={40}
-            />
-            <p
-              style={{
-                fontSize: 11.5,
-                color: "var(--kb-ink-400)",
-                marginTop: 4,
-                lineHeight: 1.5,
-              }}
-            >
-              지정하면 이 코드로 가입한 사람의 프로필 소속이 자동으로 이 이름으로 설정됩니다.
-            </p>
-          </div>
-
-          <div>
-            <label
-              style={{
-                display: "block",
-                fontSize: 13,
-                fontWeight: 600,
-                color: "var(--kb-ink-700)",
-                marginBottom: 6,
-              }}
-            >
-              부여 태그
-            </label>
-            <input
-              type="text"
-              value={defaultTags}
-              onChange={(e) => setDefaultTags(e.target.value)}
-              placeholder="KOSS"
-              style={inputStyle}
-              maxLength={120}
-            />
+              <label
+                style={{
+                  display: "block",
+                  fontSize: 13,
+                  fontWeight: 700,
+                  color: "var(--kb-ink-800)",
+                }}
+              >
+                부여 태그
+                <span
+                  style={{
+                    marginLeft: 8,
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    color: "var(--kb-ink-400)",
+                  }}
+                >
+                  {selectedTagSlugs.length}개 선택
+                </span>
+              </label>
+              <span
+                style={{
+                  fontSize: 11.5,
+                  color: "var(--kb-ink-400)",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                다중 선택 가능
+              </span>
+            </div>
+            {tagsLoading ? (
+              <div
+                style={{
+                  fontSize: 12.5,
+                  color: "var(--kb-ink-400)",
+                  padding: "6px 0",
+                }}
+              >
+                태그 목록을 불러오는 중...
+              </div>
+            ) : tagsCatalog.length === 0 ? (
+              <div
+                style={{
+                  fontSize: 12.5,
+                  color: "var(--kb-ink-400)",
+                  padding: "8px 12px",
+                  border: "1px dashed #e8e8e4",
+                  borderRadius: 8,
+                }}
+              >
+                아직 만든 태그가 없습니다. <Link to="/member/tags" style={{ color: "#0a0a0a", fontWeight: 700 }}>태그 관리</Link>에서 먼저 태그를 만들어 주세요.
+              </div>
+            ) : (
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 8,
+                  padding: 10,
+                  border: "1px solid #eeeae2",
+                  borderRadius: 12,
+                  background: "#fbfaf7",
+                }}
+              >
+                {tagsCatalog.map((tag) => {
+                  const selected = selectedTagSlugs.some(
+                    (entry) => entry.toLowerCase() === tag.slug.toLowerCase(),
+                  );
+                  const blocked = !tag.inviteAssignable;
+                  return (
+                    <button
+                      key={tag.id}
+                      type="button"
+                      onClick={() => toggleTag(tag)}
+                      aria-pressed={selected}
+                      disabled={blocked}
+                      title={blocked ? "위험 권한이 붙은 태그는 초대코드로 자동 부여할 수 없습니다." : tag.slug}
+                      style={{
+                        position: "relative",
+                        isolation: "isolate",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        minWidth: 86,
+                        minHeight: 58,
+                        padding: "7px 10px 8px",
+                        overflow: "visible",
+                        border: selected ? "1px solid #d8d1c6" : "1px solid #e3ded4",
+                        borderRadius: 14,
+                        background: blocked ? "#eeeae2" : selected ? "#ffffff" : "#f6f4ee",
+                        color: blocked ? "var(--kb-ink-400)" : "var(--kb-ink-700)",
+                        cursor: blocked ? "not-allowed" : "pointer",
+                        opacity: blocked ? 0.58 : 1,
+                        boxShadow: selected
+                          ? `0 8px 18px rgba(0,0,0,0.07), inset 0 -4px 0 ${tag.color}`
+                          : "inset 0 1px 0 rgba(255,255,255,0.85)",
+                        transition:
+                          "border-color 140ms ease, background 140ms ease, box-shadow 140ms ease, transform 140ms ease",
+                      }}
+                      onMouseEnter={(event) => {
+                        if (blocked) return;
+                        event.currentTarget.style.transform = "translateY(-1px)";
+                      }}
+                      onMouseLeave={(event) => {
+                        event.currentTarget.style.transform = "translateY(0)";
+                      }}
+                    >
+                      {selected ? (
+                        <span
+                          aria-hidden
+                          style={{
+                            position: "absolute",
+                            right: 5,
+                            top: 5,
+                            zIndex: 4,
+                            display: "inline-flex",
+                            width: 16,
+                            height: 16,
+                            alignItems: "center",
+                            justifyContent: "center",
+                            borderRadius: 999,
+                            background: "#fff",
+                            color: "#0a0a0a",
+                            border: "1.5px solid #0a0a0a",
+                            boxShadow: "0 2px 6px rgba(0,0,0,0.16)",
+                            pointerEvents: "none",
+                          }}
+                        >
+                          <Check style={{ width: 10, height: 10, strokeWidth: 3 }} />
+                        </span>
+                      ) : null}
+                      <TagChip tag={tag} size="md" selected={selected} />
+                      {blocked ? (
+                        <span
+                          style={{
+                            position: "absolute",
+                            left: 8,
+                            right: 8,
+                            bottom: 5,
+                            fontSize: 9.5,
+                            fontWeight: 800,
+                            color: "#991b1b",
+                            letterSpacing: "0.02em",
+                            pointerEvents: "none",
+                          }}
+                        >
+                          권한 태그
+                        </span>
+                      ) : null}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>

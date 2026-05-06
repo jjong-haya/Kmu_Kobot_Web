@@ -30,8 +30,8 @@
 
   /* Type stacks */
   --kb-font-display: 'Nunito', 'Pretendard', system-ui, sans-serif;
-  --kb-font-body:    'Nunito', 'Pretendard', system-ui, sans-serif;
-  --kb-font-mono:    'JetBrains Mono', ui-monospace, monospace;
+  --kb-font-body:    'Pretendard', 'Nunito', system-ui, sans-serif;
+  --kb-font-mono:    'JetBrains Mono', 'Pretendard', ui-monospace, monospace;
   --kb-font-serif:   'Instrument Serif', 'Pretendard', serif;
 }
 
@@ -44,6 +44,21 @@
   text-rendering: optimizeLegibility;
 }
 .kb-root img { display: block; max-width: 100%; }
+
+html,
+body,
+#root {
+  font-family: var(--kb-font-body);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+button,
+input,
+textarea,
+select {
+  font-family: inherit;
+}
 
 .kb-mono { font-family: var(--kb-font-mono); font-feature-settings: "ss01"; }
 .kb-display { font-family: var(--kb-font-display); letter-spacing: -0.02em; }

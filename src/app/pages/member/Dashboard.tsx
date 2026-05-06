@@ -331,7 +331,7 @@ function buildTodayItems(data: DashboardData, userId: string, todayKey: string):
       title: notification.title,
       meta: notificationMeta(notification),
       tone: notification.importance === "important" ? ("urgent" as const) : ("muted" as const),
-      to: notification.href ?? "/member/notifications",
+      to: `/member/notifications?notification=${encodeURIComponent(notification.id)}`,
     }));
 
   return [...contacts, ...bookings, ...notifications].slice(0, 6);

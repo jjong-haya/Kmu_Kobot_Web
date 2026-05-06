@@ -1,4 +1,4 @@
-import type { ComponentType } from "react";
+import { Suspense, lazy, type ComponentType, type LazyExoticComponent } from "react";
 import { createBrowserRouter } from "react-router";
 import {
   RequireActiveMember,
@@ -27,9 +27,11 @@ import ContactRequests from "./pages/member/ContactRequests";
 import Announcements from "./pages/member/Announcements";
 import AnnouncementDetail from "./pages/member/AnnouncementDetail";
 import StudyLog from "./pages/member/StudyLog";
+import StudyProjectPosts from "./pages/member/StudyProjectPosts";
 import StudyPlaylist from "./pages/member/StudyPlaylist";
 import PeerReview from "./pages/member/PeerReview";
 import MemberProjects from "./pages/member/Projects";
+import ProjectAdmin from "./pages/member/ProjectAdmin";
 import ProjectDetail from "./pages/member/ProjectDetail";
 import Showcase from "./pages/member/Showcase";
 import Events from "./pages/member/Events";
@@ -59,12 +61,29 @@ import Security from "./pages/member/Security";
 import AccountInfo from "./pages/member/AccountInfo";
 import NotFound from "./pages/NotFound";
 
+const StudyPostWrite = lazy(() => import("./pages/member/StudyPostWrite"));
+const StudyPostDetail = lazy(() => import("./pages/member/StudyPostDetail"));
+
+type PageComponent = ComponentType | LazyExoticComponent<ComponentType>;
+
+function PageFallback() {
+  return (
+    <div className="flex items-center justify-center px-5 py-20 text-[15px] text-[var(--kb-ink-500)]">
+      불러오는 중입니다.
+    </div>
+  );
+}
+
 function memberElement(
-  Component: ComponentType,
+  Component: PageComponent,
   requiredPermissions?: string[],
   options: { allowCourseMember?: boolean } = {},
 ) {
-  const page = <Component />;
+  const page = (
+    <Suspense fallback={<PageFallback />}>
+      <Component />
+    </Suspense>
+  );
 
   if (requiredPermissions && requiredPermissions.length > 0) {
     return (
@@ -178,15 +197,23 @@ export const router = createBrowserRouter([
         ),
       },
       { path: "study-log", element: memberElement(StudyLog) },
+      { path: "study-log/:slug/write", element: memberElement(StudyPostWrite) },
+      { path: "study-log/:slug/posts/:recordId/edit", element: memberElement(StudyPostWrite) },
+      { path: "study-log/:slug/posts/:recordId", element: memberElement(StudyPostDetail) },
+      { path: "study-log/:slug", element: memberElement(StudyProjectPosts) },
       { path: "study-playlist", element: memberElement(StudyPlaylist) },
       { path: "peer-review", element: memberElement(PeerReview) },
       {
         path: "projects",
-        element: memberElement(MemberProjects, ["projects.read", "projects.manage"]),
+        element: memberElement(MemberProjects),
+      },
+      {
+        path: "project-admin",
+        element: memberElement(ProjectAdmin, ["projects.manage", "members.manage"]),
       },
       {
         path: "projects/:slug",
-        element: memberElement(ProjectDetail, ["projects.read", "projects.manage"]),
+        element: memberElement(ProjectDetail),
       },
       {
         path: "showcase",

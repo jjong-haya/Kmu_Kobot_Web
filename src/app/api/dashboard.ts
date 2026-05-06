@@ -1,5 +1,6 @@
 import { getSupabaseBrowserClient } from "../auth/supabase";
 import { sanitizeUserError } from "../utils/sanitize-error";
+import { getNotificationTargetHref } from "./notification-policy.js";
 import { listBookingsInRange } from "./space-bookings";
 
 const FALLBACK = "대시보드 데이터를 불러오지 못했습니다.";
@@ -79,6 +80,7 @@ type NotificationRow = {
   body: string | null;
   importance: "normal" | "important";
   href: string | null;
+  related_entity_table: string | null;
   read_at: string | null;
   created_at: string;
 };
@@ -173,7 +175,7 @@ async function listDashboardNotifications(userId: string) {
   const [{ data, error }, { count, error: countError }] = await Promise.all([
     supabase
       .from("notifications")
-      .select("id, type, title, body, importance, href, read_at, created_at")
+      .select("id, type, title, body, importance, href, related_entity_table, read_at, created_at")
       .eq("recipient_user_id", userId)
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
@@ -197,7 +199,10 @@ async function listDashboardNotifications(userId: string) {
       title: row.title,
       body: row.body,
       importance: row.importance,
-      href: row.href,
+      href: getNotificationTargetHref(row.href, {
+        type: row.type,
+        relatedEntityTable: row.related_entity_table,
+      }),
       readAt: row.read_at,
       createdAt: row.created_at,
     })),

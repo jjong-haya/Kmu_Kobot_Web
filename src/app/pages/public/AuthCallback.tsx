@@ -12,8 +12,10 @@ import {
 } from "../../components/ui/card";
 import { getSupabaseBrowserClient, isSupabaseConfigured } from "../../auth/supabase";
 import { useAuth } from "../../auth/useAuth";
+import { normalizeInviteCode } from "../../api/invite-codes";
 import { getPostAuthMemberPath } from "../../auth/onboarding";
 import { getSafeInternalPath, withNextPath } from "../../auth/redirects";
+import { sanitizeUserError } from "../../utils/sanitize-error";
 import robotRun from "../../../assets/auth-callback/toy-robot-run.webp";
 
 type CallbackStatus = "loading" | "cancelled" | "restricted" | "retry" | "error";
@@ -263,7 +265,9 @@ export default function AuthCallback() {
         // If user came through /invite/course, redeem the code BEFORE refreshing
         // auth data so the new status is reflected.
         try {
-          const inviteCode = window.localStorage.getItem("kobot:course-invite-code");
+          const inviteCode = normalizeInviteCode(
+            window.localStorage.getItem("kobot:course-invite-code") ?? "",
+          );
           if (inviteCode) {
             const supabase = getSupabaseBrowserClient();
             const { error: redeemErr } = await supabase.rpc("redeem_course_invite", {
@@ -306,6 +310,10 @@ export default function AuthCallback() {
 
         const errorMessage =
           error instanceof Error ? error.message : "Google 로그인 콜백을 처리하지 못했습니다.";
+        const safeErrorMessage = sanitizeUserError(
+          error,
+          "로그인을 완료하지 못했습니다. 다시 로그인해도 같은 문제가 생기면 운영진에게 문의해 주세요.",
+        );
 
         if (isRecoverableSessionMessage(errorMessage)) {
           setStatus("retry");
@@ -319,7 +327,7 @@ export default function AuthCallback() {
         setMessage(
           errorMessage.length > 90 || isTechnicalCallbackMessage(errorMessage)
             ? "로그인을 완료하지 못했습니다. 다시 로그인해도 같은 문제가 생기면 운영진에게 문의해 주세요."
-            : errorMessage,
+            : safeErrorMessage,
         );
       }
     }

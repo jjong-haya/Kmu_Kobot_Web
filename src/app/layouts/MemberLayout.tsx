@@ -31,7 +31,7 @@ import {
   X,
   Megaphone,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import {
@@ -44,10 +44,16 @@ import {
 } from "../components/ui/dropdown-menu";
 import { Input } from "../components/ui/input";
 import { ScrollToTop } from "../components/ScrollToTop";
+import { SecurityEventTracker } from "../components/SecurityEventTracker";
+import { NotificationToast } from "../components/NotificationToast";
+import { getSupabaseBrowserClient } from "../auth/supabase";
 import { useAuth } from "../auth/useAuth";
 import {
   getUnreadNotificationsCount,
+  listNotifications,
+  markNotificationRead,
   NOTIFICATIONS_CHANGED_EVENT,
+  type NotificationItem,
 } from "../api/notifications";
 import wordLogo from "@/assets/wordLogo.png";
 import { APP_VERSION_LABEL } from "../utils/version";
@@ -111,7 +117,6 @@ const NAVIGATION: NavigationSection[] = [
         name: "프로젝트",
         href: "/member/projects",
         icon: FolderKanban,
-        permissions: ["projects.read"],
       },
       {
         name: "행사",
@@ -152,6 +157,12 @@ const NAVIGATION: NavigationSection[] = [
         href: "/member/showcase",
         icon: Presentation,
         permissions: ["projects.manage"],
+      },
+      {
+        name: "프로젝트 생성 관리",
+        href: "/member/project-admin",
+        icon: ClipboardList,
+        permissions: ["projects.manage", "members.manage"],
       },
       {
         name: "템플릿",
@@ -376,6 +387,18 @@ function KobotWordmark({ className = "" }: { className?: string }) {
   );
 }
 
+const NOTIFICATION_TOAST_DURATION_MS = 5600;
+const INITIAL_TOAST_WINDOW_MS = 5 * 60 * 1000;
+const NOTIFICATION_POLL_INTERVAL_MS = 15 * 1000;
+
+function isRecentNotification(notification: NotificationItem) {
+  const createdAt = new Date(notification.createdAt).getTime();
+
+  return Number.isFinite(createdAt)
+    ? Date.now() - createdAt <= INITIAL_TOAST_WINDOW_MS
+    : false;
+}
+
 export default function MemberLayout() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -384,6 +407,11 @@ export default function MemberLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
+  const [toastNotification, setToastNotification] =
+    useState<NotificationItem | null>(null);
+  const [toastRevision, setToastRevision] = useState(0);
+  const toastSeenIdsRef = useRef<Set<string>>(new Set());
+  const toastInitializedRef = useRef(false);
   const [collapsed, setCollapsed] = useState(() => {
     if (typeof window === "undefined") return false;
     return window.localStorage.getItem("kb-sidebar-collapsed") === "1";
@@ -403,34 +431,125 @@ export default function MemberLayout() {
     memberStatus === "active" || memberStatus === "course_member";
   const canReadNotifications = hasPermission("notifications.read");
 
-  const refreshUnreadNotificationCount = useCallback(async () => {
+  const showNotificationToast = useCallback((notification: NotificationItem) => {
+    setToastNotification(notification);
+    setToastRevision((revision) => revision + 1);
+  }, []);
+
+  const refreshNotificationState = useCallback(async (
+    options: { forceToastLatest?: boolean } = {},
+  ) => {
     if (!user || !canReadNotifications) {
       setUnreadNotificationCount(0);
+      setToastNotification(null);
       return;
     }
 
     try {
-      setUnreadNotificationCount(await getUnreadNotificationsCount(user.id));
+      const [unreadCount, notifications] = await Promise.all([
+        getUnreadNotificationsCount(user.id),
+        listNotifications(user.id, 10),
+      ]);
+      const unreadNotifications = notifications.filter((item) => !item.readAt);
+      const seenIds = toastSeenIdsRef.current;
+
+      setUnreadNotificationCount(unreadCount);
+
+      if (!toastInitializedRef.current) {
+        const latestUnread = unreadNotifications[0] ?? null;
+
+        unreadNotifications.forEach((item) => seenIds.add(item.id));
+        toastInitializedRef.current = true;
+
+        if (
+          latestUnread &&
+          (options.forceToastLatest || isRecentNotification(latestUnread))
+        ) {
+          showNotificationToast(latestUnread);
+        }
+
+        return;
+      }
+
+      const nextUnread = unreadNotifications.find((item) => !seenIds.has(item.id));
+
+      unreadNotifications.forEach((item) => seenIds.add(item.id));
+
+      if (nextUnread) {
+        showNotificationToast(nextUnread);
+        return;
+      }
+
+      if (
+        options.forceToastLatest &&
+        unreadNotifications[0] &&
+        isRecentNotification(unreadNotifications[0])
+      ) {
+        showNotificationToast(unreadNotifications[0]);
+      }
     } catch {
       setUnreadNotificationCount(0);
     }
-  }, [canReadNotifications, user?.id]);
+  }, [canReadNotifications, showNotificationToast, user?.id]);
 
   useEffect(() => {
-    void refreshUnreadNotificationCount();
+    toastSeenIdsRef.current = new Set();
+    toastInitializedRef.current = false;
+    setToastNotification(null);
+  }, [user?.id]);
+
+  useEffect(() => {
+    void refreshNotificationState();
 
     if (typeof window === "undefined") {
       return;
     }
 
-    window.addEventListener(NOTIFICATIONS_CHANGED_EVENT, refreshUnreadNotificationCount);
+    const handleNotificationsChanged = () => {
+      void refreshNotificationState();
+    };
+    const pollId = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        void refreshNotificationState();
+      }
+    }, NOTIFICATION_POLL_INTERVAL_MS);
+
+    window.addEventListener(NOTIFICATIONS_CHANGED_EVENT, handleNotificationsChanged);
     return () => {
+      window.clearInterval(pollId);
       window.removeEventListener(
         NOTIFICATIONS_CHANGED_EVENT,
-        refreshUnreadNotificationCount,
+        handleNotificationsChanged,
       );
     };
-  }, [refreshUnreadNotificationCount]);
+  }, [refreshNotificationState]);
+
+  useEffect(() => {
+    if (!user || !canReadNotifications) {
+      return;
+    }
+
+    const supabase = getSupabaseBrowserClient();
+    const channel = supabase
+      .channel(`member-notifications:${user.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "notifications",
+          filter: `recipient_user_id=eq.${user.id}`,
+        },
+        () => {
+          void refreshNotificationState({ forceToastLatest: true });
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [canReadNotifications, refreshNotificationState, user?.id]);
 
   const displayName =
     authData.profile.displayName ??
@@ -570,9 +689,36 @@ export default function MemberLayout() {
     );
   }
 
+  const handleToastClose = useCallback(() => {
+    setToastNotification(null);
+  }, []);
+
+  const handleToastOpen = useCallback((notification: NotificationItem) => {
+    setToastNotification(null);
+
+    if (user && !notification.readAt) {
+      void markNotificationRead(user.id, notification.id).catch(() => undefined);
+      setUnreadNotificationCount((count) => Math.max(0, count - 1));
+    }
+
+    navigate(notification.targetHref ?? "/member/notifications");
+  }, [navigate, user?.id]);
+
+  const notificationToastNode = toastNotification ? (
+    <NotificationToast
+      key={`${toastNotification.id}-${toastRevision}`}
+      item={toastNotification}
+      durationMs={NOTIFICATION_TOAST_DURATION_MS}
+      onClose={handleToastClose}
+      onOpen={handleToastOpen}
+    />
+  ) : null;
+
   if (!isActiveMember) {
     return (
       <div className="min-h-screen bg-gray-50">
+        <SecurityEventTracker />
+        {notificationToastNode}
         <ScrollToTop />
         <header className="border-b border-gray-200 bg-white">
           <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
@@ -598,6 +744,8 @@ export default function MemberLayout() {
 
   return (
     <div className="kb-root min-h-screen" style={{ background: "#ffffff" }}>
+      <SecurityEventTracker />
+      {notificationToastNode}
       <aside
         className={`hidden md:fixed md:inset-y-0 md:flex md:flex-col transition-[width] duration-200 ease-out ${sidebarWidthClass}`}
       >

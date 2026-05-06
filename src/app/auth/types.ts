@@ -26,7 +26,6 @@ export interface AuthProfile {
   department: string | null;
   clubAffiliation: string | null;
   publicCreditNameMode: PublicCreditNameMode;
-  techTags: string[];
   avatarUrl: string | null;
   loginId: string | null;
 }
@@ -76,7 +75,6 @@ export interface SaveProfileSettingsInput {
   department: string;
   clubAffiliation: string | null;
   publicCreditNameMode: PublicCreditNameMode;
-  techTags: string[];
   loginId: string | null;
   password?: string;
 }
@@ -94,6 +92,8 @@ export interface AuthContextValue {
    * the first refreshTags call resolves.
    */
   tagNavPaths: string[];
+  tagsLoaded: boolean;
+  tagAuthorityFailed: boolean;
   authError: string | null;
   hasPermission: (...codes: string[]) => boolean;
   refreshAuthData: () => Promise<AuthorizationContextData | null>;
@@ -124,7 +124,6 @@ export const EMPTY_AUTH_CONTEXT: AuthorizationContextData = {
     department: null,
     clubAffiliation: null,
     publicCreditNameMode: "anonymous",
-    techTags: [],
     avatarUrl: null,
     loginId: null,
   },

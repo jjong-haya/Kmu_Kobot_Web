@@ -671,6 +671,7 @@ export default function SpaceBooking() {
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [detailReservation, setDetailReservation] = useState<Reservation | null>(null);
 
   const calendarRef = useRef<HTMLDivElement>(null);
   const detailRef = useRef<HTMLDivElement>(null);
@@ -1471,6 +1472,7 @@ export default function SpaceBooking() {
                     <div className="sb-detail-actions" style={{ flexShrink: 0, alignSelf: "center" }}>
                       <button
                         type="button"
+                        onClick={() => setDetailReservation(r)}
                         style={{
                           padding: "7px 14px",
                           fontSize: 13,
@@ -1551,7 +1553,209 @@ export default function SpaceBooking() {
             }}
           />
         )}
+
+        {detailReservation && (
+          <ReservationDetailModal
+            reservation={detailReservation}
+            onClose={() => setDetailReservation(null)}
+          />
+        )}
       </div>
     </div>
+  );
+}
+
+function ReservationDetailModal({
+  reservation: r,
+  onClose,
+}: {
+  reservation: Reservation;
+  onClose: () => void;
+}) {
+  const tm = TYPE_META[r.type];
+  const scopeLabel: Record<ReservationScope, string> = {
+    exclusive: "공간 전체 사용",
+    desk: "지정 좌석",
+    open: "오픈 좌석",
+  };
+
+  const durationText = (() => {
+    const [sh, sm] = r.start.split(":").map(Number);
+    const [eh, em] = r.end.split(":").map(Number);
+    const mins = eh * 60 + em - (sh * 60 + sm);
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return `${h > 0 ? `${h}시간 ` : ""}${m > 0 ? `${m}분` : ""}`.trim() || "0분";
+  })();
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [onClose]);
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.45)",
+        zIndex: 100,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 16,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: "100%",
+          maxWidth: 480,
+          background: "#fff",
+          borderRadius: 16,
+          boxShadow: "0 20px 50px rgba(0,0,0,0.18)",
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            padding: "18px 22px",
+            borderBottom: "1px solid #f1ede4",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            gap: 12,
+          }}
+        >
+          <div style={{ minWidth: 0 }}>
+            <span
+              style={{
+                fontSize: 11.5,
+                fontWeight: 700,
+                padding: "2px 9px",
+                borderRadius: 4,
+                background: tm.bg,
+                color: tm.fg,
+                letterSpacing: "0.04em",
+                marginBottom: 8,
+                display: "inline-block",
+              }}
+            >
+              {tm.label}
+            </span>
+            <h2
+              style={{
+                margin: 0,
+                fontSize: 18,
+                fontWeight: 700,
+                color: "var(--kb-ink-900)",
+                wordBreak: "break-word",
+              }}
+            >
+              {r.title}
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="닫기"
+            style={{
+              background: "transparent",
+              border: "none",
+              cursor: "pointer",
+              color: "var(--kb-ink-500)",
+              flexShrink: 0,
+            }}
+          >
+            <X style={{ width: 18, height: 18 }} />
+          </button>
+        </div>
+
+        <dl
+          style={{
+            margin: 0,
+            padding: "16px 22px 4px",
+            display: "grid",
+            gridTemplateColumns: "92px 1fr",
+            rowGap: 12,
+            columnGap: 12,
+            fontSize: 14,
+          }}
+        >
+          <DetailRow label="일자" value={r.date} />
+          <DetailRow
+            label="시간"
+            value={`${r.start} ~ ${r.end} · ${durationText}`}
+          />
+          <DetailRow label="주관" value={r.organizer} />
+          <DetailRow label="참여" value={`${r.attendees}명`} />
+          <DetailRow label="공간 사용" value={scopeLabel[r.scope]} />
+        </dl>
+
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            padding: "14px 22px 18px",
+          }}
+        >
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              padding: "8px 16px",
+              borderRadius: 8,
+              background: "#fff",
+              border: "1px solid #ebe8e0",
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: "pointer",
+              color: "var(--kb-ink-700)",
+              fontFamily: "inherit",
+            }}
+          >
+            닫기
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <>
+      <dt
+        style={{
+          fontSize: 12,
+          fontWeight: 700,
+          color: "var(--kb-ink-400)",
+          letterSpacing: "0.04em",
+        }}
+      >
+        {label}
+      </dt>
+      <dd
+        style={{
+          margin: 0,
+          fontSize: 14,
+          color: "var(--kb-ink-900)",
+          wordBreak: "break-word",
+        }}
+      >
+        {value}
+      </dd>
+    </>
   );
 }
