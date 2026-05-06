@@ -4,20 +4,26 @@ import { Link } from "react-router";
 import {
   Check,
   ClipboardList,
+  Crown,
   FolderKanban,
+  Github,
   Loader2,
   RefreshCw,
   RotateCcw,
   Search,
   Sparkles,
+  UserCog,
   XCircle,
 } from "lucide-react";
 import {
+  listProjectLeadCandidates,
   listProjects,
   reviewProjectTeam,
   restoreRejectedProject,
+  setProjectLead,
   setProjectRecruitment,
   setProjectRunStatus,
+  type ProjectLeadCandidate,
   type ProjectStatus,
   type ProjectSummary,
 } from "../../api/projects";
@@ -76,6 +82,10 @@ export default function ProjectAdmin() {
   const [workingId, setWorkingId] = useState<string | null>(null);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
+  const [leadEditorId, setLeadEditorId] = useState<string | null>(null);
+  const [leadLoadingId, setLeadLoadingId] = useState<string | null>(null);
+  const [leadCandidatesByProject, setLeadCandidatesByProject] = useState<Record<string, ProjectLeadCandidate[]>>({});
+  const [selectedLeadByProject, setSelectedLeadByProject] = useState<Record<string, string>>({});
 
   const normalizedKeyword = keyword.trim().toLocaleLowerCase("ko-KR");
   const visibleProjects = useMemo(
@@ -101,7 +111,7 @@ export default function ProjectAdmin() {
     try {
       setProjects(await listProjects(user.id));
     } catch (requestError) {
-      setError(sanitizeUserError(requestError, "프로젝트 생성 요청을 불러오지 못했습니다."));
+      setError(sanitizeUserError(requestError, "프로젝트를 불러오지 못했습니다."));
     } finally {
       setLoading(false);
     }
@@ -192,9 +202,72 @@ export default function ProjectAdmin() {
     }
   }
 
+  async function openLeadEditor(project: ProjectSummary) {
+    if (leadEditorId === project.id) {
+      setLeadEditorId(null);
+      return;
+    }
+
+    setLeadEditorId(project.id);
+    setSelectedLeadByProject((current) => ({
+      ...current,
+      [project.id]: project.lead?.id ?? current[project.id] ?? "",
+    }));
+
+    if (leadCandidatesByProject[project.id]) return;
+
+    try {
+      setLeadLoadingId(project.id);
+      setError(null);
+      const candidates = await listProjectLeadCandidates(project.id);
+      setLeadCandidatesByProject((current) => ({ ...current, [project.id]: candidates }));
+      setSelectedLeadByProject((current) => ({
+        ...current,
+        [project.id]: candidates.some((candidate) => candidate.userId === current[project.id])
+          ? current[project.id]
+          : project.lead?.id && candidates.some((candidate) => candidate.userId === project.lead?.id)
+            ? project.lead.id
+            : candidates[0]?.userId || "",
+      }));
+    } catch (requestError) {
+      setError(sanitizeUserError(requestError, "프로젝트 리드 후보를 불러오지 못했습니다."));
+    } finally {
+      setLeadLoadingId(null);
+    }
+  }
+
+  async function saveLead(project: ProjectSummary) {
+    if (!user) return;
+    const nextLeadUserId = selectedLeadByProject[project.id];
+
+    if (!nextLeadUserId) {
+      setError("새 프로젝트 리드를 선택해 주세요.");
+      return;
+    }
+
+    try {
+      setWorkingId(project.id);
+      setError(null);
+      const updated = await setProjectLead(project.id, nextLeadUserId, user.id);
+      const candidates = await listProjectLeadCandidates(project.id);
+      setProjects((current) =>
+        current.map((item) => (item.id === project.id ? { ...item, ...updated } : item)),
+      );
+      setLeadCandidatesByProject((current) => ({ ...current, [project.id]: candidates }));
+      setLeadEditorId(null);
+    } catch (requestError) {
+      setError(sanitizeUserError(requestError, "프로젝트 리드를 변경하지 못했습니다."));
+    } finally {
+      setWorkingId(null);
+    }
+  }
+
   function renderProject(project: ProjectSummary) {
     const statusStyle = STATUS_STYLE[project.status];
     const isRejecting = rejectingId === project.id;
+    const isLeadEditing = leadEditorId === project.id;
+    const leadCandidates = leadCandidatesByProject[project.id] ?? [];
+    const selectedLeadId = selectedLeadByProject[project.id] ?? project.lead?.id ?? "";
 
     return (
       <article key={project.id} className="border-t border-[#f1ede4] px-5 py-4 first:border-t-0 sm:px-7">
@@ -229,6 +302,17 @@ export default function ProjectAdmin() {
                   복구됨
                 </span>
               ) : null}
+              {project.githubLink ? (
+                <span className="inline-flex items-center gap-1 rounded-full border border-[#d8eadf] bg-[#f4fbf6] px-2.5 py-1 text-[12px] font-semibold text-[#146136]">
+                  <Github className="h-3 w-3" />
+                  {project.githubLink.permissionState === "read_only" ? "GitHub 읽기 전용" : "GitHub 연결"}
+                </span>
+              ) : project.status === "active" || project.status === "recruiting" ? (
+                <span className="inline-flex items-center gap-1 rounded-full border border-[#fde68a] bg-[#fffbeb] px-2.5 py-1 text-[12px] font-semibold text-[#92400e]">
+                  <Github className="h-3 w-3" />
+                  GitHub 대기
+                </span>
+              ) : null}
             </div>
             <p className="m-0 line-clamp-2 text-[14px] leading-6 text-[var(--kb-ink-500)]">
               {project.summary ?? project.description ?? "프로젝트 설명이 없습니다."}
@@ -236,15 +320,30 @@ export default function ProjectAdmin() {
             <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] text-[var(--kb-ink-400)]">
               <span>{project.slug}</span>
               <span>생성 {formatDate(project.createdAt)}</span>
-              {project.lead ? <span>리드 {project.lead.displayName}</span> : null}
+              {project.lead ? (
+                <span>리드 {project.lead.displayName}</span>
+              ) : (
+                <span className="font-semibold text-red-700">리드 없음</span>
+              )}
               <span>{project.visibility === "public" ? "공개" : "비공개"}</span>
               {project.reviewRequestedAt ? <span>재심사 {formatDate(project.reviewRequestedAt)}</span> : null}
               {project.lastRestoredAt ? <span>복구 {formatDate(project.lastRestoredAt)}</span> : null}
             </div>
           </div>
 
-          {project.status === "pending" ? (
-            <div className="flex shrink-0 flex-wrap justify-end gap-2">
+          <div className="flex shrink-0 flex-wrap justify-end gap-2">
+            <button
+              type="button"
+              disabled={workingId !== null}
+              onClick={() => void openLeadEditor(project)}
+              className="inline-flex items-center gap-1.5 rounded-md border border-[#ebe8e0] bg-white px-3 py-2 text-[13px] font-semibold text-[var(--kb-ink-800)] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <UserCog className="h-3.5 w-3.5" />
+              리드 설정
+            </button>
+
+            {project.status === "pending" ? (
+              <>
               <button
                 type="button"
                 disabled={workingId !== null}
@@ -270,9 +369,8 @@ export default function ProjectAdmin() {
                 )}
                 승인
               </button>
-            </div>
-          ) : project.status === "recruiting" ? (
-            <div className="flex shrink-0 flex-wrap justify-end gap-2">
+              </>
+            ) : project.status === "recruiting" ? (
               <button
                 type="button"
                 disabled={workingId !== null}
@@ -286,9 +384,7 @@ export default function ProjectAdmin() {
                 )}
                 진행 시작
               </button>
-            </div>
-          ) : project.status === "active" ? (
-            <div className="flex shrink-0 flex-wrap justify-end gap-2">
+            ) : project.status === "active" ? (
               <button
                 type="button"
                 disabled={workingId !== null}
@@ -302,9 +398,7 @@ export default function ProjectAdmin() {
                 )}
                 {project.recruitmentStatus === "open" ? "모집 마감" : "모집 시작"}
               </button>
-            </div>
-          ) : project.status === "rejected" ? (
-            <div className="flex shrink-0 flex-wrap justify-end gap-2">
+            ) : project.status === "rejected" ? (
               <button
                 type="button"
                 disabled={workingId !== null}
@@ -318,9 +412,75 @@ export default function ProjectAdmin() {
                 )}
                 복구하기
               </button>
-            </div>
-          ) : null}
+            ) : null}
+          </div>
         </div>
+
+        {isLeadEditing ? (
+          <div className="mt-4 rounded-md border border-[#e8e8e4] bg-[#fbfbf8] px-3 py-3">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-[14px] font-semibold text-[var(--kb-ink-900)]">
+                <Crown className="h-4 w-4 text-[#9a6a00]" />
+                프로젝트 리드 지정
+              </div>
+              <span className="text-[12.5px] text-[var(--kb-ink-500)]">
+                활성 부원 중에서 선택
+              </span>
+            </div>
+
+            {leadLoadingId === project.id ? (
+              <div className="flex items-center gap-2 text-[13px] text-[var(--kb-ink-500)]">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                후보를 불러오는 중입니다.
+              </div>
+            ) : leadCandidates.length === 0 ? (
+              <div className="text-[13px] leading-5 text-red-700">
+                활성 부원이 없어 리드를 지정할 수 없습니다.
+              </div>
+            ) : (
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={selectedLeadId}
+                  onChange={(event) =>
+                    setSelectedLeadByProject((current) => ({
+                      ...current,
+                      [project.id]: event.target.value,
+                    }))
+                  }
+                  className="min-w-[220px] rounded-md border border-[#e8e8e4] bg-white px-3 py-2 text-[14px] outline-none"
+                >
+                  {leadCandidates.map((member) => (
+                    <option key={member.userId} value={member.userId}>
+                      {member.displayName} · {member.roleLabel}
+                      {member.isProjectMember ? "" : " · 프로젝트에 추가됨"}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  disabled={workingId !== null || !selectedLeadId}
+                  onClick={() => void saveLead(project)}
+                  className="inline-flex items-center gap-1.5 rounded-md bg-[#0a0a0a] px-3 py-2 text-[13px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {workingId === project.id ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Check className="h-3.5 w-3.5" />
+                  )}
+                  저장
+                </button>
+                <button
+                  type="button"
+                  disabled={workingId !== null}
+                  onClick={() => setLeadEditorId(null)}
+                  className="rounded-md border border-[#e8e8e4] bg-white px-3 py-2 text-[13px] font-semibold text-[var(--kb-ink-700)]"
+                >
+                  닫기
+                </button>
+              </div>
+            )}
+          </div>
+        ) : null}
 
         {project.status === "rejected" && project.lastReviewReason ? (
           <div className="mt-3 rounded-md border border-[#f1d6d6] bg-[#fffafa] px-3 py-2 text-[13px] leading-5 text-red-800">
@@ -400,7 +560,7 @@ export default function ProjectAdmin() {
               className="kb-display m-0 text-[30px] font-semibold leading-tight text-[#0a0a0a]"
               style={{ letterSpacing: 0 }}
             >
-              프로젝트 생성 관리
+              프로젝트 관리
               <span className="ml-3 text-[17px] font-normal text-[var(--kb-ink-500)]">
                 대기 {pendingProjects.length}건
               </span>
@@ -438,7 +598,7 @@ export default function ProjectAdmin() {
         {loading ? (
           <section style={{ ...CARD_STYLE, padding: 48 }} className="text-center text-[15px] text-[var(--kb-ink-500)]">
             <RefreshCw className="mx-auto mb-3 h-5 w-5 animate-spin" />
-            프로젝트 생성 요청을 불러오는 중입니다.
+            프로젝트를 불러오는 중입니다.
           </section>
         ) : (
           <>
@@ -446,13 +606,13 @@ export default function ProjectAdmin() {
             {renderSection("모집중", recruitingProjects)}
             {renderSection("진행중", activeProjects)}
             {renderSection("반려", rejectedProjects)}
-            {archivedProjects.length > 0 ? renderSection("종료", archivedProjects) : null}
+            {archivedProjects.length > 0 ? renderSection("완료", archivedProjects) : null}
           </>
         )}
 
         <div className="flex items-center gap-2 rounded-md bg-[#f8f9fc] px-4 py-3 text-[14px] text-[var(--kb-ink-500)]">
           <ClipboardList className="h-4 w-4 shrink-0 text-[var(--kb-navy-800)]" />
-          이 페이지는 프로젝트 생성 요청을 여러 건 모아서 검토하는 운영 화면입니다.
+          이 페이지는 프로젝트 검토, 모집 상태, 리드 복구까지 처리하는 운영 화면입니다.
         </div>
       </div>
     </div>

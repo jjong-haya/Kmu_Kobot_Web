@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import type { CSSProperties, FormEvent, ReactNode } from "react";
-import { Loader2, Plus, Send, X } from "lucide-react";
+import { Loader2, Plus, Save, Send, X } from "lucide-react";
 import {
   createProject,
+  updateProjectSettings,
   updateRejectedProjectAndRequestReview,
   type ProjectSummary,
   type ProjectType,
@@ -20,6 +21,10 @@ const PROJECT_VISIBILITY_OPTIONS: Array<{ value: ProjectVisibility; label: strin
   { value: "public", label: "공개" },
 ];
 
+function getProjectTypeLabel(value: ProjectType) {
+  return PROJECT_TYPE_OPTIONS.find((option) => option.value === value)?.label ?? value;
+}
+
 const FORM_INPUT_STYLE: CSSProperties = {
   width: "100%",
   border: "1px solid #e8e8e4",
@@ -31,7 +36,7 @@ const FORM_INPUT_STYLE: CSSProperties = {
   fontFamily: "inherit",
 };
 
-type ProjectFormMode = "create" | "edit";
+type ProjectFormMode = "create" | "edit" | "settings";
 
 export function ProjectFormModal({
   mode = "create",
@@ -49,12 +54,16 @@ export function ProjectFormModal({
   onError: (message: string | null) => void;
 }) {
   const isEdit = mode === "edit";
+  const isSettings = mode === "settings";
+  const isMutation = isEdit || isSettings;
   const [name, setName] = useState(project?.name ?? "");
   const [summary, setSummary] = useState(project?.summary ?? "");
   const [description, setDescription] = useState(project?.description ?? "");
   const [projectType, setProjectType] = useState<ProjectType>(project?.projectType ?? "autonomous");
   const [visibility, setVisibility] = useState<ProjectVisibility>(project?.visibility ?? "private");
+  const [running, setRunning] = useState(project ? project.status === "active" : true);
   const [recruiting, setRecruiting] = useState(project?.recruitmentStatus === "open");
+  const [completed, setCompleted] = useState(project?.status === "archived");
   const [recruitmentNote, setRecruitmentNote] = useState(project?.recruitmentNote ?? "");
   const [guide, setGuide] = useState(project?.guide ?? "");
   const [idRule, setIdRule] = useState(project?.idRule ?? "");
@@ -77,13 +86,18 @@ export function ProjectFormModal({
   }, [onClose]);
 
   function validate() {
-    if (!name.trim()) {
+    if (!isSettings && !name.trim()) {
       setLocalError("프로젝트 이름을 입력해 주세요.");
       return false;
     }
 
-    if (isEdit && !project?.id) {
+    if (isMutation && !project?.id) {
       setLocalError("수정할 프로젝트 정보를 찾지 못했습니다.");
+      return false;
+    }
+
+    if (isSettings && !completed && !running && !recruiting) {
+      setLocalError("진행중, 모집중, 종료 중 하나는 선택해 주세요.");
       return false;
     }
 
@@ -96,8 +110,8 @@ export function ProjectFormModal({
     if (!validate()) return;
 
     const metadata: Record<string, unknown> = {
-      recruitmentOpen: recruiting,
-      recruitmentNote: recruitmentNote.trim() || null,
+      recruitmentOpen: isSettings && completed ? false : recruiting,
+      recruitmentNote: isSettings && completed ? null : recruitmentNote.trim() || null,
       guide: guide.trim() || null,
       idRule: idRule.trim() || null,
       branchRule: branchRule.trim() || null,
@@ -117,16 +131,34 @@ export function ProjectFormModal({
         metadata,
       };
       const savedProject =
-        isEdit && project
-          ? await updateRejectedProjectAndRequestReview(project.id, payload, userId)
-          : await createProject(payload, userId);
+        isSettings && project
+          ? await updateProjectSettings(
+              project.id,
+              {
+                summary: payload.summary,
+                description: payload.description,
+                visibility: payload.visibility,
+                metadata: payload.metadata,
+                isRunning: running,
+                isRecruiting: recruiting,
+                isCompleted: completed,
+              },
+              userId,
+            )
+          : isEdit && project
+            ? await updateRejectedProjectAndRequestReview(project.id, payload, userId)
+            : await createProject(payload, userId);
 
       await onSaved(savedProject);
     } catch (err) {
       setLocalError(
         sanitizeUserError(
           err,
-          isEdit ? "프로젝트 재심사를 요청하지 못했습니다." : "프로젝트를 생성하지 못했습니다.",
+          isSettings
+            ? "프로젝트 설정을 저장하지 못했습니다."
+            : isEdit
+              ? "프로젝트 재심사를 요청하지 못했습니다."
+              : "프로젝트를 생성하지 못했습니다.",
         ),
       );
     } finally {
@@ -152,15 +184,17 @@ export function ProjectFormModal({
               className="kb-mono mb-2 text-[12px] uppercase text-[var(--kb-ink-400)]"
               style={{ letterSpacing: "0.14em" }}
             >
-              {isEdit ? "REVIEW REQUEST" : "CREATE PROJECT"}
+              {isSettings ? "PROJECT SETTINGS" : isEdit ? "REVIEW REQUEST" : "CREATE PROJECT"}
             </div>
             <h2 className="m-0 text-[20px] font-semibold text-[var(--kb-ink-900)]">
-              {isEdit ? "프로젝트 수정" : "새 프로젝트"}
+              {isSettings ? "프로젝트 설정" : isEdit ? "프로젝트 수정" : "새 프로젝트"}
             </h2>
             <p className="m-0 mt-2 text-[13.5px] leading-6 text-[var(--kb-ink-500)]">
-              {isEdit
-                ? "반려 사유를 반영해 내용을 수정하면 다시 검토중 상태로 올라갑니다."
-                : "slug는 서버가 프로젝트 이름을 기준으로 자동 생성합니다. 생성된 프로젝트는 검토중 상태로 등록됩니다."}
+              {isSettings
+                ? "진행 상태, 모집 여부, 요약, 설명, 공개 범위와 협업 규칙을 수정할 수 있습니다. 이름과 유형은 고정됩니다."
+                : isEdit
+                  ? "반려 사유를 반영해 내용을 수정하면 다시 검토중 상태로 올라갑니다."
+                  : "slug는 서버가 프로젝트 이름을 기준으로 자동 생성합니다. 생성된 프로젝트는 검토중 상태로 등록됩니다."}
             </p>
           </div>
           <button
@@ -185,7 +219,13 @@ export function ProjectFormModal({
               value={name}
               onChange={(event) => setName(event.target.value)}
               placeholder="로봇팔 제어 프로젝트"
-              style={FORM_INPUT_STYLE}
+              disabled={isSettings}
+              style={{
+                ...FORM_INPUT_STYLE,
+                background: isSettings ? "#f5f5f2" : "#fff",
+                color: isSettings ? "var(--kb-ink-500)" : undefined,
+                cursor: isSettings ? "not-allowed" : undefined,
+              }}
             />
           </Field>
 
@@ -209,11 +249,18 @@ export function ProjectFormModal({
           </Field>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="유형">
+            <Field label={isSettings ? "유형 (고정)" : "유형"}>
               <select
                 value={projectType}
                 onChange={(event) => setProjectType(event.target.value as ProjectType)}
-                style={FORM_INPUT_STYLE}
+                disabled={isSettings}
+                style={{
+                  ...FORM_INPUT_STYLE,
+                  background: isSettings ? "#f5f5f2" : "#fff",
+                  color: isSettings ? "var(--kb-ink-500)" : undefined,
+                  cursor: isSettings ? "not-allowed" : undefined,
+                }}
+                title={isSettings ? `${getProjectTypeLabel(projectType)}로 고정되어 있습니다.` : undefined}
               >
                 {PROJECT_TYPE_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -227,7 +274,7 @@ export function ProjectFormModal({
                 value={visibility}
                 onChange={(event) => setVisibility(event.target.value as ProjectVisibility)}
                 style={FORM_INPUT_STYLE}
-                disabled={recruiting}
+                disabled={recruiting && !completed}
               >
                 {PROJECT_VISIBILITY_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -238,27 +285,129 @@ export function ProjectFormModal({
             </Field>
           </div>
 
-          <div className="rounded-md border border-[#e8e8e4] bg-[#fafaf6] p-4">
-            <label className="flex items-start gap-3">
-              <input
-                type="checkbox"
-                checked={recruiting}
-                onChange={(event) => {
-                  setRecruiting(event.target.checked);
-                  if (event.target.checked) setVisibility("public");
-                }}
-                className="mt-1 h-4 w-4 accent-[#0a0a0a]"
-              />
-              <span>
-                <span className="block text-[14px] font-semibold text-[var(--kb-ink-900)]">
-                  승인 후 모집중으로 공개
+          {isSettings ? (
+            <div className="rounded-md border border-[#e8e8e4] bg-[#fafaf6] p-4">
+              <div className="mb-3 text-[13px] font-semibold text-[var(--kb-ink-700)]">
+                프로젝트 상태
+              </div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <label
+                  className={`flex min-h-[82px] items-start gap-3 rounded-md border bg-white p-3 ${
+                    completed ? "opacity-45" : ""
+                  }`}
+                  style={{ borderColor: running && !completed ? "#111111" : "#e8e8e4" }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={running && !completed}
+                    disabled={completed}
+                    onChange={(event) => {
+                      setRunning(event.target.checked);
+                      if (event.target.checked) setCompleted(false);
+                    }}
+                    className="mt-1 h-4 w-4 accent-[#0a0a0a]"
+                  />
+                  <span>
+                    <span className="block text-[14px] font-semibold text-[var(--kb-ink-900)]">
+                      진행중
+                    </span>
+                    <span className="mt-1 block text-[12.5px] leading-5 text-[var(--kb-ink-500)]">
+                      작업공간과 스터디 기록을 계속 운영합니다.
+                    </span>
+                  </span>
+                </label>
+
+                <label
+                  className={`flex min-h-[82px] items-start gap-3 rounded-md border bg-white p-3 ${
+                    completed ? "opacity-45" : ""
+                  }`}
+                  style={{ borderColor: recruiting && !completed ? "#111111" : "#e8e8e4" }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={recruiting && !completed}
+                    disabled={completed}
+                    onChange={(event) => {
+                      setRecruiting(event.target.checked);
+                      if (event.target.checked) {
+                        setCompleted(false);
+                        setVisibility("public");
+                      }
+                    }}
+                    className="mt-1 h-4 w-4 accent-[#0a0a0a]"
+                  />
+                  <span>
+                    <span className="block text-[14px] font-semibold text-[var(--kb-ink-900)]">
+                      모집중
+                    </span>
+                    <span className="mt-1 block text-[12.5px] leading-5 text-[var(--kb-ink-500)]">
+                      진행중과 함께 켤 수 있고 공개 모집으로 표시됩니다.
+                    </span>
+                  </span>
+                </label>
+
+                <label
+                  className="flex min-h-[82px] items-start gap-3 rounded-md border bg-white p-3"
+                  style={{ borderColor: completed ? "#111111" : "#e8e8e4" }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={completed}
+                    onChange={(event) => {
+                      const checked = event.target.checked;
+                      setCompleted(checked);
+                      if (checked) {
+                        setRunning(false);
+                        setRecruiting(false);
+                      } else {
+                        setRunning(true);
+                      }
+                    }}
+                    className="mt-1 h-4 w-4 accent-[#0a0a0a]"
+                  />
+                  <span>
+                    <span className="block text-[14px] font-semibold text-[var(--kb-ink-900)]">
+                      종료
+                    </span>
+                    <span className="mt-1 block text-[12.5px] leading-5 text-[var(--kb-ink-500)]">
+                      저장하면 진행중·모집중이 꺼지고 완료 상태가 됩니다.
+                    </span>
+                  </span>
+                </label>
+              </div>
+
+              {recruiting && !completed ? (
+                <textarea
+                  value={recruitmentNote}
+                  onChange={(event) => setRecruitmentNote(event.target.value)}
+                  placeholder="모집 역할이나 필요한 역량을 적어 주세요."
+                  rows={3}
+                  style={{ ...FORM_INPUT_STYLE, marginTop: 12, resize: "vertical", lineHeight: 1.6 }}
+                />
+              ) : null}
+            </div>
+          ) : (
+            <div className="rounded-md border border-[#e8e8e4] bg-[#fafaf6] p-4">
+              <label className="flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  checked={recruiting}
+                  onChange={(event) => {
+                    setRecruiting(event.target.checked);
+                    if (event.target.checked) setVisibility("public");
+                  }}
+                  className="mt-1 h-4 w-4 accent-[#0a0a0a]"
+                />
+                <span>
+                  <span className="block text-[14px] font-semibold text-[var(--kb-ink-900)]">
+                    {isEdit ? "재심사 승인 후 모집중으로 공개" : "승인 후 모집중으로 공개"}
+                  </span>
+                  <span className="mt-1 block text-[13px] leading-5 text-[var(--kb-ink-500)]">
+                    모집중 프로젝트는 참여하지 않은 활성 부원에게도 보이고, 참여 신청 버튼이 열립니다.
+                  </span>
                 </span>
-                <span className="mt-1 block text-[13px] leading-5 text-[var(--kb-ink-500)]">
-                  모집중 프로젝트는 참여하지 않은 활성 부원에게도 보이고, 참여 신청 버튼이 열립니다.
-                </span>
-              </span>
-            </label>
-            {recruiting ? (
+              </label>
+              {recruiting ? (
               <textarea
                 value={recruitmentNote}
                 onChange={(event) => setRecruitmentNote(event.target.value)}
@@ -266,8 +415,9 @@ export function ProjectFormModal({
                 rows={3}
                 style={{ ...FORM_INPUT_STYLE, marginTop: 12, resize: "vertical", lineHeight: 1.6 }}
               />
-            ) : null}
-          </div>
+              ) : null}
+            </div>
+          )}
 
           <div className="grid gap-4 sm:grid-cols-3">
             <Field label="협업 규칙">
@@ -313,12 +463,14 @@ export function ProjectFormModal({
           >
             {saving ? (
               <Loader2 className="h-4 w-4 animate-spin" />
-            ) : isEdit ? (
+            ) : isSettings ? (
+              <Save className="h-4 w-4" />
+            ) : isMutation ? (
               <Send className="h-4 w-4" />
             ) : (
               <Plus className="h-4 w-4" />
             )}
-            {isEdit ? "재심사 요청" : "다음"}
+            {isSettings ? "저장" : isEdit ? "재심사 요청" : "다음"}
           </button>
         </footer>
       </form>

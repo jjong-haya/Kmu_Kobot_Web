@@ -4,7 +4,7 @@ export const PROJECT_FILTERS = [
   { key: "recruiting", label: "모집중" },
   { key: "active", label: "진행중" },
   { key: "pending", label: "검토중" },
-  { key: "archived", label: "종료" },
+  { key: "archived", label: "완료" },
 ];
 
 export function getProjectStatusLabel(status) {
@@ -18,7 +18,7 @@ export function getProjectStatusLabel(status) {
     case "rejected":
       return "반려";
     case "archived":
-      return "종료";
+      return "완료";
     default:
       return status ?? "상태 없음";
   }

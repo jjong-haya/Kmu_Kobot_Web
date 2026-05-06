@@ -9,14 +9,20 @@ import {
   MapPin,
   Monitor,
   Plus,
+  Search,
   User,
   X,
 } from "lucide-react";
 import { useAuth } from "../../auth/useAuth";
 import {
   createBooking,
+  listSpaceBookingAudienceOptions,
   listBookingsInRange,
+  searchSpaceBookingMembers,
   type SpaceBooking as DbSpaceBooking,
+  type BookingAudienceTag,
+  type BookingAudienceTeam,
+  type BookingParticipant,
 } from "../../api/space-bookings";
 import { sanitizeUserError } from "../../utils/sanitize-error";
 
@@ -35,6 +41,9 @@ type Reservation = {
   type: ReservationType;
   attendees: number;
   scope: ReservationScope;
+  participants: BookingParticipant[];
+  audienceTags: BookingAudienceTag[];
+  audienceTeams: BookingAudienceTeam[];
 };
 
 const TYPE_META: Record<
@@ -95,6 +104,9 @@ function fromDbBooking(b: DbSpaceBooking): Reservation {
     type: b.type,
     attendees: b.attendees,
     scope: b.scope,
+    participants: b.participants,
+    audienceTags: b.audienceTags,
+    audienceTeams: b.audienceTeams,
   };
 }
 
@@ -171,16 +183,146 @@ function reservationsByDate(items: Reservation[]) {
   return map;
 }
 
+function initialsFor(name: string) {
+  return name.trim().slice(0, 2).toUpperCase();
+}
+
+function toggleId(ids: string[], id: string) {
+  return ids.includes(id) ? ids.filter((value) => value !== id) : [...ids, id];
+}
+
+function MemberChip({ member, onRemove }: { member: BookingParticipant; onRemove?: () => void }) {
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        padding: "5px 8px 5px 6px",
+        borderRadius: 999,
+        border: "1px solid #e8e8e4",
+        background: "#fff",
+        fontSize: 12.5,
+        fontWeight: 700,
+        color: "var(--kb-ink-800)",
+        maxWidth: "100%",
+      }}
+    >
+      <span
+        style={{
+          width: 20,
+          height: 20,
+          borderRadius: "50%",
+          background: "#f1ede4",
+          color: "var(--kb-ink-700)",
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: 10,
+          flexShrink: 0,
+          overflow: "hidden",
+        }}
+      >
+        {member.avatarUrl ? (
+          <img
+            src={member.avatarUrl}
+            alt=""
+            style={{ width: "100%", height: "100%", objectFit: "cover" }}
+          />
+        ) : (
+          initialsFor(member.displayName)
+        )}
+      </span>
+      <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
+        {member.displayName}
+      </span>
+      {onRemove && (
+        <button
+          type="button"
+          onClick={onRemove}
+          aria-label={`${member.displayName} 제거`}
+          style={{
+            border: 0,
+            background: "transparent",
+            color: "var(--kb-ink-400)",
+            cursor: "pointer",
+            padding: 0,
+            width: 14,
+            height: 14,
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
+          }}
+        >
+          <X style={{ width: 12, height: 12 }} />
+        </button>
+      )}
+    </span>
+  );
+}
+
+function AudienceTagChip({ tag }: { tag: BookingAudienceTag }) {
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        padding: "4px 8px",
+        borderRadius: 999,
+        background: "#fafaf6",
+        border: "1px solid #e8e8e4",
+        color: "var(--kb-ink-800)",
+        fontSize: 12,
+        fontWeight: 700,
+      }}
+    >
+      <span
+        style={{
+          width: 7,
+          height: 7,
+          borderRadius: "50%",
+          background: tag.color,
+          flexShrink: 0,
+        }}
+      />
+      {tag.label}
+    </span>
+  );
+}
+
+function AudienceTeamChip({ team }: { team: BookingAudienceTeam }) {
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        padding: "4px 8px",
+        borderRadius: 999,
+        background: "#eef2ff",
+        color: "#3730a3",
+        fontSize: 12,
+        fontWeight: 700,
+      }}
+    >
+      {team.name}
+    </span>
+  );
+}
+
 /* ───── reservation modal ───── */
 
 function ReservationModal({
   defaultDate,
   defaultOrganizer,
+  currentUserId,
   onClose,
   onSave,
 }: {
   defaultDate: string;
   defaultOrganizer: string;
+  currentUserId: string;
   onClose: () => void;
   onSave: (r: Reservation) => Promise<void> | void;
 }) {
@@ -192,6 +334,15 @@ function ReservationModal({
   const [organizer, setOrganizer] = useState(defaultOrganizer);
   const [attendees, setAttendees] = useState(2);
   const [scope, setScope] = useState<ReservationScope>("desk");
+  const [memberQuery, setMemberQuery] = useState("");
+  const [memberResults, setMemberResults] = useState<BookingParticipant[]>([]);
+  const [selectedMembers, setSelectedMembers] = useState<BookingParticipant[]>([]);
+  const [audienceOptions, setAudienceOptions] = useState<{
+    clubTags: BookingAudienceTag[];
+    teams: BookingAudienceTeam[];
+  }>({ clubTags: [], teams: [] });
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+  const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -211,6 +362,9 @@ function ReservationModal({
         type,
         attendees,
         scope,
+        participants: selectedMembers,
+        audienceTags: audienceOptions.clubTags.filter((tag) => selectedTagIds.includes(tag.id)),
+        audienceTeams: audienceOptions.teams.filter((team) => selectedTeamIds.includes(team.id)),
       });
     } catch (err) {
       setError(sanitizeUserError(err, "저장에 실패했습니다. 잠시 후 다시 시도해 주세요."));
@@ -237,6 +391,50 @@ function ReservationModal({
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    async function loadOptions() {
+      if (!currentUserId) return;
+      try {
+        const options = await listSpaceBookingAudienceOptions(currentUserId);
+        if (!cancelled) setAudienceOptions(options);
+      } catch {
+        if (!cancelled) setAudienceOptions({ clubTags: [], teams: [] });
+      }
+    }
+    void loadOptions();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUserId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const query = memberQuery.trim();
+    if (!query) {
+      setMemberResults([]);
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      void searchSpaceBookingMembers(query, currentUserId)
+        .then((members) => {
+          if (!cancelled) {
+            const selectedIds = new Set(selectedMembers.map((member) => member.id));
+            setMemberResults(members.filter((member) => !selectedIds.has(member.id)));
+          }
+        })
+        .catch(() => {
+          if (!cancelled) setMemberResults([]);
+        });
+    }, 160);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [currentUserId, memberQuery, selectedMembers]);
+
   const inputStyle: CSSProperties = {
     width: "100%",
     padding: "10px 14px",
@@ -256,6 +454,16 @@ function ReservationModal({
     color: "var(--kb-ink-700)",
     marginBottom: 6,
   };
+
+  function addMember(member: BookingParticipant) {
+    setSelectedMembers((prev) => [...prev, member]);
+    setMemberQuery("");
+    setMemberResults([]);
+  }
+
+  function removeMember(memberId: string) {
+    setSelectedMembers((prev) => prev.filter((member) => member.id !== memberId));
+  }
 
   return (
     <div
@@ -500,7 +708,153 @@ function ReservationModal({
             </div>
           </div>
 
-          {/* scope — usage mode */}
+          <div>
+            <label htmlFor="r-member-search" style={labelStyle}>
+              사이트 멤버 공개 대상
+            </label>
+            <div style={{ position: "relative" }}>
+              <Search
+                style={{
+                  position: "absolute",
+                  left: 12,
+                  top: 12,
+                  width: 15,
+                  height: 15,
+                  color: "var(--kb-ink-400)",
+                  pointerEvents: "none",
+                }}
+              />
+              <input
+                id="r-member-search"
+                type="text"
+                value={memberQuery}
+                onChange={(e) => setMemberQuery(e.target.value)}
+                placeholder="이름, 닉네임, 메일, 아이디 검색"
+                style={{ ...inputStyle, paddingLeft: 36 }}
+              />
+              {memberResults.length > 0 && (
+                <div
+                  style={{
+                    position: "absolute",
+                    left: 0,
+                    right: 0,
+                    top: "calc(100% + 6px)",
+                    zIndex: 4,
+                    background: "#fff",
+                    border: "1px solid #e8e8e4",
+                    borderRadius: 10,
+                    boxShadow: "0 12px 30px rgba(0,0,0,0.12)",
+                    overflow: "hidden",
+                  }}
+                >
+                  {memberResults.map((member) => (
+                    <button
+                      key={member.id}
+                      type="button"
+                      onClick={() => addMember(member)}
+                      style={{
+                        width: "100%",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                        padding: "10px 12px",
+                        border: 0,
+                        borderBottom: "1px solid #f1ede4",
+                        background: "#fff",
+                        cursor: "pointer",
+                        textAlign: "left",
+                        fontFamily: "inherit",
+                      }}
+                    >
+                      <MemberChip member={member} />
+                      <span style={{ minWidth: 0, color: "var(--kb-ink-500)", fontSize: 12.5 }}>
+                        {member.email ?? member.loginId ?? ""}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            {selectedMembers.length > 0 && (
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 6,
+                  marginTop: 8,
+                }}
+              >
+                {selectedMembers.map((member) => (
+                  <MemberChip
+                    key={member.id}
+                    member={member}
+                    onRemove={() => removeMember(member.id)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {(audienceOptions.clubTags.length > 0 || audienceOptions.teams.length > 0) && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {audienceOptions.clubTags.length > 0 && (
+                <div>
+                  <label style={labelStyle}>동아리 태그 공개 대상</label>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    {audienceOptions.clubTags.map((tag) => {
+                      const selected = selectedTagIds.includes(tag.id);
+                      return (
+                        <button
+                          key={tag.id}
+                          type="button"
+                          onClick={() => setSelectedTagIds((prev) => toggleId(prev, tag.id))}
+                          style={{
+                            border: selected ? "2px solid #0a0a0a" : "1px solid #e8e8e4",
+                            background: selected ? "#fafaf6" : "#fff",
+                            borderRadius: 999,
+                            padding: "5px 9px",
+                            cursor: "pointer",
+                            fontFamily: "inherit",
+                          }}
+                        >
+                          <AudienceTagChip tag={tag} />
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              {audienceOptions.teams.length > 0 && (
+                <div>
+                  <label style={labelStyle}>팀 공개 대상</label>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    {audienceOptions.teams.map((team) => {
+                      const selected = selectedTeamIds.includes(team.id);
+                      return (
+                        <button
+                          key={team.id}
+                          type="button"
+                          onClick={() => setSelectedTeamIds((prev) => toggleId(prev, team.id))}
+                          style={{
+                            border: selected ? "2px solid #0a0a0a" : "1px solid #e8e8e4",
+                            background: selected ? "#fafaf6" : "#fff",
+                            borderRadius: 999,
+                            padding: "5px 9px",
+                            cursor: "pointer",
+                            fontFamily: "inherit",
+                          }}
+                        >
+                          <AudienceTeamChip team={team} />
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* scope – usage mode */}
           <div>
             <label style={labelStyle}>사용 범위</label>
             <div
@@ -1466,6 +1820,33 @@ export default function SpaceBooking() {
                           })()}
                         </span>
                       </div>
+                      {(r.participants.length > 0 ||
+                        r.audienceTags.length > 0 ||
+                        r.audienceTeams.length > 0) && (
+                        <div
+                          style={{
+                            display: "flex",
+                            flexWrap: "wrap",
+                            gap: 6,
+                            marginTop: 10,
+                          }}
+                        >
+                          {r.participants.slice(0, 4).map((participant) => (
+                            <MemberChip key={participant.id} member={participant} />
+                          ))}
+                          {r.participants.length > 4 && (
+                            <span style={{ fontSize: 12, color: "var(--kb-ink-500)" }}>
+                              +{r.participants.length - 4}
+                            </span>
+                          )}
+                          {r.audienceTags.map((tag) => (
+                            <AudienceTagChip key={tag.id} tag={tag} />
+                          ))}
+                          {r.audienceTeams.map((team) => (
+                            <AudienceTeamChip key={team.id} team={team} />
+                          ))}
+                        </div>
+                      )}
                     </div>
 
                     {/* detail link */}
@@ -1526,6 +1907,7 @@ export default function SpaceBooking() {
           <ReservationModal
             defaultDate={selectedIso ?? fmtDate(today)}
             defaultOrganizer={currentUserName}
+            currentUserId={currentUserId ?? ""}
             onClose={() => setModalOpen(false)}
             onSave={async (r) => {
               if (!currentUserId) {
@@ -1536,11 +1918,13 @@ export default function SpaceBooking() {
                 date: r.date,
                 start: r.start,
                 end: r.end,
-                organizerId: currentUserId,
                 organizerName: r.organizer,
                 type: r.type,
                 scope: r.scope,
                 attendees: r.attendees,
+                participantUserIds: r.participants.map((participant) => participant.id),
+                audienceTagIds: r.audienceTags.map((tag) => tag.id),
+                audienceTeamIds: r.audienceTeams.map((team) => team.id),
               });
               const newReservation = fromDbBooking(created);
               setReservations((prev) => [...prev, newReservation]);
@@ -1702,6 +2086,58 @@ function ReservationDetailModal({
           <DetailRow label="참여" value={`${r.attendees}명`} />
           <DetailRow label="공간 사용" value={scopeLabel[r.scope]} />
         </dl>
+        {(r.participants.length > 0 || r.audienceTags.length > 0 || r.audienceTeams.length > 0) && (
+          <div
+            style={{
+              padding: "4px 22px 12px",
+              display: "flex",
+              flexDirection: "column",
+              gap: 10,
+            }}
+          >
+            {r.participants.length > 0 && (
+              <div>
+                <div
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: "var(--kb-ink-400)",
+                    marginBottom: 6,
+                  }}
+                >
+                  사이트 멤버 공개 대상
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {r.participants.map((participant) => (
+                    <MemberChip key={participant.id} member={participant} />
+                  ))}
+                </div>
+              </div>
+            )}
+            {(r.audienceTags.length > 0 || r.audienceTeams.length > 0) && (
+              <div>
+                <div
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: "var(--kb-ink-400)",
+                    marginBottom: 6,
+                  }}
+                >
+                  태그/팀 공개 대상
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {r.audienceTags.map((tag) => (
+                    <AudienceTagChip key={tag.id} tag={tag} />
+                  ))}
+                  {r.audienceTeams.map((team) => (
+                    <AudienceTeamChip key={team.id} team={team} />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         <div
           style={{

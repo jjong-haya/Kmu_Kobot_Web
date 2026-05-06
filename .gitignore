@@ -5,8 +5,12 @@ dist
 !.env.example
 supabase/.temp/
 .playwright-mcp/
+.ouroboros/
+.claude/worktrees/
 .vite-dev.log
+.vite-*.log
 nul
 design_dl/
 .tmp-landing/
 .vite-codex.*.log
+*.private-key.pem
