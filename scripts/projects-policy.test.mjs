@@ -15,7 +15,7 @@ test("maps database project statuses to Korean labels", () => {
   assert.equal(getProjectStatusLabel("recruiting"), "모집중");
   assert.equal(getProjectStatusLabel("pending"), "검토중");
   assert.equal(getProjectStatusLabel("rejected"), "반려");
-  assert.equal(getProjectStatusLabel("archived"), "종료");
+  assert.equal(getProjectStatusLabel("archived"), "완료");
 });
 
 test("maps project membership roles to Korean labels", () => {
