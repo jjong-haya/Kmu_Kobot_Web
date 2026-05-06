@@ -283,7 +283,7 @@ export default function Projects() {
                 className="inline-flex items-center gap-2 rounded-md border border-[#ebe8e0] bg-white px-4 py-2.5 text-[14px] font-semibold text-[var(--kb-ink-800)] hover:border-[var(--kb-ink-300)]"
               >
                 <Settings className="h-4 w-4" />
-                생성 관리
+                프로젝트 관리
               </button>
             ) : null}
             <button

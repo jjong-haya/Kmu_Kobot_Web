@@ -11,6 +11,7 @@
 | 미션 보상 자동 부여 | `apply_quest_completion_rewards` 트리거가 `member_tag_assignments` 에 INSERT | ❌ 클라이언트가 직접 INSERT |
 | 초대코드 → 태그 부여 | `redeem_course_invite` 가 `default_tags` 슬러그 매칭으로 `member_tag_assignments` INSERT | ❌ status 자동 승격, ❌ tech_tags 갱신 |
 | 동아리 태그 판정 | `member_tags.is_club=true` | ❌ KOBOT/KOSS 이름 하드코딩, ❌ label 문자열 추론 |
+| 기능·권한 운영 문서 | `docs/product/feature-permission-register.md` | ❌ 새 기능을 코드에만 남기기, ❌ 권한 범위 미기록 |
 
 ## 1. 데이터 흐름 (변경 시 반드시 이 경로 모두 점검)
 
@@ -108,6 +109,7 @@ if (first.error) {
 4. 칩 / 라벨 변경 → `components/TagChip.tsx` 와 `tag-rendering-touchpoints.md` 의 수동 렌더 지점까지 같이 확인.
 5. status 분기 코드 추가하려는 충동이 들면 STOP. 권한·UI 는 항상 태그 기반.
 6. 알림 링크 변경 → `notifications.md` 를 먼저 보고, row click 이 상세 팝업을 거친 뒤 CTA 로 이동하는지 확인.
+7. 새 route, 새 권한, 새 RPC, 새 알림, 새 storage bucket, 새 감사 로그가 생기면 `feature-permission-register.md` 갱신 항목을 먼저 표시한다.
 
 ## 6. 변경 후 검증
 
@@ -115,6 +117,7 @@ if (first.error) {
 2. `mcp__Claude_Preview__preview_console_logs level=error` 깨끗
 3. 대상 페이지 새로고침 → 실제로 의도한 화면이 나오는지 눈으로 확인 (시간 부족하면 `preview_snapshot` / `preview_screenshot` 으로 대체)
 4. 운영 DB 에 새 마이그레이션 필요하면 README 마이그레이션 목록 갱신.
+5. 구현/권한/데이터/RPC/감사 기록이 `feature-permission-register.md` 와 도메인 문서에 반영됐는지 확인.
 
 ## 7. 실패 패턴 카탈로그 (반복 금지)
 

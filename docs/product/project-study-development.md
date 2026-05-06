@@ -263,8 +263,9 @@ flowchart TD
 | 행위 | Global tag permission | Project role | 비고 |
 | --- | --- | --- | --- |
 | 프로젝트 생성 | `projects.create` 또는 `projects.manage` | 없음 | 태그 설정 UI에서 부여 |
-| 프로젝트 승인/반려 | `projects.manage` 또는 `members.manage` | 공식팀장 가능 여부는 정책 결정 필요 | 현재 문서상 미구현 |
-| 프로젝트 설정 변경 | `projects.manage` | lead/maintainer | status 변경은 운영진만 |
+| 프로젝트 승인/반려 | `projects.manage` 또는 `members.manage` | 공식팀장 helper | 구현됨. `review_project_team(...)`가 최종 판정 |
+| 프로젝트 리드 변경/복구 | `projects.manage`, `members.manage`, `admin.access` | 공식팀장 helper | 구현됨. `set_project_team_lead(...)`가 lead_user_id와 lead membership을 같이 정리 |
+| 프로젝트 설정 변경 | `projects.manage` | lead/maintainer | 진행/모집/종료는 `update_project_team_settings(...)`로 처리 |
 | 멤버 승인/제거 | `projects.manage` | lead/maintainer | 자기 자신 제거는 별도 command |
 | work item 생성/수정 | `projects.manage` | lead/maintainer | member는 comment/progress만 |
 | 스터디 세션 생성 | `projects.manage` 또는 future `studies.manage` | project lead/maintainer | project-linked면 local role 우선 |
@@ -649,7 +650,7 @@ RLS helper는 다음처럼 분리한다.
 이번 구현은 DDD 문서의 Phase 1/3 일부를 실제 코드로 연결했다.
 
 - 프로젝트 생성: `Projects.tsx`에서 slug 입력을 제거하고 `create_project_team(...)` RPC가 자동 slug를 생성한다.
-- 프로젝트 생성 관리: `/member/project-admin`을 추가해 pending/active/rejected/archived 프로젝트를 한 화면에서 관리한다.
+- 프로젝트 관리: `/member/project-admin`을 추가해 pending/active/rejected/archived 프로젝트와 리드 변경/복구를 한 화면에서 관리한다.
 - 프로젝트 승인/반려: 상세 화면과 관리 화면 모두 `review_project_team(...)` RPC를 사용한다.
 - 프로젝트 참여: 상세 화면에서 참여 요청과 승인/반려가 `request_project_join(...)`, `review_project_join_request(...)`로 처리된다.
 - 프로젝트 스터디 기록: 프로젝트 상세에는 해당 프로젝트 기록만, 전역 스터디 기록 화면에는 프로젝트별 그룹과 필터를 제공한다.
@@ -663,3 +664,64 @@ RLS helper는 다음처럼 분리한다.
 - 프로젝트별 파일 저장소와 private storage policy는 아직 구현되지 않았다.
 - 프로젝트 생성 후 "다음"은 상세로 이동하지만, 이후 단계형 설정 wizard는 아직 없다.
 - 모집 안내 문구 수정 UI는 아직 별도 모달이 없다. 현재는 생성 시 입력하거나 모집 시작/마감만 토글한다.
+
+## 2026-05-06 implementation update
+
+이 업데이트에서 이전 gap 중 작업 공간, 블로그식 스터디 기록, 수정 이력, 보안 이벤트 일부가 실제 구현으로 전환됐다.
+
+### 프로젝트 작업 공간
+
+| 항목 | 구현 |
+| --- | --- |
+| 작업 테이블 | `project_tasks` |
+| 작업 번호 | 프로젝트별 `task_number` 자동 증가 |
+| 생성 | `create_project_task(...)` RPC |
+| 상태 변경 | `set_project_task_status(...)` RPC |
+| 담당자 변경 | `set_project_task_assignee(...)` RPC |
+| UI | `ProjectDetail.tsx`의 칸반 보드, 생성 팝업, 카드 접기/펼치기, 담당자 avatar 선택 |
+| 권한 | 프로젝트 멤버만 생성/상태/담당자 변경 가능. 담당자는 active 프로젝트 멤버만 지정 가능 |
+| 감사 | `project.task.create`, `project.task.status.update`, `project.task.assignee.update` |
+
+현재 정책상 프로젝트 멤버라면 작업 생성과 상태/담당자 변경이 가능하다. 리드만 가능하게 바꿀지 여부는 별도 제품 결정이 필요하다.
+
+### 스터디 기록
+
+| 항목 | 구현 |
+| --- | --- |
+| 전역 화면 | `/member/study-log`는 내가 참여한 프로젝트만 앱스토어형 카드로 표시 |
+| 프로젝트 게시판 | `/member/study-log/:slug` |
+| 글쓰기 | `/member/study-log/:slug/write` |
+| 글 상세 | `/member/study-log/:slug/posts/:recordId` |
+| 글 수정 | `/member/study-log/:slug/posts/:recordId/edit` |
+| 에디터 | BlockNote 기반 블록 에디터. 제목은 본문 에디터 밖 별도 input |
+| 자동 저장 | 제목, 시간, 공개 범위, block content를 `localStorage`에 임시 저장 |
+| 이미지 | BlockNote upload hook → Supabase Storage `study-images` |
+| 본문 저장 | `study_records.metadata.contentJson`, `imageUrls`, plain text body |
+| 수정 이력 | `study_record_revisions`에 수정 전/후 제목, 본문, 공개 범위 기록 |
+| 보안 이벤트 | `record_security_event(...)`, `security_event_logs` |
+
+작성 권한은 프로젝트 멤버에게만 있다. 수정 권한은 작성자, 프로젝트 관리 가능자, `studies.manage` 권한자에게 있다. `locked` 상태는 `studies.manage` 없이는 수정할 수 없다.
+
+### 프로젝트 상태 보강
+
+| 항목 | 구현 |
+| --- | --- |
+| 반려 상세 | 반려 프로젝트 진입 시 404 스타일 안내와 반려 사유 표시 |
+| 재심사 | `resubmit_project_team(...)` |
+| 반려 복구 | `restore_rejected_project_team(...)` |
+| active 설정 수정 | `update_project_team_settings(...)` |
+| 이름/유형 잠금 | active/recruiting 설정 수정 RPC에 `p_name`, `p_project_type` 없음 |
+| 상태 체크 | `진행중`과 `모집중`은 동시 선택 가능, `종료`는 `archived` 완료 상태로 전환 |
+| 승인 알림 | self approval도 notification row 생성 |
+
+### 남은 DDD gap
+
+| 항목 | 상태 |
+| --- | --- |
+| 마일스톤 | 아직 미구현 |
+| 프로젝트 자료/repository 링크 | 아직 미구현. GitHub 연동 설계 필요 |
+| 활동 로그 전용 read model | audit log는 있으나 사용자용 activity feed는 별도 미구현 |
+| 스터디 세션/출석 | 아직 미구현 |
+| 스터디 과제/제출/리뷰 | 아직 미구현 |
+| private file bucket 정책 | `study-images`는 이미지 첨부용. 프로젝트 내부 민감 파일용 정책은 별도 필요 |
+| GitHub 조직 자동화 | 미구현. GitHub App + outbox + `project_github_links` 설계 필요 |

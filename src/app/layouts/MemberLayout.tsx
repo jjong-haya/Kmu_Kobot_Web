@@ -160,7 +160,7 @@ const NAVIGATION: NavigationSection[] = [
         permissions: ["projects.manage"],
       },
       {
-        name: "프로젝트 생성 관리",
+        name: "프로젝트 관리",
         href: "/member/project-admin",
         icon: ClipboardList,
         permissions: ["projects.manage", "members.manage"],

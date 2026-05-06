@@ -286,21 +286,29 @@ async function listDashboardProjects(userId: string) {
   }));
 }
 
-async function listDashboardBookings() {
+async function listDashboardBookings(userId: string) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const bookings = await listBookingsInRange(toIsoDate(today), toIsoDate(addDays(today, 45)));
 
-  return bookings.map((booking) => ({
-    id: booking.id,
-    title: booking.title,
-    date: booking.date,
-    start: booking.start,
-    end: booking.end,
-    organizer: booking.organizer,
-    type: booking.type,
-    attendees: booking.attendees,
-  }));
+  return bookings
+    .filter(
+      (booking) =>
+        booking.organizerId === userId ||
+        booking.participants.some((participant) => participant.id === userId) ||
+        booking.audienceTags.length > 0 ||
+        booking.audienceTeams.length > 0,
+    )
+    .map((booking) => ({
+      id: booking.id,
+      title: booking.title,
+      date: booking.date,
+      start: booking.start,
+      end: booking.end,
+      organizer: booking.organizer,
+      type: booking.type,
+      attendees: booking.attendees,
+    }));
 }
 
 async function listDashboardContactRequests(userId: string) {
@@ -351,7 +359,7 @@ export async function loadDashboardData(userId: string): Promise<DashboardData> 
       ),
       withFallback("notices", listDashboardNotices(), []),
       withFallback("projects", listDashboardProjects(userId), []),
-      withFallback("bookings", listDashboardBookings(), []),
+      withFallback("bookings", listDashboardBookings(userId), []),
       withFallback("contactRequests", listDashboardContactRequests(userId), []),
     ]);
 

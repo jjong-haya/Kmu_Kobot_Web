@@ -96,9 +96,9 @@ sequenceDiagram
 | 영역 | 파일 | 역할 |
 | --- | --- | --- |
 | DB 자동 slug/seed | `supabase/migrations/20260506130000_project_auto_slug_and_demo_seed.sql` | `create_project_team(...)` 자동 slug 생성, demo project/study seed |
-| 프로젝트 생성 관리 UI | `src/app/pages/member/ProjectAdmin.tsx` | 생성 요청 검토, 승인/반려, 상태별 프로젝트 관리 |
+| 프로젝트 관리 UI | `src/app/pages/member/ProjectAdmin.tsx` | 생성 요청 검토, 승인/반려, 상태별 프로젝트 관리, 리드 변경/복구 |
 | 라우팅 | `src/app/routes.tsx` | `/member/project-admin` 접근 제어 |
-| 사이드바/권한 UI | `src/app/layouts/MemberLayout.tsx`, `src/app/config/nav-catalog.ts` | 프로젝트 생성 관리 메뉴와 권한 설정 노출 |
+| 사이드바/권한 UI | `src/app/layouts/MemberLayout.tsx`, `src/app/config/nav-catalog.ts` | 프로젝트 관리 메뉴와 권한 설정 노출 |
 | 스터디 전역 기록 | `src/app/pages/member/StudyLog.tsx` | 프로젝트별 필터/그룹 read model |
 
 ## 2026-05-05 update: recruitment scope
@@ -116,5 +116,44 @@ sequenceDiagram
 | DB 모집/RLS | `supabase/migrations/20260506140000_project_recruitment_scope.sql` | `recruitment_status`, `recruitment_note`, 모집중 read scope, 참여 신청 제한, 모집 상태 RPC |
 | 프로젝트 목록 | `src/app/pages/member/Projects.tsx` | 기본 필터를 내 프로젝트로 두고 모집중 필터/배지 제공 |
 | 프로젝트 상세 | `src/app/pages/member/ProjectDetail.tsx` | 모집중 안내, 참여 신청, 리드/운영자 모집 시작/마감 |
-| 프로젝트 생성 관리 | `src/app/pages/member/ProjectAdmin.tsx` | active 프로젝트 모집 시작/마감 |
+| 프로젝트 관리 | `src/app/pages/member/ProjectAdmin.tsx` | active 프로젝트 모집 시작/마감, 프로젝트 리드 지정 |
 | 프로젝트 정책 | `src/app/api/project-policy.js` | `recruiting` 필터 |
+
+## 2026-05-06 update: rejection recovery, active settings, workspace tasks
+
+프로젝트 반려 이후 흐름을 운영 가능한 상태로 확장했다. 반려된 프로젝트는 상세 진입 시 일반 404와 비슷한 안내 화면을 보여주고, 반려 사유를 함께 표시한다. 생성자/관리 가능자는 `수정하기`로 기존 생성 팝업과 같은 폼을 다시 열어 내용을 고친 뒤 재심사를 요청한다. 운영자가 반려를 잘못 눌렀을 경우 `/member/project-admin`에서 `복구하기`로 pending 상태로 되돌릴 수 있다.
+
+승인된 프로젝트도 프로젝트 리드가 설정을 수정할 수 있다. 단, 프로젝트 이름과 유형은 공식 기록으로 보고 active/recruiting 설정 수정 RPC 계약에서 제외한다. 리드는 요약, 설명, 공개 범위, 모집 여부, 모집 안내, 진행 상태 같은 운영 정보를 수정할 수 있다. DB 최종 권한은 `update_project_team_settings(...)`가 `current_user_can_manage_project(project_id)`로 다시 확인한다.
+
+프로젝트 설정의 상태는 체크박스로 관리한다. `진행중`과 `모집중`은 서로 독립된 축이라 동시에 선택할 수 있다. 이 경우 DB는 `status='active'`, `recruitment_status='open'`으로 저장한다. `모집중`만 켜면 아직 진행 전 모집 상태로 `status='recruiting'`, `recruitment_status='open'`이 된다. `종료`를 켜면 진행중/모집중이 같이 꺼지고 `status='archived'`, `recruitment_status='closed'`, `archived_at=now()`가 되어 화면에는 `완료`로 표시된다.
+
+프로젝트 상세는 Jira식 작업 공간을 포함한다. 작업 생성은 페이지 안 고정 카드가 아니라 팝업에서 시작하고, 생성 후 담당자는 카드에서 선택/변경한다. 작업 상태 이동과 담당자 변경은 모두 RPC를 통해 처리하고 audit log를 남긴다.
+
+프로젝트 승인/반려 알림은 자기 자신이 승인한 경우에도 알림 row가 생성되도록 수정했다. 기존에는 `recipient_id <> actor` 제외 조건 때문에 1인 테스트나 리드/승인자가 같은 상황에서 토스트가 뜨지 않았다.
+
+프로젝트 관리 화면은 리드 변경/복구도 담당한다. 리드가 계정을 탈퇴해서 `lead_user_id`가 비거나 lead membership이 사라진 경우에도 공식팀장 이상은 활성 부원 중 새 리드를 지정할 수 있다. 저장은 `set_project_team_lead(...)` RPC가 처리하며, 새 리드는 active lead membership으로 보장되고 기존 active lead는 maintainer로 내려간다. 이 변경은 `project.lead.update` audit log, `metadata.lastLeadUpdate`, `project.lead_assigned` 알림으로 남긴다.
+
+추가 invariants:
+
+9. **반려 프로젝트 재심사는 `resubmit_project_team(...)` 으로만 한다.** 반려 상태의 프로젝트를 프론트에서 직접 pending으로 바꾸지 않는다.
+10. **반려 복구는 운영 RPC `restore_rejected_project_team(...)` 으로만 한다.** 잘못된 반려를 되돌릴 수 있지만, 복구 사유와 이전 검토 기록은 metadata/audit에 남긴다.
+11. **승인된 프로젝트 설정 수정에서 이름과 유형은 바꾸지 않는다.** `update_project_team_settings(...)` RPC는 `p_name`, `p_project_type`을 받지 않고 `name`, `project_type` 컬럼을 update하지 않는다.
+12. **진행중과 모집중은 별도 축이다.** 진행중은 `project_teams.status='active'`, 모집중은 `project_teams.recruitment_status='open'`으로 표현한다.
+13. **종료는 완료 상태로 저장한다.** 설정에서 종료를 선택하면 `status='archived'`, `recruitment_status='closed'`, `archived_at=now()`로 저장하고 화면 label은 `완료`를 쓴다.
+14. **작업 생성/상태/담당자는 프로젝트 멤버 scope에서만 변경한다.** `create_project_task`, `set_project_task_status`, `set_project_task_assignee`가 프로젝트 멤버와 담당자 membership을 검증한다.
+15. **프로젝트 리드는 RPC로만 변경한다.** `project_teams.lead_user_id`와 `project_team_memberships.role='lead'`를 같이 맞춰야 하므로 `set_project_team_lead(...)`가 단일 쓰기 경로다.
+
+추가 touchpoint:
+
+| 영역 | 파일 | 역할 |
+| --- | --- | --- |
+| DB 재심사/복구 | `supabase/migrations/20260507001000_project_rejection_resubmission.sql` | `resubmit_project_team(...)`, `restore_rejected_project_team(...)` |
+| DB 승인 알림 | `supabase/migrations/20260507002000_project_review_self_notifications.sql` | self-exclusion 제거한 `review_project_team(...)` |
+| DB 설정 수정 | `supabase/migrations/20260507003000_project_settings_update.sql`, `supabase/migrations/20260507004000_project_settings_status_controls.sql` | active/recruiting 프로젝트 설정 수정, 이름/유형 잠금, 진행/모집/종료 상태 체크 |
+| DB 리드 변경 | `supabase/migrations/20260507005000_project_management_lead_transfer.sql` | `set_project_team_lead(...)`, lead_user_id와 lead membership 동기화 |
+| DB 작업 공간 | `supabase/migrations/20260506220000_project_workspace_tasks.sql` | `project_tasks` 테이블, task number, RLS |
+| DB 작업 RPC | `supabase/migrations/20260506230000_project_task_rpcs.sql`, `20260506234000_project_task_assignee_rpc.sql` | 생성/상태/담당자 RPC와 audit |
+| API | `src/app/api/projects.ts`, `src/app/api/project-tasks.ts` | 프로젝트 설정/재심사/복구/리드 변경/작업 RPC 호출 |
+| 생성·수정 모달 | `src/app/components/member/ProjectFormModal.tsx` | create/edit/settings 모드, active 설정에서 이름 잠금 |
+| 상세 UI | `src/app/pages/member/ProjectDetail.tsx` | 반려 안내, 설정 모달, 작업 보드, 담당자 선택 |
+| 관리 UI | `src/app/pages/member/ProjectAdmin.tsx` | 반려 복구, 재심사 상태, 리드 설정 표시 |

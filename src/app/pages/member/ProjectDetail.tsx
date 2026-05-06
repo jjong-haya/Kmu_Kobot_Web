@@ -4,27 +4,34 @@ import { Link, useParams } from "react-router";
 import {
   AlertTriangle,
   ArrowLeft,
-  ArrowRight,
   CalendarDays,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   ChevronUp,
   Circle,
   Clock,
+  ExternalLink,
   Flag,
   FolderKanban,
+  Github,
   Loader2,
   Pencil,
   Plus,
   RefreshCw,
   Search,
+  Settings,
   Sparkles,
+  UserRound,
   UserPlus,
   Users,
 } from "lucide-react";
 import {
   getProjectBySlug,
+  getCurrentUserGithubReadiness,
   requestProjectJoin,
   type ProjectDetail as ProjectDetailData,
+  type GithubIdentityStatus,
   type ProjectMember,
 } from "../../api/projects";
 import { getProjectRoleLabel, getProjectStatusLabel } from "../../api/project-policy.js";
@@ -47,6 +54,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../../components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "../../components/ui/dropdown-menu";
 import { safeImageUrl } from "../../utils/safe-image-url";
 
 const PAGE_STYLE: CSSProperties = {
@@ -171,7 +186,7 @@ function MemberAvatar({ member }: { member: ProjectMember }) {
 
 function AssigneeAvatar({
   member,
-  size = 30,
+  size = 32,
 }: {
   member: ProjectMember | null;
   size?: number;
@@ -180,9 +195,8 @@ function AssigneeAvatar({
 
   return (
     <span
-      className="inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-[#e8e8e4] bg-[#fafaf6] text-[10px] font-extrabold text-[var(--kb-ink-600)]"
+      className="inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-[#e1dfd6] bg-[#f6f5ef] text-[10px] font-extrabold text-[var(--kb-ink-600)]"
       style={{ width: size, height: size }}
-      title={member ? member.displayName : "담당자 없음"}
     >
       {image ? (
         <img
@@ -194,7 +208,7 @@ function AssigneeAvatar({
       ) : member ? (
         initialsFor(member.displayName)
       ) : (
-        "?"
+        <UserRound className="h-[55%] w-[55%] text-[var(--kb-ink-400)]" />
       )}
     </span>
   );
@@ -211,24 +225,65 @@ function AssigneePicker({
   assignee: ProjectMember | null;
   onChange: (task: ProjectTask, assigneeUserId: string | null) => void;
 }) {
+  const tooltipLabel = assignee ? `담당자: ${assignee.displayName}` : "담당자 없음";
+
   return (
-    <span className="relative inline-flex h-[30px] w-[30px] items-center justify-center">
-      <AssigneeAvatar member={assignee} size={30} />
-      <select
-        aria-label="담당자 변경"
-        value={task.assigneeUserId ?? ""}
+    <DropdownMenu>
+      <div className="group/assignee relative inline-flex">
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            aria-label={tooltipLabel}
+            title={tooltipLabel}
+            onClick={(event) => event.stopPropagation()}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full outline-none transition-transform hover:scale-[1.04] focus-visible:ring-2 focus-visible:ring-[#111111]/20"
+          >
+            <AssigneeAvatar member={assignee} size={32} />
+          </button>
+        </DropdownMenuTrigger>
+        <span className="pointer-events-none absolute right-0 top-[calc(100%+8px)] z-30 max-w-[210px] translate-y-1 whitespace-nowrap rounded-md border border-[#dedbd1] bg-[#111111]/90 px-2.5 py-1.5 text-[12px] font-semibold text-white opacity-0 shadow-lg transition-[opacity,transform] duration-150 group-hover/assignee:translate-y-0 group-hover/assignee:opacity-100">
+          {tooltipLabel}
+        </span>
+      </div>
+      <DropdownMenuContent
+        align="end"
+        sideOffset={8}
+        className="z-[160] w-60 border-[#e8e8e4] bg-white p-1"
         onClick={(event) => event.stopPropagation()}
-        onChange={(event) => onChange(task, event.target.value || null)}
-        className="absolute inset-0 cursor-pointer opacity-0"
       >
-        <option value="">담당자 없음</option>
+        <DropdownMenuLabel className="px-2 py-1.5 text-[12px] text-[var(--kb-ink-500)]">
+          담당자
+        </DropdownMenuLabel>
+        <DropdownMenuItem
+          onSelect={() => onChange(task, null)}
+          className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-[13px]"
+        >
+          <AssigneeAvatar member={null} size={28} />
+          <span className="font-medium text-[var(--kb-ink-700)]">담당자 없음</span>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
         {members.map((member) => (
-          <option key={member.userId} value={member.userId}>
-            {member.displayName}
-          </option>
+          <DropdownMenuItem
+            key={member.userId}
+            onSelect={() => onChange(task, member.userId)}
+            className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-[13px]"
+          >
+            <AssigneeAvatar member={member} size={28} />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate font-semibold text-[var(--kb-ink-900)]">
+                {member.displayName}
+              </span>
+              <span className="block truncate text-[11.5px] text-[var(--kb-ink-400)]">
+                {member.roleLabel}
+              </span>
+            </span>
+            {task.assigneeUserId === member.userId ? (
+              <span className="h-1.5 w-1.5 rounded-full bg-[#111111]" />
+            ) : null}
+          </DropdownMenuItem>
         ))}
-      </select>
-    </span>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -258,28 +313,38 @@ function TaskCard({
     <article
       draggable
       onDragStart={() => onDragStart(task.id)}
-      className="group relative overflow-visible rounded-md border border-[#e8e8e4] bg-white p-3 pb-4 shadow-sm transition-shadow hover:shadow-md"
+      className="group relative overflow-hidden rounded-md border border-[#e8e8e4] bg-white p-3 pb-9 shadow-sm transition-shadow hover:shadow-md"
     >
-      {prev ? (
-        <button
-          type="button"
-          onClick={() => onMove(task, prev)}
-          className="pointer-events-none absolute -left-7 top-1/2 z-10 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-[#e8e8e4] bg-white text-[var(--kb-ink-500)] opacity-0 shadow-md transition-opacity hover:text-[var(--kb-ink-900)] group-hover:pointer-events-auto group-hover:opacity-100"
-          aria-label="이전 단계로 이동"
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </button>
-      ) : null}
+      {prev || next ? (
+        <div className="pointer-events-none absolute bottom-2.5 right-2.5 z-20 inline-flex items-center gap-1 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100">
+          {prev ? (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onMove(task, prev);
+              }}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-[#e8e8e4]/80 bg-white/70 text-[var(--kb-ink-500)] shadow-[0_6px_16px_rgba(0,0,0,0.08)] backdrop-blur-[2px] transition hover:bg-white hover:text-[var(--kb-ink-900)]"
+              aria-label="이전 단계로 이동"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+          ) : null}
 
-      {next ? (
-        <button
-          type="button"
-          onClick={() => onMove(task, next)}
-          className="pointer-events-none absolute -right-7 top-1/2 z-10 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-[#e8e8e4] bg-white text-[var(--kb-ink-500)] opacity-0 shadow-md transition-opacity hover:text-[var(--kb-ink-900)] group-hover:pointer-events-auto group-hover:opacity-100"
-          aria-label="다음 단계로 이동"
-        >
-          <ArrowRight className="h-4 w-4" />
-        </button>
+          {next ? (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onMove(task, next);
+              }}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-[#e8e8e4]/80 bg-white/70 text-[var(--kb-ink-500)] shadow-[0_6px_16px_rgba(0,0,0,0.08)] backdrop-blur-[2px] transition hover:bg-white hover:text-[var(--kb-ink-900)]"
+              aria-label="다음 단계로 이동"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          ) : null}
+        </div>
       ) : null}
 
       <div className="flex items-start justify-between gap-3">
@@ -345,7 +410,17 @@ function TaskCard({
   );
 }
 
-function ProjectWorkspace({ project }: { project: ProjectDetailData }) {
+function ProjectWorkspace({
+  project,
+  userId,
+  canEditProject,
+  onUpdated,
+}: {
+  project: ProjectDetailData;
+  userId: string;
+  canEditProject: boolean;
+  onUpdated: () => Promise<void>;
+}) {
   const [tasks, setTasks] = useState<ProjectTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -356,6 +431,7 @@ function ProjectWorkspace({ project }: { project: ProjectDetailData }) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState<ProjectTaskPriority>("medium");
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const keywordValue = keyword.trim().toLocaleLowerCase("ko-KR");
   const membersById = useMemo(
@@ -504,6 +580,16 @@ function ProjectWorkspace({ project }: { project: ProjectDetailData }) {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {canEditProject ? (
+            <button
+              type="button"
+              onClick={() => setSettingsOpen(true)}
+              className="inline-flex items-center gap-2 rounded-md border border-[#ebe8e0] bg-white px-4 py-2.5 text-[14px] font-semibold text-[var(--kb-ink-800)] no-underline hover:border-[var(--kb-ink-300)]"
+            >
+              <Settings className="h-4 w-4" />
+              프로젝트 설정
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={() => setTaskDialogOpen(true)}
@@ -605,6 +691,21 @@ function ProjectWorkspace({ project }: { project: ProjectDetailData }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {settingsOpen ? (
+        <ProjectFormModal
+          mode="settings"
+          userId={userId}
+          project={project}
+          onClose={() => setSettingsOpen(false)}
+          onSaved={async () => {
+            setSettingsOpen(false);
+            setError(null);
+            await onUpdated();
+          }}
+          onError={setError}
+        />
+      ) : null}
 
       {error ? (
         <div className="rounded-md border border-red-100 bg-red-50 px-4 py-3 text-[14px] font-semibold text-red-700">
@@ -749,9 +850,42 @@ function ProjectOverview({
   project: ProjectDetailData;
   onJoined: () => void;
 }) {
+  const { user } = useAuth();
   const [joining, setJoining] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [githubStatus, setGithubStatus] = useState<GithubIdentityStatus | null>(null);
   const joinable = canRequestJoin(project);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadGithubStatus() {
+      if (!user?.id || !joinable) {
+        setGithubStatus(null);
+        return;
+      }
+
+      try {
+        const status = await getCurrentUserGithubReadiness(user.id);
+        if (active) setGithubStatus(status);
+      } catch {
+        if (active) {
+          setGithubStatus({
+            githubUrl: null,
+            githubLogin: null,
+            connectionStatus: null,
+            hasGithubIdentity: false,
+          });
+        }
+      }
+    }
+
+    void loadGithubStatus();
+
+    return () => {
+      active = false;
+    };
+  }, [joinable, user?.id]);
 
   async function handleJoin() {
     try {
@@ -818,6 +952,25 @@ function ProjectOverview({
         ) : null}
       </header>
 
+      {joinable && githubStatus && !githubStatus.hasGithubIdentity ? (
+        <div className="rounded-md border border-[#f4d7aa] bg-[#fff9ec] px-4 py-3 text-[13.5px] leading-6 text-[#7c4a03]">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <div>
+              <strong className="font-semibold">GitHub 계정이 아직 없습니다.</strong>
+              <span className="ml-1">
+                신청은 가능하지만 승인 후 저장소 초대가 보류됩니다. 멤버 목록의 내 프로필 편집에서
+                GitHub URL을 추가하면 자동 초대가 다시 진행됩니다.
+              </span>
+            </div>
+          </div>
+        </div>
+      ) : joinable && githubStatus?.hasGithubIdentity ? (
+        <div className="rounded-md border border-[#d8eadf] bg-[#f4fbf6] px-4 py-3 text-[13.5px] font-semibold text-[#146136]">
+          GitHub @{githubStatus.githubLogin} 계정으로 승인 후 저장소 초대가 진행됩니다.
+        </div>
+      ) : null}
+
       {message ? (
         <div className="rounded-md border border-[#e8e8e4] bg-[#fafaf6] px-4 py-3 text-[14px] font-semibold text-[var(--kb-ink-700)]">
           {message}
@@ -862,6 +1015,57 @@ function ProjectOverview({
               </div>
             </div>
           </section>
+
+          {project.githubLink || project.status === "active" || project.status === "recruiting" ? (
+            <section style={{ ...PANEL_STYLE, padding: 18 }}>
+              <div className="mb-3 flex items-center gap-2 text-[14px] font-semibold text-[var(--kb-ink-900)]">
+                <Github className="h-4 w-4 text-[var(--kb-navy-800)]" />
+                GitHub
+              </div>
+              {project.githubLink ? (
+                <div className="grid gap-2 text-[13px] text-[var(--kb-ink-600)]">
+                  <div className="flex justify-between gap-3">
+                    <span>저장소</span>
+                    {project.githubLink.htmlUrl ? (
+                      <a
+                        href={project.githubLink.htmlUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 font-semibold text-[#103078] no-underline hover:underline"
+                      >
+                        {project.githubLink.repoName}
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </a>
+                    ) : (
+                      <strong className="text-[var(--kb-ink-900)]">{project.githubLink.repoName}</strong>
+                    )}
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <span>권한</span>
+                    <strong className="text-[var(--kb-ink-900)]">
+                      {project.githubLink.permissionState === "read_only" ? "읽기 전용" : "프로젝트 권한"}
+                    </strong>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <span>동기화</span>
+                    <strong className="text-[var(--kb-ink-900)]">
+                      {project.githubLink.syncStatus === "synced"
+                        ? "완료"
+                        : project.githubLink.syncStatus === "read_only"
+                          ? "읽기 전용"
+                          : project.githubLink.syncStatus === "failed"
+                            ? "확인 필요"
+                            : "대기 중"}
+                    </strong>
+                  </div>
+                </div>
+              ) : (
+                <p className="m-0 text-[13px] leading-6 text-[var(--kb-ink-500)]">
+                  프로젝트 승인 후 Kookmin-Kobot 조직에 private 저장소가 자동 생성됩니다.
+                </p>
+              )}
+            </section>
+          ) : null}
 
           <section style={{ ...PANEL_STYLE, overflow: "hidden" }}>
             <div className="flex items-center gap-2 border-b border-[#f1ede4] px-4 py-3">
@@ -1034,8 +1238,13 @@ export default function ProjectDetail() {
           </section>
         ) : project.status === "rejected" && user ? (
           <RejectedProjectNotice project={project} userId={user.id} onUpdated={refresh} />
-        ) : project.isMember && (project.status === "active" || project.status === "recruiting") ? (
-          <ProjectWorkspace project={project} />
+        ) : project.isMember && user && (project.status === "active" || project.status === "recruiting") ? (
+          <ProjectWorkspace
+            project={project}
+            userId={user.id}
+            canEditProject={project.isLead}
+            onUpdated={refresh}
+          />
         ) : (
           <ProjectOverview project={project} onJoined={() => void refresh()} />
         )}

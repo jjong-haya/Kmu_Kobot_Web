@@ -38,7 +38,7 @@ export const NAV_CATALOG: NavCatalogEntry[] = [
   { href: "/member/quests", label: "미션 / 퀘스트", group: "부원" },
   { href: "/member/peer-review", label: "동료 리뷰", group: "공식팀장" },
   { href: "/member/showcase", label: "쇼케이스", group: "공식팀장" },
-  { href: "/member/project-admin", label: "프로젝트 생성 관리", group: "공식팀장" },
+  { href: "/member/project-admin", label: "프로젝트 관리", group: "공식팀장" },
   { href: "/member/templates", label: "템플릿", group: "공식팀장" },
   { href: "/member/roadmap", label: "로드맵", group: "부회장" },
   { href: "/member/retro", label: "회고", group: "부회장" },

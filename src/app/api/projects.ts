@@ -5,6 +5,7 @@ import {
   getProjectRoleLabel,
   readProjectProgress,
 } from "./project-policy.js";
+import { triggerGithubSync } from "./github-sync";
 
 const FALLBACK = "프로젝트 데이터를 불러오지 못했습니다.";
 
@@ -21,6 +22,27 @@ export type ProjectProfile = {
   avatarUrl: string | null;
 };
 
+export type ProjectGithubLink = {
+  projectTeamId: string;
+  githubOrg: string;
+  repoName: string;
+  repoFullName: string | null;
+  htmlUrl: string | null;
+  defaultBranch: string;
+  visibility: "private" | "public";
+  permissionState: "normal" | "read_only" | "disabled";
+  syncStatus: "pending" | "synced" | "failed" | "read_only";
+  lastSyncedAt: string | null;
+  lastError: string | null;
+};
+
+export type GithubIdentityStatus = {
+  githubUrl: string | null;
+  githubLogin: string | null;
+  connectionStatus: "linked" | "disconnected" | "invalid" | null;
+  hasGithubIdentity: boolean;
+};
+
 export type ProjectMember = {
   userId: string;
   displayName: string;
@@ -29,6 +51,16 @@ export type ProjectMember = {
   role: ProjectMemberRole;
   roleLabel: string;
   joinedAt: string;
+};
+
+export type ProjectLeadCandidate = {
+  userId: string;
+  displayName: string;
+  loginId: string | null;
+  avatarUrl: string | null;
+  role: ProjectMemberRole | null;
+  roleLabel: string;
+  isProjectMember: boolean;
 };
 
 export type ProjectSummary = {
@@ -62,6 +94,7 @@ export type ProjectSummary = {
   reviewRequestedAt: string | null;
   lastRestoreReason: string | null;
   lastRestoredAt: string | null;
+  githubLink: ProjectGithubLink | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -80,6 +113,16 @@ export type CreateProjectInput = {
 };
 
 export type UpdateProjectInput = CreateProjectInput;
+
+export type ProjectSettingsInput = {
+  summary?: string | null;
+  description?: string | null;
+  visibility?: ProjectVisibility;
+  metadata?: Record<string, unknown>;
+  isRunning: boolean;
+  isRecruiting: boolean;
+  isCompleted: boolean;
+};
 
 export type ProjectReviewDecision = "approve" | "reject";
 export type ProjectJoinDecision = "approve" | "reject";
@@ -151,6 +194,39 @@ type ProjectJoinRequestDbRow = {
   updated_at: string;
 };
 
+type ProjectOrganizationDbRow = {
+  organization_id: string;
+};
+
+type MemberAccountDbRow = {
+  user_id: string;
+};
+
+type ProjectGithubLinkDbRow = {
+  project_team_id: string;
+  github_org: string;
+  repo_name: string;
+  repo_full_name: string | null;
+  html_url: string | null;
+  default_branch: string | null;
+  visibility: "private" | "public";
+  permission_state: ProjectGithubLink["permissionState"];
+  sync_status: ProjectGithubLink["syncStatus"];
+  last_synced_at: string | null;
+  last_error: string | null;
+};
+
+type GithubIdentityDbRow = {
+  user_id: string;
+  github_login: string | null;
+  github_url: string | null;
+  connection_status: GithubIdentityStatus["connectionStatus"];
+};
+
+type GithubProfileDbRow = {
+  github_url: string | null;
+};
+
 const PROJECT_SELECT = [
   "id",
   "slug",
@@ -193,8 +269,66 @@ const PROJECT_JOIN_REQUEST_SELECT = [
   "updated_at",
 ].join(", ");
 
+const PROJECT_GITHUB_LINK_SELECT = [
+  "project_team_id",
+  "github_org",
+  "repo_name",
+  "repo_full_name",
+  "html_url",
+  "default_branch",
+  "visibility",
+  "permission_state",
+  "sync_status",
+  "last_synced_at",
+  "last_error",
+].join(", ");
+
 function normalizeString(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+export function extractGithubLoginFromUrl(value: string | null | undefined) {
+  const normalized = normalizeString(value);
+  if (!normalized) return null;
+
+  const match = normalized.match(/^https:\/\/github\.com\/([^/?#]+)(?:[/?#].*)?$/i);
+  if (!match?.[1]) return null;
+
+  const login = match[1].toLowerCase();
+  if (!/^[a-z0-9]([a-z0-9-]{0,37}[a-z0-9])?$/.test(login)) {
+    return null;
+  }
+
+  if (
+    [
+      "about",
+      "apps",
+      "blog",
+      "collections",
+      "contact",
+      "enterprise",
+      "events",
+      "explore",
+      "features",
+      "github",
+      "login",
+      "marketplace",
+      "new",
+      "notifications",
+      "orgs",
+      "organizations",
+      "pricing",
+      "pulls",
+      "search",
+      "settings",
+      "sponsors",
+      "topics",
+    ].includes(login)
+  ) {
+    return null;
+  }
+
+  return login;
 }
 
 function metadataRecord(value: unknown): Record<string, unknown> {
@@ -243,6 +377,35 @@ function profileSummary(profile: ProfileDbRow | null | undefined): ProjectProfil
   };
 }
 
+function mapGithubLink(row: ProjectGithubLinkDbRow): ProjectGithubLink {
+  return {
+    projectTeamId: row.project_team_id,
+    githubOrg: row.github_org,
+    repoName: row.repo_name,
+    repoFullName: row.repo_full_name,
+    htmlUrl: normalizeString(row.html_url),
+    defaultBranch: normalizeString(row.default_branch) ?? "main",
+    visibility: row.visibility === "public" ? "public" : "private",
+    permissionState: row.permission_state,
+    syncStatus: row.sync_status,
+    lastSyncedAt: row.last_synced_at,
+    lastError: row.last_error,
+  };
+}
+
+function isGithubIntegrationMissing(error: unknown) {
+  const message =
+    typeof error === "object" && error && "message" in error
+      ? String((error as { message?: unknown }).message)
+      : String(error ?? "");
+
+  return (
+    message.includes("project_github_links") ||
+    message.includes("member_github_identities") ||
+    message.toLowerCase().includes("schema cache")
+  );
+}
+
 function groupMemberships(rows: MembershipDbRow[]) {
   const map = new Map<string, MembershipDbRow[]>();
 
@@ -275,6 +438,31 @@ async function listProfiles(ids: string[]) {
   );
 }
 
+async function listGithubLinks(projectIds: string[]) {
+  const uniqueIds = [...new Set(projectIds.filter(Boolean))];
+  if (uniqueIds.length === 0) return new Map<string, ProjectGithubLink>();
+
+  const supabase = getSupabaseBrowserClient();
+  const { data, error } = await supabase
+    .from("project_github_links")
+    .select(PROJECT_GITHUB_LINK_SELECT)
+    .in("project_team_id", uniqueIds);
+
+  if (error) {
+    if (isGithubIntegrationMissing(error)) {
+      return new Map<string, ProjectGithubLink>();
+    }
+
+    throw new Error(sanitizeUserError(error, FALLBACK));
+  }
+
+  return new Map(
+    ((data ?? []) as ProjectGithubLinkDbRow[])
+      .map((row) => mapGithubLink(row))
+      .map((link) => [link.projectTeamId, link]),
+  );
+}
+
 function chooseLead(
   project: ProjectDbRow,
   memberships: MembershipDbRow[],
@@ -296,6 +484,7 @@ function mapProjectSummary(
   viewerUserId: string,
   memberships: MembershipDbRow[],
   profilesById: Map<string, ProjectProfile>,
+  githubLinksByProject: Map<string, ProjectGithubLink> = new Map(),
 ): ProjectSummary {
   const metadata = metadataRecord(project.metadata);
   const lastReview = readMetadataRecord(metadata, "lastReview");
@@ -349,6 +538,7 @@ function mapProjectSummary(
     reviewRequestedAt: readMetadataString(lastReviewRequest, "requestedAt", "requested_at"),
     lastRestoreReason: readMetadataString(lastRestore, "reason"),
     lastRestoredAt: readMetadataString(lastRestore, "restoredAt", "restored_at"),
+    githubLink: githubLinksByProject.get(project.id) ?? null,
     createdAt: project.created_at,
     updatedAt: project.updated_at,
   };
@@ -422,8 +612,9 @@ async function hydrateProjectSummary(project: ProjectDbRow, viewerUserId: string
     ...memberships.map((membership) => membership.user_id),
   ].filter((id): id is string => typeof id === "string");
   const profilesById = await listProfiles(profileIds);
+  const githubLinksByProject = await listGithubLinks([project.id]);
 
-  return mapProjectSummary(project, viewerUserId, memberships, profilesById);
+  return mapProjectSummary(project, viewerUserId, memberships, profilesById, githubLinksByProject);
 }
 
 export async function listProjects(viewerUserId: string): Promise<ProjectSummary[]> {
@@ -449,6 +640,7 @@ export async function listProjects(viewerUserId: string): Promise<ProjectSummary
     ...memberships.map((membership) => membership.user_id),
   ].filter((id): id is string => typeof id === "string");
   const profilesById = await listProfiles(profileIds);
+  const githubLinksByProject = await listGithubLinks(projects.map((project) => project.id));
 
   return projects
     .map((project) =>
@@ -457,6 +649,7 @@ export async function listProjects(viewerUserId: string): Promise<ProjectSummary
         viewerUserId,
         membershipsByProject.get(project.id) ?? [],
         profilesById,
+        githubLinksByProject,
       ),
     )
     .sort((a, b) => {
@@ -495,8 +688,9 @@ export async function createProject(
     ...memberships.map((membership) => membership.user_id),
   ].filter((id): id is string => typeof id === "string");
   const profilesById = await listProfiles(profileIds);
+  const githubLinksByProject = await listGithubLinks([project.id]);
 
-  return mapProjectSummary(project, viewerUserId, memberships, profilesById);
+  return mapProjectSummary(project, viewerUserId, memberships, profilesById, githubLinksByProject);
 }
 
 export async function updateRejectedProjectAndRequestReview(
@@ -524,6 +718,37 @@ export async function updateRejectedProjectAndRequestReview(
     throw new Error("프로젝트 재심사 요청 결과를 확인하지 못했습니다.");
   }
 
+  void triggerGithubSync(10);
+  return hydrateProjectSummary(project, viewerUserId);
+}
+
+export async function updateProjectSettings(
+  projectId: string,
+  input: ProjectSettingsInput,
+  viewerUserId: string,
+): Promise<ProjectSummary> {
+  const supabase = getSupabaseBrowserClient();
+  const { data, error } = await supabase.rpc("update_project_team_settings", {
+    p_project_team_id: projectId,
+    p_summary: input.summary ?? null,
+    p_description: input.description ?? null,
+    p_visibility: input.visibility ?? "private",
+    p_metadata: input.metadata ?? {},
+    p_is_running: input.isRunning,
+    p_is_recruiting: input.isRecruiting,
+    p_is_completed: input.isCompleted,
+  });
+
+  if (error) {
+    throw new Error(sanitizeUserError(error, "프로젝트 설정을 저장하지 못했습니다."));
+  }
+
+  const project = (Array.isArray(data) ? data[0] : data) as ProjectDbRow | null;
+  if (!project?.id) {
+    throw new Error("프로젝트 설정 저장 결과를 확인하지 못했습니다.");
+  }
+
+  void triggerGithubSync(10);
   return hydrateProjectSummary(project, viewerUserId);
 }
 
@@ -550,7 +775,14 @@ export async function getProjectBySlug(
     ...memberships.map((membership) => membership.user_id),
   ].filter((id): id is string => typeof id === "string");
   const profilesById = await listProfiles(profileIds);
-  const summary = mapProjectSummary(project, viewerUserId, memberships, profilesById);
+  const githubLinksByProject = await listGithubLinks([project.id]);
+  const summary = mapProjectSummary(
+    project,
+    viewerUserId,
+    memberships,
+    profilesById,
+    githubLinksByProject,
+  );
 
   return {
     ...summary,
@@ -566,6 +798,111 @@ export async function getProjectBySlug(
         return roleRank[a.role] - roleRank[b.role] || a.displayName.localeCompare(b.displayName, "ko");
       }),
   };
+}
+
+export async function listProjectMembers(projectId: string): Promise<ProjectMember[]> {
+  const memberships = await listActiveMemberships([projectId]);
+  const profilesById = await listProfiles(memberships.map((membership) => membership.user_id));
+
+  return memberships
+    .map((membership) => mapProjectMember(membership, profilesById))
+    .sort((a, b) => {
+      const roleRank: Record<ProjectMemberRole, number> = {
+        lead: 0,
+        maintainer: 1,
+        delegate: 2,
+        member: 3,
+      };
+      return roleRank[a.role] - roleRank[b.role] || a.displayName.localeCompare(b.displayName, "ko");
+    });
+}
+
+export async function listProjectLeadCandidates(projectId: string): Promise<ProjectLeadCandidate[]> {
+  const supabase = getSupabaseBrowserClient();
+  const { data: projectData, error: projectError } = await supabase
+    .from("project_teams")
+    .select("organization_id")
+    .eq("id", projectId)
+    .maybeSingle();
+
+  if (projectError) {
+    throw new Error(sanitizeUserError(projectError, "프로젝트 리드 후보를 불러오지 못했습니다."));
+  }
+
+  const project = projectData as ProjectOrganizationDbRow | null;
+  if (!project?.organization_id) {
+    throw new Error("프로젝트를 찾을 수 없습니다.");
+  }
+
+  const [{ data: accountData, error: accountError }, projectMembers] = await Promise.all([
+    supabase
+      .from("member_accounts")
+      .select("user_id")
+      .eq("organization_id", project.organization_id)
+      .eq("status", "active"),
+    listProjectMembers(projectId),
+  ]);
+
+  if (accountError) {
+    throw new Error(sanitizeUserError(accountError, "프로젝트 리드 후보를 불러오지 못했습니다."));
+  }
+
+  const activeUserIds = ((accountData ?? []) as MemberAccountDbRow[]).map((row) => row.user_id);
+  const profilesById = await listProfiles(activeUserIds);
+  const projectMemberByUser = new Map(projectMembers.map((member) => [member.userId, member]));
+  const roleRank: Record<ProjectMemberRole, number> = {
+    lead: 0,
+    maintainer: 1,
+    delegate: 2,
+    member: 3,
+  };
+
+  return activeUserIds
+    .map((userId) => {
+      const profile = profilesById.get(userId);
+      if (!profile) return null;
+
+      const projectMember = projectMemberByUser.get(userId);
+
+      return {
+        userId,
+        displayName: profile.displayName,
+        loginId: profile.loginId,
+        avatarUrl: profile.avatarUrl,
+        role: projectMember?.role ?? null,
+        roleLabel: projectMember?.roleLabel ?? "활성 부원",
+        isProjectMember: Boolean(projectMember),
+      } satisfies ProjectLeadCandidate;
+    })
+    .filter((candidate): candidate is ProjectLeadCandidate => candidate !== null)
+    .sort((a, b) => {
+      if (a.isProjectMember !== b.isProjectMember) return a.isProjectMember ? -1 : 1;
+      const aRank = a.role ? roleRank[a.role] : 4;
+      const bRank = b.role ? roleRank[b.role] : 4;
+      return aRank - bRank || a.displayName.localeCompare(b.displayName, "ko");
+    });
+}
+
+export async function setProjectLead(
+  projectId: string,
+  nextLeadUserId: string,
+  viewerUserId: string,
+): Promise<ProjectSummary> {
+  const supabase = getSupabaseBrowserClient();
+  const { data, error } = await supabase.rpc("set_project_team_lead", {
+    p_project_team_id: projectId,
+    p_lead_user_id: nextLeadUserId,
+  });
+
+  if (error) throw new Error(sanitizeUserError(error, "프로젝트 리드를 변경하지 못했습니다."));
+
+  const project = (Array.isArray(data) ? data[0] : data) as ProjectDbRow | null;
+  if (!project?.id) {
+    throw new Error("프로젝트 리드 변경 결과를 확인하지 못했습니다.");
+  }
+
+  void triggerGithubSync(10);
+  return hydrateProjectSummary(project, viewerUserId);
 }
 
 export async function reviewProjectTeam(
@@ -586,6 +923,10 @@ export async function reviewProjectTeam(
   const project = (Array.isArray(data) ? data[0] : data) as ProjectDbRow | null;
   if (!project?.id) {
     throw new Error("프로젝트 검토 결과를 확인하지 못했습니다.");
+  }
+
+  if (decision === "approve") {
+    void triggerGithubSync(10);
   }
 
   const memberships = await listActiveMemberships([project.id]);
@@ -618,6 +959,7 @@ export async function restoreRejectedProject(
     throw new Error("반려 프로젝트 복구 결과를 확인하지 못했습니다.");
   }
 
+  void triggerGithubSync(10);
   return hydrateProjectSummary(project, viewerUserId);
 }
 
@@ -678,6 +1020,10 @@ export async function reviewProjectJoinRequest(
     throw new Error("프로젝트 참여 신청 검토 결과를 확인하지 못했습니다.");
   }
 
+  if (decision === "approve") {
+    void triggerGithubSync(10);
+  }
+
   const profilesById = await listProfiles([row.requester_user_id]);
   return mapProjectJoinRequest(row, profilesById);
 }
@@ -736,6 +1082,8 @@ export async function setProjectRunStatus(
     throw new Error("프로젝트 진행 상태 변경 결과를 확인하지 못했습니다.");
   }
 
+  void triggerGithubSync(10);
+
   const memberships = await listActiveMemberships([project.id]);
   const profileIds = [
     project.owner_user_id,
@@ -746,4 +1094,41 @@ export async function setProjectRunStatus(
   const profilesById = await listProfiles(profileIds);
 
   return mapProjectSummary(project, viewerUserId, memberships, profilesById);
+}
+
+export async function getCurrentUserGithubReadiness(
+  userId: string,
+): Promise<GithubIdentityStatus> {
+  const supabase = getSupabaseBrowserClient();
+  const [{ data: identityData, error: identityError }, { data: profileData, error: profileError }] =
+    await Promise.all([
+      supabase
+        .from("member_github_identities")
+        .select("user_id, github_login, github_url, connection_status")
+        .eq("user_id", userId)
+        .maybeSingle(),
+      supabase.from("profiles").select("github_url").eq("id", userId).maybeSingle(),
+    ]);
+
+  if (profileError) {
+    throw new Error(sanitizeUserError(profileError, FALLBACK));
+  }
+
+  if (identityError && !isGithubIntegrationMissing(identityError)) {
+    throw new Error(sanitizeUserError(identityError, FALLBACK));
+  }
+
+  const profile = profileData as GithubProfileDbRow | null;
+  const identity = identityError ? null : (identityData as GithubIdentityDbRow | null);
+  const githubUrl = normalizeString(identity?.github_url) ?? normalizeString(profile?.github_url);
+  const githubLogin =
+    normalizeString(identity?.github_login) ?? extractGithubLoginFromUrl(githubUrl);
+  const connectionStatus = identity?.connection_status ?? (githubLogin ? "linked" : null);
+
+  return {
+    githubUrl,
+    githubLogin,
+    connectionStatus,
+    hasGithubIdentity: Boolean(githubLogin && connectionStatus === "linked"),
+  };
 }
