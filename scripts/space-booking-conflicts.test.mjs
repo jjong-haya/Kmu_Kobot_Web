@@ -4,9 +4,11 @@ import { resolve } from "node:path";
 import test from "node:test";
 
 import {
+  buildSameDaySpaceBookingMessage,
   buildSpaceBookingConflictMessage,
   findSpaceBookingConflict,
   isInvalidSpaceBookingRange,
+  isSameDayOrPastSpaceBookingDate,
 } from "../src/app/api/space-booking-conflicts.ts";
 
 const migrationSource = readFileSync(
@@ -15,6 +17,10 @@ const migrationSource = readFileSync(
 );
 const typeMigrationSource = readFileSync(
   resolve(process.cwd(), "supabase/migrations/20260507015000_space_booking_meeting_study_only.sql"),
+  "utf8",
+);
+const sameDayMigrationSource = readFileSync(
+  resolve(process.cwd(), "supabase/migrations/20260508005000_prevent_same_day_space_booking.sql"),
   "utf8",
 );
 const apiSource = readFileSync(
@@ -80,6 +86,13 @@ test("rejects empty or reversed time ranges before submission", () => {
   assert.equal(isInvalidSpaceBookingRange("19:00", "20:00"), false);
 });
 
+test("rejects same-day and past space booking dates before submission", () => {
+  assert.equal(isSameDayOrPastSpaceBookingDate("2026-05-08", "2026-05-08"), true);
+  assert.equal(isSameDayOrPastSpaceBookingDate("2026-05-07", "2026-05-08"), true);
+  assert.equal(isSameDayOrPastSpaceBookingDate("2026-05-09", "2026-05-08"), false);
+  assert.equal(buildSameDaySpaceBookingMessage(), "당일 예약은 불가합니다. 다음 날부터 예약해 주세요.");
+});
+
 test("explains the next possible start and earlier possible end", () => {
   const message = buildSpaceBookingConflictMessage({
     date: "2026-05-06",
@@ -98,6 +111,18 @@ test("prevents overlap in the database write path, not only in the UI", () => {
   assert.match(migrationSource, /pg_advisory_xact_lock/);
   assert.match(migrationSource, /space_booking_time_conflict/);
   assert.match(migrationSource, /find_space_booking_time_conflict/);
+});
+
+test("prevents same-day space booking in the database write path, not only in the UI", () => {
+  assert.match(sameDayMigrationSource, /prevent_space_booking_overlap/);
+  assert.match(sameDayMigrationSource, /new\.booking_date <= \(now\(\) at time zone 'Asia\/Seoul'\)::date/);
+  assert.match(sameDayMigrationSource, /space_booking_same_day_not_allowed/);
+  assert.match(sameDayMigrationSource, /before insert or update of booking_date, start_time, end_time/);
+  assert.match(apiSource, /isSameDayOrPastSpaceBookingDate\(input\.date, localIsoDateKey\(new Date\(\)\)\)/);
+  assert.match(apiSource, /buildSameDaySpaceBookingMessage\(\)/);
+  assert.match(pageSource, /min=\{minBookingDate\}/);
+  assert.match(pageSource, /aria-invalid=\{Boolean\(dateError\)\}/);
+  assert.match(pageSource, /disabled=\{saving \|\| Boolean\(dateError\) \|\| Boolean\(timeError\) \|\| checkingConflict\}/);
 });
 
 test("marks the reservation modal and time inputs as invalid when times conflict", () => {

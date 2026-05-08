@@ -1,5 +1,9 @@
 import { getSupabaseBrowserClient } from "../auth/supabase";
-import type { SpaceBookingConflict } from "./space-booking-conflicts";
+import {
+  buildSameDaySpaceBookingMessage,
+  isSameDayOrPastSpaceBookingDate,
+  type SpaceBookingConflict,
+} from "./space-booking-conflicts";
 
 export type ReservationType = "meeting" | "study";
 export type StoredReservationType = ReservationType | "personal";
@@ -161,6 +165,13 @@ const PROFILE_SELECT = [
 
 function trimTime(t: string): string {
   return t.slice(0, 5);
+}
+
+function localIsoDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function parseSpaceBookingConflict(error: unknown): SpaceBookingConflict | null {
@@ -432,6 +443,10 @@ export async function createBooking(input: CreateBookingInput): Promise<SpaceBoo
     throw new Error("space_booking_invalid_type");
   }
 
+  if (isSameDayOrPastSpaceBookingDate(input.date, localIsoDateKey(new Date()))) {
+    throw new Error(buildSameDaySpaceBookingMessage());
+  }
+
   const supabase = getSupabaseBrowserClient();
   const { data, error } = await supabase.rpc("create_space_booking", {
     p_title: input.title,
@@ -451,6 +466,9 @@ export async function createBooking(input: CreateBookingInput): Promise<SpaceBoo
     const conflict = parseSpaceBookingConflict(error);
     if (conflict || error.message.includes("space_booking_time_conflict")) {
       throw new SpaceBookingConflictError(conflict);
+    }
+    if (error.message.includes("space_booking_same_day_not_allowed")) {
+      throw new Error(buildSameDaySpaceBookingMessage());
     }
     throw new Error(error.message);
   }

@@ -28,9 +28,11 @@ import {
   type BookingParticipant,
 } from "../../api/space-bookings";
 import {
+  buildSameDaySpaceBookingMessage,
   buildSpaceBookingConflictMessage,
   findSpaceBookingConflict,
   isInvalidSpaceBookingRange,
+  isSameDayOrPastSpaceBookingDate,
   type SpaceBookingConflict,
 } from "../../api/space-booking-conflicts";
 import { sanitizeUserError } from "../../utils/sanitize-error";
@@ -143,6 +145,12 @@ function fmtDate(d: Date): string {
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
+}
+
+function addDays(date: Date, days: number) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
 }
 
 function isSameDate(a: string, b: string) {
@@ -343,8 +351,13 @@ function ReservationModal({
   onClose: () => void;
   onSave: (r: NewReservation) => Promise<void> | void;
 }) {
+  const todayIso = fmtDate(new Date());
+  const minBookingDate = fmtDate(addDays(new Date(), 1));
+  const initialDate = isSameDayOrPastSpaceBookingDate(defaultDate, todayIso)
+    ? minBookingDate
+    : defaultDate;
   const [title, setTitle] = useState("");
-  const [date, setDate] = useState(defaultDate);
+  const [date, setDate] = useState(initialDate);
   const [start, setStart] = useState("19:00");
   const [end, setEnd] = useState("21:00");
   const [type, setType] = useState<ReservationType>("meeting");
@@ -380,6 +393,9 @@ function ReservationModal({
     [date, end, existingReservations, start],
   );
   const timeConflict = localConflict ?? remoteConflict;
+  const dateError = isSameDayOrPastSpaceBookingDate(date, todayIso)
+    ? buildSameDaySpaceBookingMessage()
+    : null;
   const timeError = isInvalidSpaceBookingRange(start, end)
     ? "종료 시간은 시작 시간보다 뒤여야 합니다."
     : timeConflict
@@ -389,6 +405,10 @@ function ReservationModal({
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!title.trim() || !organizer.trim()) return;
+    if (dateError) {
+      setError(dateError);
+      return;
+    }
     if (timeError) {
       setError(timeError);
       return;
@@ -491,7 +511,7 @@ function ReservationModal({
     let cancelled = false;
     setRemoteConflict(null);
 
-    if (localConflict || isInvalidSpaceBookingRange(start, end)) {
+    if (dateError || localConflict || isInvalidSpaceBookingRange(start, end)) {
       setCheckingConflict(false);
       return () => {
         cancelled = true;
@@ -516,7 +536,7 @@ function ReservationModal({
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [date, end, localConflict, start]);
+  }, [date, dateError, end, localConflict, start]);
 
   const inputStyle: CSSProperties = {
     width: "100%",
@@ -531,6 +551,14 @@ function ReservationModal({
   };
 
   const timeInputStyle: CSSProperties = timeError
+    ? {
+        ...inputStyle,
+        border: "1px solid #ef4444",
+        background: "#fff7f7",
+        boxShadow: "0 0 0 3px rgba(239, 68, 68, 0.12)",
+      }
+    : inputStyle;
+  const dateInputStyle: CSSProperties = dateError
     ? {
         ...inputStyle,
         border: "1px solid #ef4444",
@@ -761,12 +789,32 @@ function ReservationModal({
             <input
               id="r-date"
               type="date"
+              min={minBookingDate}
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              style={inputStyle}
+              aria-invalid={Boolean(dateError)}
+              style={dateInputStyle}
               required
             />
           </div>
+          {dateError && (
+            <div
+              role="alert"
+              style={{
+                marginTop: -6,
+                padding: "10px 12px",
+                borderRadius: 10,
+                border: "1px solid #fecaca",
+                background: "#fff7f7",
+                color: "#b91c1c",
+                fontSize: 13,
+                fontWeight: 700,
+                lineHeight: 1.45,
+              }}
+            >
+              {dateError}
+            </div>
+          )}
 
           {/* time range */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -1128,16 +1176,16 @@ function ReservationModal({
           </button>
           <button
             type="submit"
-            disabled={saving || Boolean(timeError) || checkingConflict}
+            disabled={saving || Boolean(dateError) || Boolean(timeError) || checkingConflict}
             style={{
               padding: "10px 22px",
               fontSize: 14,
               fontWeight: 700,
               border: "none",
-              background: saving || timeError || checkingConflict ? "#6a6a6a" : "#0a0a0a",
+              background: saving || dateError || timeError || checkingConflict ? "#6a6a6a" : "#0a0a0a",
               color: "#fff",
               borderRadius: 8,
-              cursor: saving || timeError || checkingConflict ? "not-allowed" : "pointer",
+              cursor: saving || dateError || timeError || checkingConflict ? "not-allowed" : "pointer",
               fontFamily: "inherit",
             }}
           >

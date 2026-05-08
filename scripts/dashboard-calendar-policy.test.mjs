@@ -44,3 +44,14 @@ test("dashboard calendar has a persisted my-schedule-only checkbox", () => {
   assert.match(dashboardPageSource, /buildCalendarEvents\(data, \{ onlyMine: calendarMyOnly \}\)/);
   assert.match(dashboardPageSource, /\.filter\(\(booking\) => !options\.onlyMine \|\| booking\.isMine\)/);
 });
+
+test("dashboard Today card shows only today's bookings related to the viewer", () => {
+  assert.match(
+    dashboardPageSource,
+    /\.filter\(\(booking\) => booking\.date === todayKey && booking\.isMine\)/,
+  );
+  assert.match(
+    dashboardPageSource,
+    /data\?\.bookings\.filter\(\(booking\) => booking\.date === today\.key && booking\.isMine\)\.length/,
+  );
+});

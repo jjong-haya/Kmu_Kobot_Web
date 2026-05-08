@@ -29,6 +29,14 @@ export function isInvalidSpaceBookingRange(start: string, end: string) {
   return startMinutes === null || endMinutes === null || endMinutes <= startMinutes;
 }
 
+export function isSameDayOrPastSpaceBookingDate(date: string, todayKey: string) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(date) && date <= todayKey;
+}
+
+export function buildSameDaySpaceBookingMessage() {
+  return "당일 예약은 불가합니다. 다음 날부터 예약해 주세요.";
+}
+
 export function findSpaceBookingConflict(
   candidate: SpaceBookingTimeSlot,
   bookings: SpaceBookingTimeSlot[],

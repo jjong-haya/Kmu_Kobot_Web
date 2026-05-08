@@ -334,7 +334,7 @@ function buildTodayItems(data: DashboardData, userId: string, todayKey: string):
     }));
 
   const bookings = data.bookings
-    .filter((booking) => booking.date === todayKey)
+    .filter((booking) => booking.date === todayKey && booking.isMine)
     .map((booking) => ({
       id: `booking-${booking.id}`,
       time: booking.start,
@@ -852,7 +852,8 @@ export default function Dashboard() {
     () => (data ? buildCalendarEvents(data, { onlyMine: calendarMyOnly }) : []),
     [calendarMyOnly, data],
   );
-  const todayBookingCount = data?.bookings.filter((booking) => booking.date === today.key).length ?? 0;
+  const todayBookingCount =
+    data?.bookings.filter((booking) => booking.date === today.key && booking.isMine).length ?? 0;
   const activeProjectCount = data?.projects.filter((project) => project.status === "active").length ?? 0;
   const summary = data
     ? `읽지 않은 알림 ${data.unreadNotificationCount}건 · 오늘 일정 ${todayBookingCount}건 · 진행 프로젝트 ${activeProjectCount}개`
