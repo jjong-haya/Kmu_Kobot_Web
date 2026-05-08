@@ -752,6 +752,19 @@ export async function updateProjectSettings(
   return hydrateProjectSummary(project, viewerUserId);
 }
 
+export async function deleteProject(projectId: string): Promise<void> {
+  const supabase = getSupabaseBrowserClient();
+  const { error } = await supabase.rpc("delete_project_team", {
+    p_project_team_id: projectId,
+  });
+
+  if (error) {
+    throw new Error(sanitizeUserError(error, "프로젝트를 삭제하지 못했습니다."));
+  }
+
+  void triggerGithubSync(10);
+}
+
 export async function getProjectBySlug(
   slug: string,
   viewerUserId: string,

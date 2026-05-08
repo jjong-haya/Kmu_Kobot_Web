@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties, DragEvent, FormEvent } from "react";
-import { Link, useParams } from "react-router";
+import { Link, useNavigate, useParams } from "react-router";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -22,11 +22,13 @@ import {
   Search,
   Settings,
   Sparkles,
+  Trash2,
   UserRound,
   UserPlus,
   Users,
 } from "lucide-react";
 import {
+  deleteProject,
   getProjectBySlug,
   getCurrentUserGithubReadiness,
   requestProjectJoin,
@@ -154,6 +156,127 @@ function formatDateTime(value: string | null) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function ProjectDeleteControl({
+  project,
+  onError,
+  className,
+}: {
+  project: ProjectDetailData;
+  onError: (message: string | null) => void;
+  className?: string;
+}) {
+  const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const confirmed = deleteConfirmText.trim() === project.name;
+
+  async function handleDeleteProject(event: FormEvent) {
+    event.preventDefault();
+
+    if (deleteConfirmText.trim() !== project.name) {
+      onError("삭제하려면 프로젝트 이름을 입력해 주세요.");
+      return;
+    }
+
+    try {
+      setDeleting(true);
+      onError(null);
+      await deleteProject(project.id);
+      setOpen(false);
+      navigate(projectListPath(), { replace: true });
+    } catch (requestError) {
+      onError(sanitizeUserError(requestError, "프로젝트를 삭제하지 못했습니다."));
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  function closeDialog() {
+    if (deleting) return;
+    setOpen(false);
+    setDeleteConfirmText("");
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => {
+          onError(null);
+          setOpen(true);
+        }}
+        className={
+          className ??
+          "inline-flex items-center gap-2 rounded-md border border-red-200 bg-white px-4 py-2.5 text-[14px] font-semibold text-red-700 hover:border-red-300 hover:bg-red-50"
+        }
+      >
+        <Trash2 className="h-4 w-4" />
+        프로젝트 삭제
+      </button>
+
+      <Dialog
+        open={open}
+        onOpenChange={(nextOpen) => {
+          if (nextOpen) {
+            setOpen(true);
+          } else {
+            closeDialog();
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[540px]">
+          <DialogHeader>
+            <DialogTitle>프로젝트 삭제</DialogTitle>
+          </DialogHeader>
+
+          <form id="project-delete-form" onSubmit={handleDeleteProject} className="grid gap-4">
+            <div className="rounded-md border border-red-100 bg-red-50 px-4 py-3 text-[13.5px] leading-6 text-red-700">
+              이 프로젝트와 연결된 멤버, 참여 신청, 작업 보드, 스터디 기록이 함께 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
+            </div>
+
+            <label className="grid gap-2">
+              <span className="text-[13px] font-semibold text-[var(--kb-ink-700)]">
+                삭제하려면 프로젝트 이름을 입력해 주세요.
+              </span>
+              <span className="rounded-md bg-[#f6f5ef] px-3 py-2 text-[13px] font-semibold text-[var(--kb-ink-800)]">
+                {project.name}
+              </span>
+              <input
+                autoFocus
+                value={deleteConfirmText}
+                onChange={(event) => setDeleteConfirmText(event.target.value)}
+                disabled={deleting}
+                className="h-10 rounded-md border border-[#e8e8e4] bg-white px-3 text-[14px] outline-none focus:border-[#111111] disabled:cursor-not-allowed disabled:opacity-60"
+              />
+            </label>
+          </form>
+
+          <DialogFooter>
+            <button
+              type="button"
+              disabled={deleting}
+              onClick={closeDialog}
+              className="inline-flex h-10 items-center justify-center rounded-md border border-[#e8e8e4] bg-white px-4 text-[14px] font-semibold text-[var(--kb-ink-700)] hover:border-[var(--kb-ink-300)] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              취소
+            </button>
+            <button
+              type="submit"
+              form="project-delete-form"
+              disabled={deleting || !confirmed}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-red-700 px-4 text-[14px] font-semibold text-white hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              삭제
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
 }
 
 function previousStatus(status: ProjectTaskStatus): ProjectTaskStatus | null {
@@ -590,6 +713,9 @@ function ProjectWorkspace({
               프로젝트 설정
             </button>
           ) : null}
+          {canEditProject ? (
+            <ProjectDeleteControl project={project} onError={setError} />
+          ) : null}
           <button
             type="button"
             onClick={() => setTaskDialogOpen(true)}
@@ -846,9 +972,11 @@ function ProjectWorkspace({
 function ProjectOverview({
   project,
   onJoined,
+  canDeleteProject = false,
 }: {
   project: ProjectDetailData;
   onJoined: () => void;
+  canDeleteProject?: boolean;
 }) {
   const { user } = useAuth();
   const [joining, setJoining] = useState(false);
@@ -939,17 +1067,22 @@ function ProjectOverview({
           </div>
         </div>
 
-        {joinable ? (
-          <button
-            type="button"
-            onClick={() => void handleJoin()}
-            disabled={joining}
-            className="inline-flex items-center gap-2 rounded-md bg-[#0a0a0a] px-4 py-2.5 text-[14px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {joining ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
-            참여 신청
-          </button>
-        ) : null}
+        <div className="flex flex-wrap items-center gap-2">
+          {canDeleteProject ? (
+            <ProjectDeleteControl project={project} onError={setMessage} />
+          ) : null}
+          {joinable ? (
+            <button
+              type="button"
+              onClick={() => void handleJoin()}
+              disabled={joining}
+              className="inline-flex items-center gap-2 rounded-md bg-[#0a0a0a] px-4 py-2.5 text-[14px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {joining ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
+              참여 신청
+            </button>
+          ) : null}
+        </div>
       </header>
 
       {joinable && githubStatus && !githubStatus.hasGithubIdentity ? (
@@ -1090,14 +1223,16 @@ function RejectedProjectNotice({
   project,
   userId,
   onUpdated,
+  canManageProject = false,
 }: {
   project: ProjectDetailData;
   userId: string;
   onUpdated: () => Promise<void>;
+  canManageProject?: boolean;
 }) {
   const [editOpen, setEditOpen] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const canEdit = project.isLead || project.owner?.id === userId;
+  const canEdit = canManageProject || project.isLead || project.owner?.id === userId;
   const reviewedAt = formatDateTime(project.lastReviewedAt);
 
   return (
@@ -1152,6 +1287,9 @@ function RejectedProjectNotice({
               수정하기
             </button>
           ) : null}
+          {canEdit ? (
+            <ProjectDeleteControl project={project} onError={setMessage} />
+          ) : null}
           <Link
             to={projectListPath()}
             className="inline-flex items-center gap-2 rounded-md border border-[#ebe8e0] bg-white px-4 py-2.5 text-[14px] font-semibold text-[var(--kb-ink-800)] no-underline hover:border-[var(--kb-ink-300)]"
@@ -1181,7 +1319,7 @@ function RejectedProjectNotice({
 
 export default function ProjectDetail() {
   const { slug = "" } = useParams();
-  const { user } = useAuth();
+  const { user, hasPermission } = useAuth();
   const [project, setProject] = useState<ProjectDetailData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -1237,16 +1375,31 @@ export default function ProjectDetail() {
             </div>
           </section>
         ) : project.status === "rejected" && user ? (
-          <RejectedProjectNotice project={project} userId={user.id} onUpdated={refresh} />
+          <RejectedProjectNotice
+            project={project}
+            userId={user.id}
+            onUpdated={refresh}
+            canManageProject={
+              project.isLead || hasPermission("admin.access", "members.manage", "projects.manage")
+            }
+          />
         ) : project.isMember && user && (project.status === "active" || project.status === "recruiting") ? (
           <ProjectWorkspace
             project={project}
             userId={user.id}
-            canEditProject={project.isLead}
+            canEditProject={
+              project.isLead || hasPermission("admin.access", "members.manage", "projects.manage")
+            }
             onUpdated={refresh}
           />
         ) : (
-          <ProjectOverview project={project} onJoined={() => void refresh()} />
+          <ProjectOverview
+            project={project}
+            onJoined={() => void refresh()}
+            canDeleteProject={
+              project.isLead || hasPermission("admin.access", "members.manage", "projects.manage")
+            }
+          />
         )}
       </div>
     </div>
