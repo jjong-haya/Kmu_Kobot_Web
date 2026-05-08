@@ -3,6 +3,7 @@ import {
   Award,
   Bell,
   BookOpen,
+  Bot,
   Calendar,
   ClipboardList,
   Clock,
@@ -685,11 +686,6 @@ export default function MemberLayout() {
             회원 정보
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={() => navigate("/member/pending")}>
-            <Award className="mr-2 h-4 w-4" />
-            멤버 상태 확인
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
           <DropdownMenuItem className="text-red-600" onSelect={() => void handleSignOut()}>
             <LogOut className="mr-2 h-4 w-4" />
             로그아웃
@@ -742,7 +738,6 @@ export default function MemberLayout() {
               <KobotWordmark />
             </Link>
             <div className="flex items-center gap-3">
-              <Badge variant="outline">{getMemberStatusLabel(memberStatus)}</Badge>
               <Button size="sm" className="bg-[#103078] hover:bg-[#2048A0]" onClick={() => void handleSignOut()}>
                 <LogOut className="h-4 w-4" />
                 로그아웃
@@ -802,10 +797,11 @@ export default function MemberLayout() {
               <>
                 <Link
                   to="/member"
-                  className="kb-display inline-flex h-[28px] w-[28px] items-center justify-center rounded-lg"
-                  style={{ background: "#2a52a3", color: "#fff", fontWeight: 800, fontSize: 15 }}
+                  aria-label="KOBOT 대시보드"
+                  className="inline-flex h-[28px] w-[28px] items-center justify-center rounded transition-colors hover:bg-white/10"
+                  style={{ color: "#fff" }}
                 >
-                  K
+                  <Bot className="h-[22px] w-[22px]" strokeWidth={1.8} />
                 </Link>
                 <button
                   type="button"

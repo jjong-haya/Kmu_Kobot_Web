@@ -452,7 +452,7 @@ function MemberRow({
           {member.tags.map((tag) => (
             <TagChip
               key={tag.id}
-              tag={{ slug: tag.slug, label: tag.label, color: tag.color }}
+              tag={{ slug: tag.slug, label: tag.label, color: tag.color, iconName: tag.iconName }}
               onRemove={() => onRemoveTag(tag.id)}
             />
           ))}
@@ -912,7 +912,7 @@ function TagAssignModal({
                   }}
                 >
                   <TagChip
-                    tag={{ slug: tag.slug, label: tag.label, color: tag.color }}
+                    tag={{ slug: tag.slug, label: tag.label, color: tag.color, iconName: tag.iconName }}
                     size="md"
                     selected={assigned}
                   />
@@ -1094,9 +1094,8 @@ function FilterDropdown({
                   }}
                 >
                   <TagChip
-                    tag={{ slug: tag.slug, label: tag.label, color: tag.color }}
+                    tag={{ slug: tag.slug, label: tag.label, color: tag.color, iconName: tag.iconName }}
                     size="sm"
-                    withDot
                   />
                 </FilterRow>
               ))}

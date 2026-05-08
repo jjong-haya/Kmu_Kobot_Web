@@ -50,6 +50,9 @@
 - `supabase/migrations/20260506100000_tag_policy_safety_guards.sql` — 동아리 태그/초대코드의 위험 권한 차단 trigger
 - `supabase/migrations/20260506103000_block_sensitive_permissions_for_invite_tags.sql` — 초대코드에 이미 들어간 태그에 나중에 위험 권한을 붙이는 우회 차단
 - `supabase/migrations/20260506110000_project_create_permission_and_role_tags.sql` — `projects.create` 권한, 프로젝트 생성 RPC, 회장/부회장/공식 팀장 A-D 역할 태그 seed/backfill
+- `supabase/migrations/20260507009000_official_team_lead_tags.sql` — 연구팀 팀장, IOT 팀장 역할 태그 seed/backfill.
+- `supabase/migrations/20260507012000_official_team_lead_tag_permissions.sql` — 연구팀장/IOT팀장은 공식 팀장 권한 묶음(`projects.manage` 포함)을 받는다.
+- `supabase/migrations/20260507017000_academic_official_team_lead_tags.sql` — 연구 팀장/IOT 팀장 seed를 재보장하고, 학술팀장 역할 태그를 밝은 에메랄드 색상으로 추가한다. 이전 `official_team_lead_promotion` 태그가 있으면 학술팀장으로 assignment를 옮긴 뒤 삭제한다.
 
 ### API 레이어
 - `src/app/api/tags.ts` — listTags / createTag / updateTag / deleteTag / **assignTagToUser** / **removeTagFromUser** / setTagPermissions / setTagNav
@@ -71,7 +74,7 @@
 - `src/app/layouts/MemberLayout.tsx` (`current_user_tag_nav_paths` 결과로 사이드바 그림)
 
 ### 칩 렌더링 / 아이콘 매핑
-- `src/app/components/TagChip.tsx` 의 `SLUG_DECORATIONS` 가 태그 칩 아이콘/금속 질감/색상 매핑의 단일 출처다. `president=금`, `vice_president=은`, `official_team_lead_a/b/c/d=동` 질감은 여기서만 바꾼다.
+- `src/app/components/TagChip.tsx` 의 `SLUG_DECORATIONS` 가 태그 칩 아이콘/금속 질감/색상 매핑의 단일 출처다. `president=금`, `vice_president=은`, `official_team_lead_a/b/c/d/research/iot=동`, `official_team_lead_academic=밝은 에메랄드` 질감은 여기서만 바꾼다.
 - 단, 모든 화면이 아직 `TagChip` 을 쓰는 것은 아니다. 초대코드/공지/퀘스트 폼처럼 수동 렌더가 남아 있으므로 디자인 변경 전 [태그 렌더링 Touchpoints](tag-rendering-touchpoints.md)를 반드시 확인한다.
 - 같은 선택 UI를 여러 페이지에서 반복하게 되면 `TagChip` 기반 공통 picker 컴포넌트로 추출한다. 추출 여부는 UX 의미가 바뀔 수 있으므로 사용자 확인 후 진행한다.
 ## 2026-05-05 note: profiles.tech_tags compatibility only

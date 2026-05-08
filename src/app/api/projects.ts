@@ -431,7 +431,7 @@ async function listProfiles(ids: string[]) {
   if (error) throw new Error(sanitizeUserError(error, FALLBACK));
 
   return new Map(
-    ((data ?? []) as ProfileDbRow[])
+    ((data ?? []) as unknown as ProfileDbRow[])
       .map((profile) => profileSummary(profile))
       .filter((profile): profile is ProjectProfile => profile !== null)
       .map((profile) => [profile.id, profile]),
@@ -457,7 +457,7 @@ async function listGithubLinks(projectIds: string[]) {
   }
 
   return new Map(
-    ((data ?? []) as ProjectGithubLinkDbRow[])
+    ((data ?? []) as unknown as ProjectGithubLinkDbRow[])
       .map((row) => mapGithubLink(row))
       .map((link) => [link.projectTeamId, link]),
   );
@@ -626,7 +626,7 @@ export async function listProjects(viewerUserId: string): Promise<ProjectSummary
 
   if (error) throw new Error(sanitizeUserError(error, FALLBACK));
 
-  const projects = (data ?? []) as ProjectDbRow[];
+  const projects = (data ?? []) as unknown as ProjectDbRow[];
   if (projects.length === 0) return [];
 
   const memberships = await listActiveMemberships(projects.map((project) => project.id));
@@ -766,7 +766,7 @@ export async function getProjectBySlug(
   if (error) throw new Error(sanitizeUserError(error, FALLBACK));
   if (!data) return null;
 
-  const project = data as ProjectDbRow;
+  const project = data as unknown as ProjectDbRow;
   const memberships = await listActiveMemberships([project.id]);
   const profileIds = [
     project.owner_user_id,
@@ -994,7 +994,7 @@ export async function listProjectJoinRequests(projectId: string): Promise<Projec
 
   if (error) throw new Error(sanitizeUserError(error, "프로젝트 참여 신청을 불러오지 못했습니다."));
 
-  const rows = (data ?? []) as ProjectJoinRequestDbRow[];
+  const rows = (data ?? []) as unknown as ProjectJoinRequestDbRow[];
   const profilesById = await listProfiles(rows.map((row) => row.requester_user_id));
   return rows.map((row) => mapProjectJoinRequest(row, profilesById));
 }

@@ -1,5 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import {
   filterNotifications,
@@ -8,6 +11,12 @@ import {
   getNotificationTargetHref,
   getUnreadNotificationCount,
 } from "../src/app/api/notification-policy.js";
+import {
+  getStableNotificationBody,
+  getStableNotificationTitle,
+} from "../src/app/api/notifications.ts";
+
+const root = fileURLToPath(new URL("..", import.meta.url));
 
 test("maps database notification types to stable UI categories", () => {
   assert.equal(
@@ -87,5 +96,86 @@ test("does not force every membership_applications row to the submitted approval
       relatedEntityTable: "membership_applications",
     }),
     "보러가기",
+  );
+});
+
+test("keeps contact request toast titles stable even when persisted titles are corrupted", () => {
+  assert.equal(
+    getStableNotificationTitle({
+      type: "contact_request_created",
+      title: "?????",
+      related_entity_table: "contact_requests",
+      metadata: {},
+    }),
+    "연락 요청이 도착했습니다",
+  );
+
+  assert.equal(
+    getStableNotificationTitle({
+      type: "contact_request_decided",
+      title: "?????",
+      related_entity_table: "contact_requests",
+      metadata: { decision: "accepted" },
+    }),
+    "연락 요청이 수락되었습니다",
+  );
+});
+
+test("renders membership application toast copy in Korean even when persisted text is English", () => {
+  const row = {
+    type: "membership_application_submitted",
+    title: "Membership application submitted",
+    body: "이정훈 submitted a membership application.",
+    related_entity_table: "membership_applications",
+    metadata: {},
+  };
+
+  assert.equal(getStableNotificationTitle(row), "가입 신청이 도착했습니다");
+  assert.equal(
+    getStableNotificationBody(row, {
+      id: "actor-1",
+      displayName: "이정훈",
+      loginId: "demo",
+      avatarUrl: null,
+    }),
+    "이정훈 님이 가입 신청서를 제출했습니다.",
+  );
+});
+
+test("replaces contact request notification write path and cleans persisted titles", () => {
+  const migration = readFileSync(
+    resolve(root, "supabase/migrations/20260507010000_fix_contact_notification_titles.sql"),
+    "utf8",
+  );
+
+  assert.match(migration, /create or replace function public\.create_contact_request/);
+  assert.match(migration, /create or replace function public\.decide_contact_request/);
+  assert.match(migration, /'연락 요청이 도착했습니다'/);
+  assert.match(migration, /'연락 요청이 수락되었습니다'/);
+  assert.match(migration, /'연락 요청이 거절되었습니다'/);
+  assert.match(migration, /update public\.notifications/);
+  assert.match(migration, /where related_entity_table = 'contact_requests'/);
+});
+
+test("replaces membership application notification write path and cleans English persisted rows", () => {
+  const migration = readFileSync(
+    resolve(
+      root,
+      "supabase/migrations/20260507011000_korean_membership_application_notifications.sql",
+    ),
+    "utf8",
+  );
+
+  assert.match(
+    migration,
+    /create or replace function public\.submit_current_membership_application/,
+  );
+  assert.match(migration, /'가입 신청이 도착했습니다'/);
+  assert.match(migration, /' 님이 가입 신청서를 제출했습니다\.'/);
+  assert.match(migration, /update public\.notifications n/);
+  assert.match(migration, /type = 'membership_application_submitted'/);
+  assert.match(
+    migration,
+    /regexp_replace\(n\.body, ' submitted a membership application\\\.\$'/,
   );
 });

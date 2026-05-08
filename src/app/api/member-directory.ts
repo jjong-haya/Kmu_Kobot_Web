@@ -1,4 +1,5 @@
 import { getSupabaseBrowserClient } from "../auth/supabase";
+import { normalizeTagIconName } from "../config/tag-icons";
 import { sanitizeUserError } from "../utils/sanitize-error";
 import { triggerGithubSync } from "./github-sync";
 
@@ -11,6 +12,7 @@ export type MemberDirectoryTag = {
   slug: string;
   label: string;
   color: string;
+  iconName: string | null;
   isClub: boolean;
 };
 
@@ -117,6 +119,7 @@ type TagAssignmentRow = {
     slug?: string | null;
     label?: string | null;
     color?: string | null;
+    icon_name?: string | null;
     is_club?: boolean | null;
   } | null;
 };
@@ -125,6 +128,7 @@ const LOCAL_FAVORITES_KEY = "kobot.memberDirectory.favorites";
 const PROFILE_EXTENSIONS_CACHE_KEY = "kobot.memberDirectory.profileExtensionsAvailable";
 const FAVORITES_TABLE_CACHE_KEY = "kobot.memberDirectory.favoritesTableAvailable";
 const TAG_IS_CLUB_CACHE_KEY = "kobot.memberDirectory.tagIsClubAvailable";
+const TAG_ICON_NAME_CACHE_KEY = "kobot.memberDirectory.tagIconNameAvailable";
 const SCHEMA_CAPABILITY_TTL_MS = 5 * 60 * 1000;
 const MAX_DIRECTORY_PROFILES = 2000;
 
@@ -215,6 +219,13 @@ function writeSchemaCapability(key: string, value: boolean) {
   } catch {
     // Capability caching is only a console-noise optimization.
   }
+}
+
+function tagAssignmentSelect(useClubColumn: boolean, useIconColumn: boolean) {
+  const tagFields = ["id", "slug", "label", "color"];
+  if (useClubColumn) tagFields.push("is_club");
+  if (useIconColumn) tagFields.push("icon_name");
+  return `user_id, member_tags(${tagFields.join(", ")})`;
 }
 
 function normalizeString(value: unknown) {
@@ -329,7 +340,7 @@ async function listProfiles() {
     if (!withDisplayClub.error) {
       writeSchemaCapability(PROFILE_EXTENSIONS_CACHE_KEY, true);
       return {
-        rows: (withDisplayClub.data ?? []) as ProfileRow[],
+        rows: (withDisplayClub.data ?? []) as unknown as ProfileRow[],
         profileExtensionsAvailable: true,
       };
     }
@@ -347,7 +358,7 @@ async function listProfiles() {
     if (!extended.error) {
       writeSchemaCapability(PROFILE_EXTENSIONS_CACHE_KEY, true);
       return {
-        rows: (extended.data ?? []) as ProfileRow[],
+        rows: (extended.data ?? []) as unknown as ProfileRow[],
         profileExtensionsAvailable: true,
       };
     }
@@ -368,7 +379,7 @@ async function listProfiles() {
   if (fallback.error) throw new Error(sanitizeUserError(fallback.error, FALLBACK));
 
   return {
-    rows: (fallback.data ?? []) as ProfileRow[],
+    rows: (fallback.data ?? []) as unknown as ProfileRow[],
     profileExtensionsAvailable: false,
   };
 }
@@ -450,25 +461,37 @@ export async function listMemberDirectory(currentUserId: string): Promise<Member
       // 컬럼 부재 / 스키마 오류면 is_club 빠진 SELECT 로 재시도해야 한다.
       (async () => {
         const useClubColumn = readSchemaCapability(TAG_IS_CLUB_CACHE_KEY) !== false;
+        const useIconColumn = readSchemaCapability(TAG_ICON_NAME_CACHE_KEY) !== false;
         const first = await supabase
           .from("member_tag_assignments")
-          .select(
-            useClubColumn
-              ? "user_id, member_tags(id, slug, label, color, is_club)"
-              : "user_id, member_tags(id, slug, label, color)",
-          );
+          .select(tagAssignmentSelect(useClubColumn, useIconColumn));
         if (!first.error) {
           if (useClubColumn) writeSchemaCapability(TAG_IS_CLUB_CACHE_KEY, true);
-          return (first.data ?? []) as TagAssignmentRow[];
+          if (useIconColumn) writeSchemaCapability(TAG_ICON_NAME_CACHE_KEY, true);
+          return (first.data ?? []) as unknown as TagAssignmentRow[];
         }
-        if (isMissingSchemaError(first.error)) {
+
+        if (isMissingSchemaError(first.error) && useIconColumn) {
+          writeSchemaCapability(TAG_ICON_NAME_CACHE_KEY, false);
+          const withoutIcon = await supabase
+            .from("member_tag_assignments")
+            .select(tagAssignmentSelect(useClubColumn, false));
+          if (!withoutIcon.error) {
+            if (useClubColumn) writeSchemaCapability(TAG_IS_CLUB_CACHE_KEY, true);
+            return (withoutIcon.data ?? []) as unknown as TagAssignmentRow[];
+          }
+          if (isMissingSchemaError(withoutIcon.error) && useClubColumn) {
+            writeSchemaCapability(TAG_IS_CLUB_CACHE_KEY, false);
+          }
+        } else if (isMissingSchemaError(first.error) && useClubColumn) {
           writeSchemaCapability(TAG_IS_CLUB_CACHE_KEY, false);
         }
+
         const fallback = await supabase
           .from("member_tag_assignments")
-          .select("user_id, member_tags(id, slug, label, color)");
+          .select(tagAssignmentSelect(false, false));
         if (fallback.error) return [] as TagAssignmentRow[];
-        return (fallback.data ?? []) as TagAssignmentRow[];
+        return (fallback.data ?? []) as unknown as TagAssignmentRow[];
       })(),
       listFavorites(currentUserId),
     ]);
@@ -497,7 +520,14 @@ export async function listMemberDirectory(currentUserId: string): Promise<Member
       const memberTagRows = (tagsByUser.get(profile.id) ?? [])
         .map((row) => row.member_tags)
         .filter(
-          (m): m is { id: string; slug: string; label: string; color: string; is_club?: boolean | null } =>
+          (m): m is {
+            id: string;
+            slug: string;
+            label: string;
+            color: string;
+            icon_name?: string | null;
+            is_club?: boolean | null;
+          } =>
             !!m &&
             typeof m.id === "string" &&
             typeof m.slug === "string" &&
@@ -516,13 +546,21 @@ export async function listMemberDirectory(currentUserId: string): Promise<Member
           slug: m.slug,
           label: m.label,
           color: m.color,
+          iconName: normalizeTagIconName(m.icon_name),
           isClub: m.is_club === true,
         });
       }
       // 레거시 org_position 이 아직 남아 있더라도, 실제 member_tags가 있으면 그 태그를 우선한다.
       // 아직 백필되지 않은 회장만 화면 깨짐 방지용 가상 태그로 보정한다.
       if (isPresident && !seenTagSlugs.has("president")) {
-        memberTags.unshift({ id: "position:president", slug: "president", label: "회장", color: "#7c2d12", isClub: false });
+        memberTags.unshift({
+          id: "position:president",
+          slug: "president",
+          label: "회장",
+          color: "#7c2d12",
+          iconName: "Crown",
+          isClub: false,
+        });
         seenTagSlugs.add("president");
       }
       const assignedTagLabels = memberTags.map((m) => m.label);

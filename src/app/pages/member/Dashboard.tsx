@@ -79,6 +79,26 @@ const SECTION_LABEL: Record<DashboardSection, string> = {
   contactRequests: "연락 요청",
 };
 
+const DASHBOARD_CALENDAR_MY_ONLY_KEY = "kobot.dashboard.calendar.myOnly";
+
+function readDashboardCalendarMyOnlyPreference() {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(DASHBOARD_CALENDAR_MY_ONLY_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function writeDashboardCalendarMyOnlyPreference(value: boolean) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(DASHBOARD_CALENDAR_MY_ONLY_KEY, value ? "true" : "false");
+  } catch {
+    // Preference persistence is a convenience; the checkbox still works in memory.
+  }
+}
+
 function Card({ children, style }: { children: ReactNode; style?: CSSProperties }) {
   return <div style={{ ...CARD_STYLE, ...style }}>{children}</div>;
 }
@@ -271,14 +291,16 @@ function notificationMeta(notification: DashboardNotification) {
   return `${unread} · ${formatRelativeTime(notification.createdAt)}`;
 }
 
-function buildCalendarEvents(data: DashboardData): CalendarEvent[] {
-  const bookingEvents = data.bookings.map((booking) => ({
-    id: `booking-${booking.id}`,
-    date: booking.date,
-    title: booking.title,
-    kind: "booking" as const,
-    meta: `${booking.start}-${booking.end} · ${bookingTypeLabel(booking.type)}`,
-  }));
+function buildCalendarEvents(data: DashboardData, options: { onlyMine?: boolean } = {}): CalendarEvent[] {
+  const bookingEvents = data.bookings
+    .filter((booking) => !options.onlyMine || booking.isMine)
+    .map((booking) => ({
+      id: `booking-${booking.id}`,
+      date: booking.date,
+      title: booking.title,
+      kind: "booking" as const,
+      meta: `${booking.start}-${booking.end} · ${bookingTypeLabel(booking.type)}`,
+    }));
 
   const contactEvents = data.contactRequests.map((request) => ({
     id: `contact-${request.id}`,
@@ -349,7 +371,15 @@ const navBtn: CSSProperties = {
   fontFamily: "inherit",
 };
 
-function CalendarPanel({ events }: { events: CalendarEvent[] }) {
+function CalendarPanel({
+  events,
+  myOnly,
+  onMyOnlyChange,
+}: {
+  events: CalendarEvent[];
+  myOnly: boolean;
+  onMyOnlyChange: (next: boolean) => void;
+}) {
   const today = useMemo(() => {
     const date = new Date();
     date.setHours(0, 0, 0, 0);
@@ -435,7 +465,32 @@ function CalendarPanel({ events }: { events: CalendarEvent[] }) {
             {monthLabel}
           </h2>
         </div>
-        <div style={{ display: "flex", gap: 4 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+          <label
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              minHeight: 28,
+              padding: "0 8px",
+              border: "1px solid #ebe8e0",
+              borderRadius: 6,
+              background: myOnly ? "#f5f8ff" : "#fff",
+              color: myOnly ? "var(--kb-navy-800)" : "var(--kb-ink-700)",
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={myOnly}
+              onChange={(event) => onMyOnlyChange(event.target.checked)}
+              style={{ width: 14, height: 14, accentColor: "var(--kb-navy-800)", margin: 0 }}
+            />
+            내 일정만 보기
+          </label>
           {selected ? (
             <button
               type="button"
@@ -747,6 +802,7 @@ export default function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [calendarMyOnly, setCalendarMyOnly] = useState(readDashboardCalendarMyOnlyPreference);
 
   const today = useMemo(() => {
     const date = new Date();
@@ -783,11 +839,19 @@ export default function Dashboard() {
     void load();
   }, [userId]);
 
+  function handleCalendarMyOnlyChange(next: boolean) {
+    setCalendarMyOnly(next);
+    writeDashboardCalendarMyOnlyPreference(next);
+  }
+
   const todayItems = useMemo(
     () => (data ? buildTodayItems(data, userId, today.key) : []),
     [data, today.key, userId],
   );
-  const calendarEvents = useMemo(() => (data ? buildCalendarEvents(data) : []), [data]);
+  const calendarEvents = useMemo(
+    () => (data ? buildCalendarEvents(data, { onlyMine: calendarMyOnly }) : []),
+    [calendarMyOnly, data],
+  );
   const todayBookingCount = data?.bookings.filter((booking) => booking.date === today.key).length ?? 0;
   const activeProjectCount = data?.projects.filter((project) => project.status === "active").length ?? 0;
   const summary = data
@@ -1166,7 +1230,11 @@ export default function Dashboard() {
             </Card>
           </div>
 
-          <CalendarPanel events={calendarEvents} />
+          <CalendarPanel
+            events={calendarEvents}
+            myOnly={calendarMyOnly}
+            onMyOnlyChange={handleCalendarMyOnlyChange}
+          />
         </div>
       </div>
     </div>

@@ -1,6 +1,8 @@
 import { getSupabaseBrowserClient } from "../auth/supabase";
+import type { SpaceBookingConflict } from "./space-booking-conflicts";
 
-export type ReservationType = "meeting" | "study" | "personal";
+export type ReservationType = "meeting" | "study";
+export type StoredReservationType = ReservationType | "personal";
 export type ReservationScope = "exclusive" | "desk" | "open";
 
 export type BookingParticipant = {
@@ -33,11 +35,23 @@ export type SpaceBookingRow = {
   end_time: string;
   organizer_id: string;
   organizer_name: string;
-  type: ReservationType;
+  type: StoredReservationType;
   scope: ReservationScope;
   attendees: number;
   created_at: string;
   updated_at: string;
+};
+
+type PublicSpaceBookingRow = {
+  id: string;
+  title: string;
+  booking_date: string;
+  start_time: string;
+  end_time: string;
+  organizer_name: string;
+  type: StoredReservationType;
+  scope: ReservationScope;
+  attendees: number;
 };
 
 export type SpaceBooking = {
@@ -48,7 +62,7 @@ export type SpaceBooking = {
   end: string;
   organizer: string;
   organizerId: string;
-  type: ReservationType;
+  type: StoredReservationType;
   scope: ReservationScope;
   attendees: number;
   participants: BookingParticipant[];
@@ -74,6 +88,16 @@ export type SpaceBookingAudienceOptions = {
   clubTags: BookingAudienceTag[];
   teams: BookingAudienceTeam[];
 };
+
+export class SpaceBookingConflictError extends Error {
+  conflict: SpaceBookingConflict | null;
+
+  constructor(conflict: SpaceBookingConflict | null) {
+    super("space_booking_time_conflict");
+    this.name = "SpaceBookingConflictError";
+    this.conflict = conflict;
+  }
+}
 
 type ProfileRow = {
   id: string;
@@ -139,8 +163,34 @@ function trimTime(t: string): string {
   return t.slice(0, 5);
 }
 
+function parseSpaceBookingConflict(error: unknown): SpaceBookingConflict | null {
+  const payloads = [
+    (error as { details?: string | null })?.details,
+    (error as { message?: string | null })?.message,
+    (error as { hint?: string | null })?.hint,
+  ].filter((value): value is string => typeof value === "string");
+
+  if (!payloads.some((value) => value.includes("space_booking_time_conflict"))) {
+    return null;
+  }
+
+  const joined = payloads.join(" ");
+  const match = joined.match(/(\d{4}-\d{2}-\d{2})\|(\d{2}:\d{2})\|(\d{2}:\d{2})/);
+  if (!match) return null;
+
+  return {
+    date: match[1],
+    start: match[2],
+    end: match[3],
+  };
+}
+
 function normalizeString(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+export function isCreatableReservationType(type: string): type is ReservationType {
+  return type === "meeting" || type === "study";
 }
 
 function displayNameFor(profile: ProfileRow) {
@@ -187,6 +237,24 @@ function rowToBooking(
   };
 }
 
+function publicRowToBooking(row: PublicSpaceBookingRow): SpaceBooking {
+  return {
+    id: row.id,
+    title: row.title,
+    date: row.booking_date,
+    start: trimTime(row.start_time),
+    end: trimTime(row.end_time),
+    organizer: row.organizer_name,
+    organizerId: "",
+    type: row.type,
+    scope: row.scope,
+    attendees: row.attendees,
+    participants: [],
+    audienceTags: [],
+    audienceTeams: [],
+  };
+}
+
 async function loadProfilesById(ids: string[]) {
   const supabase = getSupabaseBrowserClient();
   const uniqueIds = [...new Set(ids)].filter(Boolean);
@@ -200,7 +268,7 @@ async function loadProfilesById(ids: string[]) {
   if (error) throw new Error(error.message);
 
   return new Map(
-    ((data ?? []) as ProfileRow[]).map((profile) => [
+    ((data ?? []) as unknown as ProfileRow[]).map((profile) => [
       profile.id,
       profileToParticipant(profile),
     ]),
@@ -324,6 +392,25 @@ export async function listBookingsInRange(
   return hydrateBookings((data ?? []) as SpaceBookingRow[]);
 }
 
+export async function listPublicBookingsInRange(
+  fromIso: string,
+  toIso: string,
+): Promise<SpaceBooking[]> {
+  const supabase = getSupabaseBrowserClient();
+  const { data, error } = await supabase
+    .from("space_bookings")
+    .select(
+      "id, title, booking_date, start_time, end_time, organizer_name, type, scope, attendees",
+    )
+    .gte("booking_date", fromIso)
+    .lte("booking_date", toIso)
+    .order("booking_date", { ascending: true })
+    .order("start_time", { ascending: true });
+
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as PublicSpaceBookingRow[]).map(publicRowToBooking);
+}
+
 export async function getBookingById(id: string): Promise<SpaceBooking> {
   const supabase = getSupabaseBrowserClient();
   const { data, error } = await supabase
@@ -341,6 +428,10 @@ export async function getBookingById(id: string): Promise<SpaceBooking> {
 }
 
 export async function createBooking(input: CreateBookingInput): Promise<SpaceBooking> {
+  if (!isCreatableReservationType(input.type)) {
+    throw new Error("space_booking_invalid_type");
+  }
+
   const supabase = getSupabaseBrowserClient();
   const { data, error } = await supabase.rpc("create_space_booking", {
     p_title: input.title,
@@ -356,9 +447,47 @@ export async function createBooking(input: CreateBookingInput): Promise<SpaceBoo
     p_audience_team_ids: input.audienceTeamIds,
   });
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    const conflict = parseSpaceBookingConflict(error);
+    if (conflict || error.message.includes("space_booking_time_conflict")) {
+      throw new SpaceBookingConflictError(conflict);
+    }
+    throw new Error(error.message);
+  }
   if (!data || typeof data !== "string") throw new Error("Booking creation failed.");
   return getBookingById(data);
+}
+
+export async function checkSpaceBookingConflict(input: {
+  date: string;
+  start: string;
+  end: string;
+}): Promise<SpaceBookingConflict | null> {
+  const supabase = getSupabaseBrowserClient();
+  const { data, error } = await supabase.rpc("find_space_booking_time_conflict", {
+    p_booking_date: input.date,
+    p_start_time: `${input.start}:00`,
+    p_end_time: `${input.end}:00`,
+  });
+
+  if (error) {
+    if (
+      error.message.includes("find_space_booking_time_conflict") ||
+      error.message.includes("Could not find the function")
+    ) {
+      return null;
+    }
+    throw new Error(error.message);
+  }
+
+  const row = Array.isArray(data) ? data[0] : null;
+  if (!row) return null;
+
+  return {
+    date: row.booking_date,
+    start: trimTime(row.start_time),
+    end: trimTime(row.end_time),
+  };
 }
 
 export async function deleteBooking(id: string): Promise<void> {
@@ -387,7 +516,7 @@ export async function searchSpaceBookingMembers(query: string, viewerUserId: str
     ((accountsResult.data ?? []) as AccountRow[]).map((row) => row.user_id),
   );
 
-  return ((profilesResult.data ?? []) as ProfileRow[])
+  return ((profilesResult.data ?? []) as unknown as ProfileRow[])
     .filter((profile) => profile.id !== viewerUserId && activeUserIds.has(profile.id))
     .map(profileToParticipant)
     .filter((profile) => {

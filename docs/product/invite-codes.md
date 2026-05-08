@@ -38,4 +38,5 @@
 - `src/app/api/invite-codes.ts` — `createInviteCode({ defaultTags: string[] })` / `listInviteCodes()`
 - `src/app/pages/member/InviteCodes.tsx` — 발급 모달의 "부여 태그" UI는 `listTags()` 로 받은 카탈로그를 `TagChip` 다중 선택으로 노출. 목록 태그 열도 `TagChip` 을 사용한다.
 - `src/app/pages/public/AuthCallback.tsx` — `redeem_course_invite(code)` 호출 후 라우팅
-- `src/app/pages/public/InviteCourse.tsx` — 코드 입력 페이지
+- `src/app/pages/public/InviteCourse.tsx` — 코드 입력 페이지. 문구는 KOSS 같은 문자열을 하드코딩하지 않고 `get_course_invite_preview(code)` 가 반환한 `club_label` 을 사용한다.
+- `supabase/migrations/20260507014000_course_invite_public_preview.sql` — public/anon 화면에서 초대코드의 안전한 표시 정보만 읽는 read model. `club_label` 은 `default_tags` 중 `member_tags.is_club=true` 태그의 label 에서 파생한다.

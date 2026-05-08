@@ -69,6 +69,7 @@ export const PERMISSION_CATALOG: PermissionCatalogEntry[] = [
   { permission: "events.read", label: "행사 보기", group: "읽기" },
   // 작성/관리
   { permission: "projects.create", label: "프로젝트 생성", group: "작성" },
+  { permission: "events.create", label: "행사 생성", group: "작성" },
   {
     permission: "announcements.manage",
     label: "공지 작성/수정/삭제",

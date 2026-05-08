@@ -100,33 +100,15 @@ export default function PeerReview() {
                     >
                       {request.type === "code" ? (
                         <Code
-                          className={`h-6 w-6 ${
-                            request.type === "code"
-                              ? "text-purple-600"
-                              : request.type === "presentation"
-                              ? "text-blue-600"
-                              : "text-green-600"
-                          }`}
+                          className="h-6 w-6 text-purple-600"
                         />
                       ) : request.type === "presentation" ? (
                         <Presentation
-                          className={`h-6 w-6 ${
-                            request.type === "code"
-                              ? "text-purple-600"
-                              : request.type === "presentation"
-                              ? "text-blue-600"
-                              : "text-green-600"
-                          }`}
+                          className="h-6 w-6 text-blue-600"
                         />
                       ) : (
                         <FileText
-                          className={`h-6 w-6 ${
-                            request.type === "code"
-                              ? "text-purple-600"
-                              : request.type === "presentation"
-                              ? "text-blue-600"
-                              : "text-green-600"
-                          }`}
+                          className="h-6 w-6 text-green-600"
                         />
                       )}
                     </div>

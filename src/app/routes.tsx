@@ -5,6 +5,7 @@ import {
   RequirePermission,
   RequireSession,
 } from "./auth/guards";
+import { EVENT_CREATE_PERMISSIONS } from "./api/event-policy.js";
 import PublicLayout from "./layouts/PublicLayout";
 import MemberLayout from "./layouts/MemberLayout";
 import Landing from "./pages/public/Landing";
@@ -21,6 +22,7 @@ const Terms = lazy(() => import("./pages/public/Terms"));
 const Login = lazy(() => import("./pages/public/Login"));
 const AuthCallback = lazy(() => import("./pages/public/AuthCallback"));
 const InviteCourse = lazy(() => import("./pages/public/InviteCourse"));
+const SpaceBookingPublic = lazy(() => import("./pages/public/SpaceBookingPublic"));
 
 const Dashboard = lazy(() => import("./pages/member/Dashboard"));
 const Notifications = lazy(() => import("./pages/member/Notifications"));
@@ -36,6 +38,10 @@ const ProjectAdmin = lazy(() => import("./pages/member/ProjectAdmin"));
 const ProjectDetail = lazy(() => import("./pages/member/ProjectDetail"));
 const Showcase = lazy(() => import("./pages/member/Showcase"));
 const Events = lazy(() => import("./pages/member/Events"));
+const EventDetail = lazy(() => import("./pages/member/EventDetail"));
+const EventCreate = lazy(() => import("./pages/member/EventCreate"));
+const FormCreate = lazy(() => import("./pages/member/FormCreate"));
+const FormDetail = lazy(() => import("./pages/member/FormDetail"));
 const SpaceBooking = lazy(() => import("./pages/member/SpaceBooking"));
 const Members = lazy(() => import("./pages/member/Members"));
 const Resources = lazy(() => import("./pages/member/Resources"));
@@ -50,6 +56,7 @@ const Integrations = lazy(() => import("./pages/member/Integrations"));
 const Permissions = lazy(() => import("./pages/member/Permissions"));
 const NavConfig = lazy(() => import("./pages/member/NavConfig"));
 const Tags = lazy(() => import("./pages/member/Tags"));
+const TagIconGallery = lazy(() => import("./pages/member/TagIconGallery"));
 const TagDetail = lazy(() => import("./pages/member/TagDetail"));
 const MemberAdmin = lazy(() => import("./pages/member/MemberAdmin"));
 const Quests = lazy(() => import("./pages/member/Quests"));
@@ -140,6 +147,10 @@ export const router = createBrowserRouter([
     element: lazyElement(AuthCallback),
   },
   {
+    path: "/space-booking",
+    element: lazyElement(SpaceBookingPublic),
+  },
+  {
     path: "/member",
     element: (
       <RequireSession>
@@ -224,6 +235,14 @@ export const router = createBrowserRouter([
         element: memberElement(Events, ["events.read", "events.manage"]),
       },
       {
+        path: "events/new",
+        element: memberElement(EventCreate, EVENT_CREATE_PERMISSIONS),
+      },
+      {
+        path: "events/:eventId",
+        element: memberElement(EventDetail, ["events.read", "events.manage"]),
+      },
+      {
         path: "space-booking",
         element: memberElement(SpaceBooking, undefined, { allowCourseMember: true }),
       },
@@ -250,6 +269,11 @@ export const router = createBrowserRouter([
       { path: "changelog", element: memberElement(Changelog) },
       { path: "votes", element: memberElement(Votes) },
       { path: "forms", element: memberElement(Forms, ["forms.manage"]) },
+      { path: "forms/new", element: memberElement(FormCreate, ["forms.manage"]) },
+      {
+        path: "forms/:formId",
+        element: memberElement(FormDetail, undefined, { allowCourseMember: true }),
+      },
       {
         path: "integrations",
         element: memberElement(Integrations, ["integrations.manage"]),
@@ -265,6 +289,10 @@ export const router = createBrowserRouter([
       {
         path: "tags",
         element: memberElement(Tags, ["permissions.manage"]),
+      },
+      {
+        path: "tags/icons",
+        element: memberElement(TagIconGallery, ["permissions.manage"]),
       },
       {
         path: "tags/:slug",

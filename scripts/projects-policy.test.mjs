@@ -2,12 +2,15 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  DEFAULT_PROJECT_FILTER_KEY,
   filterProjects,
   getProjectDetailPath,
   getProjectPrefix,
   getProjectRoleLabel,
   getProjectStatusLabel,
+  readProjectFilterKey,
   readProjectProgress,
+  writeProjectFilterSearchParams,
 } from "../src/app/api/project-policy.js";
 
 test("maps database project statuses to Korean labels", () => {
@@ -39,6 +42,20 @@ test("filters real project rows by status and membership", () => {
   assert.deepEqual(filterProjects(projects, "mine").map((project) => project.id), ["1", "3"]);
   assert.deepEqual(filterProjects(projects, "recruiting").map((project) => project.id), ["4", "5"]);
   assert.deepEqual(filterProjects(projects, "active").map((project) => project.id), ["1", "4"]);
+});
+
+test("keeps the selected project list filter in URL state for back navigation", () => {
+  assert.equal(readProjectFilterKey("recruiting"), "recruiting");
+  assert.equal(readProjectFilterKey("unknown"), DEFAULT_PROJECT_FILTER_KEY);
+  assert.equal(readProjectFilterKey(null), DEFAULT_PROJECT_FILTER_KEY);
+
+  const recruitingParams = writeProjectFilterSearchParams("?page=1", "recruiting");
+  assert.equal(recruitingParams.get("filter"), "recruiting");
+  assert.equal(recruitingParams.get("page"), "1");
+
+  const defaultParams = writeProjectFilterSearchParams("?filter=recruiting&page=1", "mine");
+  assert.equal(defaultParams.get("filter"), null);
+  assert.equal(defaultParams.get("page"), "1");
 });
 
 test("derives stable prefixes, progress, and detail paths from database-shaped values", () => {

@@ -254,7 +254,7 @@ async function listAuthors(ids: string[]) {
 
   if (error) throw new Error(sanitizeUserError(error, FALLBACK));
 
-  return new Map(((data ?? []) as ProfileDbRow[]).map((row) => [row.id, mapAuthor(row)]));
+  return new Map(((data ?? []) as unknown as ProfileDbRow[]).map((row) => [row.id, mapAuthor(row)]));
 }
 
 async function listProjects(projectIds: string[]) {
@@ -378,7 +378,7 @@ export async function listStudyRecords(limit = 80): Promise<StudyRecord[]> {
 
   if (error) throw new Error(sanitizeUserError(error, FALLBACK));
 
-  return hydrateStudyRecords((data ?? []) as StudyRecordDbRow[]);
+  return hydrateStudyRecords((data ?? []) as unknown as StudyRecordDbRow[]);
 }
 
 export async function listProjectStudyRecords(
@@ -396,7 +396,7 @@ export async function listProjectStudyRecords(
 
   if (error) throw new Error(sanitizeUserError(error, FALLBACK));
 
-  return hydrateStudyRecords((data ?? []) as StudyRecordDbRow[]);
+  return hydrateStudyRecords((data ?? []) as unknown as StudyRecordDbRow[]);
 }
 
 export async function getProjectStudyRecord(
@@ -414,7 +414,7 @@ export async function getProjectStudyRecord(
   if (error) throw new Error(sanitizeUserError(error, FALLBACK));
   if (!data) return null;
 
-  const [record] = await hydrateStudyRecords([data as StudyRecordDbRow]);
+  const [record] = await hydrateStudyRecords([data as unknown as StudyRecordDbRow]);
   return record ?? null;
 }
 
@@ -428,7 +428,7 @@ export async function listStudyRecordRevisions(recordId: string): Promise<StudyR
 
   if (error) throw new Error(sanitizeUserError(error, "수정 기록을 불러오지 못했습니다."));
 
-  const rows = (data ?? []) as StudyRecordRevisionDbRow[];
+  const rows = (data ?? []) as unknown as StudyRecordRevisionDbRow[];
   const authorsById = await listAuthors(rows.map((row) => row.edited_by));
   return rows.map((row) => mapStudyRevision(row, authorsById));
 }

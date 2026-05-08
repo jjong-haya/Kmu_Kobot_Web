@@ -93,7 +93,7 @@ export async function listProjectTasks(projectTeamId: string): Promise<ProjectTa
     .order("task_number", { ascending: true });
 
   if (error) throw new Error(sanitizeUserError(error, FALLBACK));
-  return ((data ?? []) as ProjectTaskDbRow[]).map(mapTask);
+  return ((data ?? []) as unknown as ProjectTaskDbRow[]).map(mapTask);
 }
 
 export async function createProjectTask(input: CreateProjectTaskInput): Promise<ProjectTask> {

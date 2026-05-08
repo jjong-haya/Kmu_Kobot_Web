@@ -1,6 +1,5 @@
 export const COMING_SOON_MEMBER_PAGE_KEYS = [
   "study-playlist",
-  "events",
   "resources",
   "equipment",
   "votes",

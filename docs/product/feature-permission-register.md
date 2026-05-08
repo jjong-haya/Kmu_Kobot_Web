@@ -191,7 +191,7 @@ DB 湲곗??? 留덉씠洹몃젅?댁뀡 ?뚯씪紐?湲곗? `20260507005000_projec
 | 湲곕뒫 | 寃쎈줈 | ?꾩옱 ?곹깭 | ?묎렐 沅뚰븳 | ?ㅼ쓬???꾩슂??臾몄꽌 |
 | --- | --- | --- | --- | --- |
 | ?ㅽ꽣???뚮젅?대━?ㅽ듃 | `/member/study-playlist` | Coming Soon | active member | ?ㅽ꽣??湲곕줉怨?遺꾨━??playlist ?꾨찓???뺤쓽 |
-| ?됱궗 | `/member/events` | Coming Soon | `events.read/manage` route/nav | ?됱궗 ?좎껌, 異쒖꽍, ?뚮┝, 怨듦컻 踰붿쐞 |
+| 행사 | `/member/events`, `/member/events/new` | 카드/상세/생성 UI 구현 | `events.read`; 생성은 `events.create` 또는 `events.manage`; 전체 관리는 `events.manage` | 공식 팀장급 태그는 `events.read`를 받는다. 행사 생성/관리 권한은 별도 태그 정책에서 관리한다. |
 | ?먮즺??| `/member/resources` | Coming Soon | `resources.read/manage` | ?뚯씪 ??μ냼, 怨듦컻 踰붿쐞, 踰꾩쟾 |
 | ?λ퉬 ???| `/member/equipment` | Coming Soon | `resources.read/manage` | ????곹깭, 諛섎궔, ?뚯넀 湲곕줉 |
 | ?ы몴 | `/member/votes` | Coming Soon | active member route | ?ы몴 eligibility, ?듬챸?? 寃곌낵 怨듦컻 |

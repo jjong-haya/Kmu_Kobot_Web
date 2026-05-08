@@ -1,4 +1,5 @@
 import { getSupabaseBrowserClient } from "../auth/supabase";
+import { normalizeTagIconName } from "../config/tag-icons";
 import { sanitizeUserError } from "../utils/sanitize-error";
 
 const FALLBACK = "처리에 실패했습니다.";
@@ -40,6 +41,7 @@ export type AdminMemberTag = {
   slug: string;
   label: string;
   color: string;
+  iconName: string | null;
   isSystem: boolean;
 };
 
@@ -72,6 +74,7 @@ type AssignmentJoinRow = {
     slug: string;
     label: string;
     color: string;
+    icon_name?: string | null;
     is_system: boolean;
   } | null;
 };
@@ -108,12 +111,44 @@ function pickDisplayName(row: ProfileRow) {
 
 const MAX_ADMIN_MEMBERS = 2000;
 
+function isMissingSchemaError(error: { code?: string; message?: string } | null) {
+  const message = error?.message?.toLowerCase() ?? "";
+  return (
+    error?.code === "42703" ||
+    error?.code === "PGRST204" ||
+    message.includes("does not exist") ||
+    message.includes("could not find") ||
+    message.includes("schema cache")
+  );
+}
+
+async function listAdminTagAssignments(): Promise<AssignmentJoinRow[]> {
+  const supabase = getSupabaseBrowserClient();
+  const withIcon = await supabase
+    .from("member_tag_assignments")
+    .select("user_id, member_tags(id, slug, label, color, icon_name, is_system)")
+    .limit(MAX_ADMIN_MEMBERS * 5);
+
+  if (!withIcon.error) return (withIcon.data ?? []) as unknown as AssignmentJoinRow[];
+  if (!isMissingSchemaError(withIcon.error)) {
+    throw new Error(sanitizeUserError(withIcon.error, FALLBACK));
+  }
+
+  const fallback = await supabase
+    .from("member_tag_assignments")
+    .select("user_id, member_tags(id, slug, label, color, is_system)")
+    .limit(MAX_ADMIN_MEMBERS * 5);
+
+  if (fallback.error) throw new Error(sanitizeUserError(fallback.error, FALLBACK));
+  return (fallback.data ?? []) as unknown as AssignmentJoinRow[];
+}
+
 export async function listAdminMembers(): Promise<AdminMemberRow[]> {
   const supabase = getSupabaseBrowserClient();
   const [
     profilesResult,
     accountsResult,
-    assignmentsResult,
+    assignmentRows,
     positionsResult,
     applicationsResult,
   ] = await Promise.all([
@@ -126,10 +161,7 @@ export async function listAdminMembers(): Promise<AdminMemberRow[]> {
       .from("member_accounts")
       .select("user_id, status, approved_at, created_at")
       .limit(MAX_ADMIN_MEMBERS),
-    supabase
-      .from("member_tag_assignments")
-      .select("user_id, member_tags(id, slug, label, color, is_system)")
-      .limit(MAX_ADMIN_MEMBERS * 5),
+    listAdminTagAssignments(),
     supabase
       .from("org_position_assignments")
       .select("user_id, org_positions(slug)")
@@ -143,8 +175,6 @@ export async function listAdminMembers(): Promise<AdminMemberRow[]> {
 
   if (profilesResult.error) throw new Error(sanitizeUserError(profilesResult.error, FALLBACK));
   if (accountsResult.error) throw new Error(sanitizeUserError(accountsResult.error, FALLBACK));
-  if (assignmentsResult.error)
-    throw new Error(sanitizeUserError(assignmentsResult.error, FALLBACK));
   // applications fetch may fail if RLS doesn't expose it; degrade silently.
   const applicationByUser = new Map<
     string,
@@ -168,7 +198,7 @@ export async function listAdminMembers(): Promise<AdminMemberRow[]> {
   );
 
   const tagsByUser = new Map<string, AdminMemberTag[]>();
-  for (const row of (assignmentsResult.data ?? []) as AssignmentJoinRow[]) {
+  for (const row of assignmentRows) {
     if (!row.member_tags) continue;
     const arr = tagsByUser.get(row.user_id) ?? [];
     arr.push({
@@ -176,18 +206,19 @@ export async function listAdminMembers(): Promise<AdminMemberRow[]> {
       slug: row.member_tags.slug,
       label: row.member_tags.label,
       color: row.member_tags.color,
+      iconName: normalizeTagIconName(row.member_tags.icon_name),
       isSystem: row.member_tags.is_system,
     });
     tagsByUser.set(row.user_id, arr);
   }
 
   const presidentSet = new Set(
-    ((positionsResult.data ?? []) as OrgPositionAssignmentRow[])
+    ((positionsResult.data ?? []) as unknown as OrgPositionAssignmentRow[])
       .filter((row) => row.org_positions?.slug?.toLowerCase() === "president")
       .map((row) => row.user_id),
   );
 
-  return ((profilesResult.data ?? []) as ProfileRow[]).map((row) => {
+  return ((profilesResult.data ?? []) as unknown as ProfileRow[]).map((row) => {
     const account = accountByUser.get(row.id);
     return {
       id: row.id,

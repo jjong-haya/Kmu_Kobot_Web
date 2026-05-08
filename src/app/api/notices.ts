@@ -139,7 +139,7 @@ async function fetchNoticeAudienceTags(noticeIds: string[]) {
 
   if (error) throw new Error(sanitizeUserError(error, FALLBACK));
 
-  for (const row of (data ?? []) as NoticeAudienceJoinRow[]) {
+  for (const row of (data ?? []) as unknown as NoticeAudienceJoinRow[]) {
     if (!row.member_tags) continue;
     const tags = tagsByNotice.get(row.notice_id) ?? [];
     tags.push({

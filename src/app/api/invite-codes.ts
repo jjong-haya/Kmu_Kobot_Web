@@ -29,6 +29,21 @@ export type InviteCodeRow = {
   created_by: string | null;
 };
 
+export type InviteCoursePreview = {
+  code: string;
+  label: string | null;
+  clubLabel: string | null;
+  defaultTags: string[];
+  isAvailable: boolean;
+};
+
+export class InviteCoursePreviewUnavailableError extends Error {
+  constructor() {
+    super("invite_course_preview_unavailable");
+    this.name = "InviteCoursePreviewUnavailableError";
+  }
+}
+
 const BASE_SELECT_COLUMNS =
   "id, code, label, club_affiliation, max_uses, uses, expires_at, is_active, created_at, created_by";
 const EXTENDED_SELECT_COLUMNS =
@@ -122,6 +137,30 @@ function requireInviteAssignableTags(slugs: string[], catalog: MemberTagPolicySu
 
 function firstClubLabel(tags: InviteCodeTag[]) {
   return [...tags].filter((tag) => tag.isClub).sort(compareSlugAsc)[0]?.label ?? null;
+}
+
+export function getInviteTargetLabel(
+  preview: Pick<InviteCoursePreview, "clubLabel"> | null | undefined,
+) {
+  const label = preview?.clubLabel?.trim();
+  return label || "초대받은 동아리";
+}
+
+export function hasHangulFinalConsonant(value: string) {
+  const lastHangul = [...value].reverse().find((char) => {
+    const code = char.charCodeAt(0);
+    return code >= 0xac00 && code <= 0xd7a3;
+  });
+  if (!lastHangul) return false;
+  return (lastHangul.charCodeAt(0) - 0xac00) % 28 !== 0;
+}
+
+export function formatInviteJoinTitle(
+  preview: Pick<InviteCoursePreview, "clubLabel"> | null | undefined,
+) {
+  const label = preview?.clubLabel?.trim();
+  if (!label) return "초대 코드로 가입";
+  return `${label}${hasHangulFinalConsonant(label) ? "으로" : "로"} 가입`;
 }
 
 function withDefaultTags(row: Partial<InviteCodeRow>, catalog: InviteCodeTag[] = []): InviteCodeRow {
@@ -221,6 +260,36 @@ export async function setInviteCodeActive(
     .update({ is_active: active })
     .eq("id", id);
   if (error) throw new Error(sanitizeUserError(error, FALLBACK));
+}
+
+export async function getInviteCoursePreview(
+  rawCode: string,
+): Promise<InviteCoursePreview | null> {
+  const code = normalizeInviteCode(rawCode);
+  if (!code) return null;
+
+  const supabase = getSupabaseBrowserClient();
+  const { data, error } = await supabase.rpc("get_course_invite_preview", {
+    invite_code: code,
+  });
+
+  if (error) {
+    if (isMissingSchemaError(error)) {
+      throw new InviteCoursePreviewUnavailableError();
+    }
+    throw new Error(sanitizeUserError(error, FALLBACK));
+  }
+
+  const row = Array.isArray(data) ? data[0] : null;
+  if (!row) return null;
+
+  return {
+    code: row.code,
+    label: row.label ?? null,
+    clubLabel: row.club_label ?? null,
+    defaultTags: normalizeInviteTags(row.default_tags),
+    isAvailable: Boolean(row.is_available),
+  };
 }
 
 export function normalizeInviteCode(value: string): string {

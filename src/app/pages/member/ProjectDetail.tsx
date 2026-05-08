@@ -535,7 +535,7 @@ function ProjectWorkspace({
     }
   }
 
-  function handleDrop(event: DragEvent<HTMLDivElement>, status: ProjectTaskStatus) {
+  function handleDrop(event: DragEvent<HTMLElement>, status: ProjectTaskStatus) {
     event.preventDefault();
     const task = tasks.find((item) => item.id === draggedTaskId);
     setDraggedTaskId(null);

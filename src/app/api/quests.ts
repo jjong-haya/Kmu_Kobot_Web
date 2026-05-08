@@ -1,4 +1,5 @@
 import { getSupabaseBrowserClient } from "../auth/supabase";
+import { normalizeTagIconName } from "../config/tag-icons";
 import { sanitizeUserError } from "../utils/sanitize-error";
 
 const FALLBACK = "미션 정보를 처리하지 못했습니다.";
@@ -11,6 +12,7 @@ export type QuestTagRef = {
   slug: string;
   label: string;
   color: string;
+  iconName: string | null;
 };
 
 export type QuestSummary = {
@@ -53,12 +55,12 @@ type QuestRow = {
 
 type AudienceJoinRow = {
   quest_id: string;
-  member_tags: { id: string; slug: string; label: string; color: string } | null;
+  member_tags: { id: string; slug: string; label: string; color: string; icon_name?: string | null } | null;
 };
 
 type RewardJoinRow = {
   quest_id: string;
-  member_tags: { id: string; slug: string; label: string; color: string } | null;
+  member_tags: { id: string; slug: string; label: string; color: string; icon_name?: string | null } | null;
 };
 
 type CompletionRow = {
@@ -76,8 +78,31 @@ type CompletionRow = {
 const QUEST_SELECT =
   "id, slug, label, description, color, audience_mode, is_active";
 
-function rowToTagRef(row: { id: string; slug: string; label: string; color: string }): QuestTagRef {
-  return { id: row.id, slug: row.slug, label: row.label, color: row.color };
+function isMissingSchemaError(error: { code?: string; message?: string } | null) {
+  const message = error?.message?.toLowerCase() ?? "";
+  return (
+    error?.code === "42703" ||
+    error?.code === "PGRST204" ||
+    message.includes("does not exist") ||
+    message.includes("could not find") ||
+    message.includes("schema cache")
+  );
+}
+
+function rowToTagRef(row: {
+  id: string;
+  slug: string;
+  label: string;
+  color: string;
+  icon_name?: string | null;
+}): QuestTagRef {
+  return {
+    id: row.id,
+    slug: row.slug,
+    label: row.label,
+    color: row.color,
+    iconName: normalizeTagIconName(row.icon_name),
+  };
 }
 
 function rowToCompletion(row: CompletionRow): QuestCompletion {
@@ -94,6 +119,25 @@ function rowToCompletion(row: CompletionRow): QuestCompletion {
   };
 }
 
+async function listQuestTagJoins(table: "member_quest_audience_tags" | "member_quest_reward_tags") {
+  const supabase = getSupabaseBrowserClient();
+  const withIcon = await supabase
+    .from(table)
+    .select("quest_id, member_tags(id, slug, label, color, icon_name)");
+
+  if (!withIcon.error) return withIcon.data ?? [];
+  if (!isMissingSchemaError(withIcon.error)) {
+    throw new Error(sanitizeUserError(withIcon.error, FALLBACK));
+  }
+
+  const fallback = await supabase
+    .from(table)
+    .select("quest_id, member_tags(id, slug, label, color)");
+
+  if (fallback.error) throw new Error(sanitizeUserError(fallback.error, FALLBACK));
+  return fallback.data ?? [];
+}
+
 export async function listQuests(currentUserId: string | null): Promise<QuestSummary[]> {
   const supabase = getSupabaseBrowserClient();
   const [questsResult, audienceResult, rewardResult, completionsResult] = await Promise.all([
@@ -102,12 +146,8 @@ export async function listQuests(currentUserId: string | null): Promise<QuestSum
       .select(QUEST_SELECT)
       .order("is_active", { ascending: false })
       .order("label", { ascending: true }),
-    supabase
-      .from("member_quest_audience_tags")
-      .select("quest_id, member_tags(id, slug, label, color)"),
-    supabase
-      .from("member_quest_reward_tags")
-      .select("quest_id, member_tags(id, slug, label, color)"),
+    listQuestTagJoins("member_quest_audience_tags"),
+    listQuestTagJoins("member_quest_reward_tags"),
     supabase
       .from("member_quest_completions")
       .select(
@@ -116,12 +156,10 @@ export async function listQuests(currentUserId: string | null): Promise<QuestSum
   ]);
 
   if (questsResult.error) throw new Error(sanitizeUserError(questsResult.error, FALLBACK));
-  if (audienceResult.error) throw new Error(sanitizeUserError(audienceResult.error, FALLBACK));
-  if (rewardResult.error) throw new Error(sanitizeUserError(rewardResult.error, FALLBACK));
   if (completionsResult.error) throw new Error(sanitizeUserError(completionsResult.error, FALLBACK));
 
   const audienceByQuest = new Map<string, QuestTagRef[]>();
-  for (const row of (audienceResult.data ?? []) as AudienceJoinRow[]) {
+  for (const row of audienceResult as unknown as AudienceJoinRow[]) {
     if (!row.member_tags) continue;
     const arr = audienceByQuest.get(row.quest_id) ?? [];
     arr.push(rowToTagRef(row.member_tags));
@@ -129,7 +167,7 @@ export async function listQuests(currentUserId: string | null): Promise<QuestSum
   }
 
   const rewardByQuest = new Map<string, QuestTagRef[]>();
-  for (const row of (rewardResult.data ?? []) as RewardJoinRow[]) {
+  for (const row of rewardResult as unknown as RewardJoinRow[]) {
     if (!row.member_tags) continue;
     const arr = rewardByQuest.get(row.quest_id) ?? [];
     arr.push(rowToTagRef(row.member_tags));

@@ -8,11 +8,12 @@
 //   (docs/product/tag-system.md → Touchpoints)
 
 import type { CSSProperties } from "react";
-import { Bot, Crown, Tag as DefaultTagIcon } from "lucide-react";
+import { Tag as DefaultTagIcon } from "lucide-react";
+import { getTagIconComponent } from "../config/tag-icons";
 
-type Texture = "gold" | "silver" | "bronze" | "gunmetal";
+type Texture = "gold" | "silver" | "bronze" | "emerald" | "gunmetal";
 type TagDecoration = {
-  Icon?: typeof Bot;
+  iconName?: string;
   color: string;
   strokeWidth?: number;
   texture?: Texture;
@@ -25,27 +26,32 @@ const BRONZE_TEAM_LEAD_DECORATION: TagDecoration = {
   texture: "bronze",
 };
 
+const EMERALD_TEAM_LEAD_DECORATION: TagDecoration = {
+  color: "#10b981",
+  texture: "emerald",
+};
+
 const SLUG_DECORATIONS: Record<string, TagDecoration> = {
   kobot: {
-    Icon: Bot,
+    iconName: "Bot",
     color: "#111827",
     strokeWidth: 2.4,
     texture: "gunmetal", // KOBOT은 은보다 차분한 흑철/건메탈 질감
   },
   president: {
-    Icon: Crown,
+    iconName: "Crown",
     color: "#8a6d1c",
     strokeWidth: 2.4,
     texture: "gold", // 회장은 골드 질감 칩
   },
   vice_president: {
-    Icon: Crown,
+    iconName: "Crown",
     color: "#4b5563",
     strokeWidth: 2.2,
     texture: "silver", // 부회장 계열은 KOBOT보다 밝은 실버 질감
   },
   "vice-president": {
-    Icon: Crown,
+    iconName: "Crown",
     color: "#4b5563",
     strokeWidth: 2.2,
     texture: "silver",
@@ -54,6 +60,9 @@ const SLUG_DECORATIONS: Record<string, TagDecoration> = {
   official_team_lead_b: BRONZE_TEAM_LEAD_DECORATION,
   official_team_lead_c: BRONZE_TEAM_LEAD_DECORATION,
   official_team_lead_d: BRONZE_TEAM_LEAD_DECORATION,
+  official_team_lead_research: BRONZE_TEAM_LEAD_DECORATION,
+  official_team_lead_iot: BRONZE_TEAM_LEAD_DECORATION,
+  official_team_lead_academic: EMERALD_TEAM_LEAD_DECORATION,
 };
 
 // metallic 그라디언트 정의. 선택 상태(selected=true)일 때 사용.
@@ -79,6 +88,13 @@ const TEXTURE_GRADIENTS: Record<Texture, { background: string; border: string; c
     color: "#fff7ed",
     textShadow: "0 1px 0 rgba(0,0,0,0.32)",
   },
+  emerald: {
+    background:
+      "linear-gradient(135deg,#d1fae5 0%,#6ee7b7 30%,#10b981 62%,#a7f3d0 100%)",
+    border: "#10b981",
+    color: "#064e3b",
+    textShadow: "0 1px 0 rgba(255,255,255,0.45)",
+  },
   gunmetal: {
     background:
       "linear-gradient(135deg,#111827 0%,#374151 32%,#0f172a 58%,#4b5563 82%,#111827 100%)",
@@ -92,6 +108,7 @@ export type TagChipData = {
   slug: string;
   label: string;
   color: string;
+  iconName?: string | null;
   /** 동아리 메타 여부. 칩 데코는 slug 매핑이 있을 때만 붙는다. */
   isClub?: boolean;
 };
@@ -133,9 +150,8 @@ export function TagChip({
   const s = SIZE[size];
   // 슬러그 매핑이 있는 태그만 외부 아이콘을 얹는다.
   // 동아리 여부는 멤버 카드의 "건물 아이콘 + 동아리명" 메타에만 쓰고 칩에는 자동 아이콘을 붙이지 않는다.
-  const decoration =
-    (SLUG_DECORATIONS[tag.slug.toLowerCase()] as TagDecoration | undefined) ?? null;
-  const Icon = decoration?.Icon;
+  const decoration = getLegacyTagIconDecoration(tag.slug);
+  const Icon = getTagIconComponent(tag.iconName) ?? getTagIconComponent(decoration?.iconName);
   const iconStrokeWidth = decoration?.strokeWidth ?? 2;
   const decorationColor = decoration?.color ?? tag.color;
 
@@ -258,11 +274,23 @@ export function TagChip({
  * 칩이 어울리지 않는 자리(드롭다운 옵션 등) 에서 슬러그 아이콘만 가져다 쓰고 싶을 때.
  * 슬러그에 매핑이 없으면 일반 태그 아이콘 fallback.
  */
-export function TagSlugIcon({ slug, size = 12 }: { slug: string; size?: number }) {
-  const decoration = SLUG_DECORATIONS[slug.toLowerCase()];
-  const Icon = decoration?.Icon ?? DefaultTagIcon;
+export function TagSlugIcon({
+  slug,
+  iconName,
+  size = 12,
+}: {
+  slug: string;
+  iconName?: string | null;
+  size?: number;
+}) {
+  const decoration = getLegacyTagIconDecoration(slug);
+  const Icon = getTagIconComponent(iconName) ?? getTagIconComponent(decoration?.iconName) ?? DefaultTagIcon;
   const color = decoration?.color;
   return <Icon style={{ width: size, height: size, color }} />;
+}
+
+function getLegacyTagIconDecoration(slug: string) {
+  return (SLUG_DECORATIONS[slug.toLowerCase()] as TagDecoration | undefined) ?? null;
 }
 
 function CloseGlyph({ size }: { size: number }) {

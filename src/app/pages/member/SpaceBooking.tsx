@@ -15,30 +15,41 @@ import {
 } from "lucide-react";
 import { useAuth } from "../../auth/useAuth";
 import {
+  checkSpaceBookingConflict,
   createBooking,
   listSpaceBookingAudienceOptions,
   listBookingsInRange,
+  listPublicBookingsInRange,
   searchSpaceBookingMembers,
+  SpaceBookingConflictError,
   type SpaceBooking as DbSpaceBooking,
   type BookingAudienceTag,
   type BookingAudienceTeam,
   type BookingParticipant,
 } from "../../api/space-bookings";
+import {
+  buildSpaceBookingConflictMessage,
+  findSpaceBookingConflict,
+  isInvalidSpaceBookingRange,
+  type SpaceBookingConflict,
+} from "../../api/space-booking-conflicts";
 import { sanitizeUserError } from "../../utils/sanitize-error";
 
 /* ───── types & data ───── */
 
-type ReservationType = "meeting" | "study" | "personal";
+type ReservationType = "meeting" | "study";
+type StoredReservationType = ReservationType | "personal";
 type ReservationScope = "exclusive" | "desk" | "open";
 
 type Reservation = {
   id: string;
   title: string;
+  description?: string;
   date: string; // YYYY-MM-DD
   start: string; // HH:MM
   end: string;
   organizer: string;
-  type: ReservationType;
+  type: StoredReservationType;
   attendees: number;
   scope: ReservationScope;
   participants: BookingParticipant[];
@@ -46,8 +57,10 @@ type Reservation = {
   audienceTeams: BookingAudienceTeam[];
 };
 
+type NewReservation = Reservation & { type: ReservationType };
+
 const TYPE_META: Record<
-  ReservationType,
+  StoredReservationType,
   { label: string; bg: string; fg: string; bar: string }
 > = {
   meeting: {
@@ -69,6 +82,8 @@ const TYPE_META: Record<
     bar: "#9333ea",
   },
 };
+
+const BOOKING_TYPE_OPTIONS: ReservationType[] = ["meeting", "study"];
 
 const SCOPE_META: Record<
   ReservationScope,
@@ -317,14 +332,16 @@ function ReservationModal({
   defaultDate,
   defaultOrganizer,
   currentUserId,
+  existingReservations,
   onClose,
   onSave,
 }: {
   defaultDate: string;
   defaultOrganizer: string;
   currentUserId: string;
+  existingReservations: Reservation[];
   onClose: () => void;
-  onSave: (r: Reservation) => Promise<void> | void;
+  onSave: (r: NewReservation) => Promise<void> | void;
 }) {
   const [title, setTitle] = useState("");
   const [date, setDate] = useState(defaultDate);
@@ -345,10 +362,37 @@ function ReservationModal({
   const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [remoteConflict, setRemoteConflict] = useState<SpaceBookingConflict | null>(null);
+  const [checkingConflict, setCheckingConflict] = useState(false);
+
+  const localConflict = useMemo(
+    () =>
+      findSpaceBookingConflict(
+        { date, start, end },
+        existingReservations.map((reservation) => ({
+          id: reservation.id,
+          date: reservation.date,
+          start: reservation.start,
+          end: reservation.end,
+          title: reservation.title,
+        })),
+      ),
+    [date, end, existingReservations, start],
+  );
+  const timeConflict = localConflict ?? remoteConflict;
+  const timeError = isInvalidSpaceBookingRange(start, end)
+    ? "종료 시간은 시작 시간보다 뒤여야 합니다."
+    : timeConflict
+      ? buildSpaceBookingConflictMessage(timeConflict)
+      : null;
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!title.trim() || !organizer.trim()) return;
+    if (timeError) {
+      setError(timeError);
+      return;
+    }
     setError(null);
     setSaving(true);
     try {
@@ -367,7 +411,15 @@ function ReservationModal({
         audienceTeams: audienceOptions.teams.filter((team) => selectedTeamIds.includes(team.id)),
       });
     } catch (err) {
-      setError(sanitizeUserError(err, "저장에 실패했습니다. 잠시 후 다시 시도해 주세요."));
+      if (err instanceof SpaceBookingConflictError) {
+        const conflictMessage = err.conflict
+          ? buildSpaceBookingConflictMessage(err.conflict)
+          : "이미 겹치는 예약이 있습니다. 다른 시간대를 선택해 주세요.";
+        setRemoteConflict(err.conflict);
+        setError(conflictMessage);
+        return;
+      }
+      setError(sanitizeUserError(err, "예약에 실패했습니다. 잠시 후 다시 시도해 주세요."));
     } finally {
       setSaving(false);
     }
@@ -435,6 +487,37 @@ function ReservationModal({
     };
   }, [currentUserId, memberQuery, selectedMembers]);
 
+  useEffect(() => {
+    let cancelled = false;
+    setRemoteConflict(null);
+
+    if (localConflict || isInvalidSpaceBookingRange(start, end)) {
+      setCheckingConflict(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setCheckingConflict(true);
+    const timer = window.setTimeout(() => {
+      void checkSpaceBookingConflict({ date, start, end })
+        .then((conflict) => {
+          if (!cancelled) setRemoteConflict(conflict);
+        })
+        .catch(() => {
+          if (!cancelled) setRemoteConflict(null);
+        })
+        .finally(() => {
+          if (!cancelled) setCheckingConflict(false);
+        });
+    }, 180);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [date, end, localConflict, start]);
+
   const inputStyle: CSSProperties = {
     width: "100%",
     padding: "10px 14px",
@@ -446,6 +529,15 @@ function ReservationModal({
     color: "var(--kb-ink-900)",
     background: "#fff",
   };
+
+  const timeInputStyle: CSSProperties = timeError
+    ? {
+        ...inputStyle,
+        border: "1px solid #ef4444",
+        background: "#fff7f7",
+        boxShadow: "0 0 0 3px rgba(239, 68, 68, 0.12)",
+      }
+    : inputStyle;
 
   const labelStyle: CSSProperties = {
     display: "block",
@@ -467,6 +559,7 @@ function ReservationModal({
 
   return (
     <div
+      className="sb-modal-overlay"
       role="dialog"
       aria-modal="true"
       onClick={onClose}
@@ -489,6 +582,33 @@ function ReservationModal({
           from { opacity: 0; transform: translateY(-8px) scale(0.98); }
           to { opacity: 1; transform: translateY(0) scale(1); }
         }
+        .sb-modal-overlay,
+        .sb-modal-scroll {
+          scrollbar-width: thin;
+          scrollbar-color: #b9bec9 transparent;
+        }
+        .sb-modal-overlay::-webkit-scrollbar,
+        .sb-modal-scroll::-webkit-scrollbar {
+          width: 10px;
+          height: 10px;
+        }
+        .sb-modal-overlay::-webkit-scrollbar-track,
+        .sb-modal-scroll::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .sb-modal-overlay::-webkit-scrollbar-thumb,
+        .sb-modal-scroll::-webkit-scrollbar-thumb {
+          background: #b9bec9;
+          border-radius: 999px;
+          border: 3px solid transparent;
+          background-clip: padding-box;
+        }
+        .sb-modal-overlay::-webkit-scrollbar-button,
+        .sb-modal-scroll::-webkit-scrollbar-button {
+          display: none;
+          width: 0;
+          height: 0;
+        }
       `}</style>
 
       <form
@@ -498,8 +618,11 @@ function ReservationModal({
           width: "100%",
           maxWidth: 520,
           background: "#fff",
+          border: timeError ? "1px solid #ef4444" : "1px solid transparent",
           borderRadius: 16,
-          boxShadow: "0 20px 50px rgba(0,0,0,0.25), 0 0 1px rgba(0,0,0,0.1)",
+          boxShadow: timeError
+            ? "0 20px 50px rgba(0,0,0,0.25), 0 0 0 4px rgba(239,68,68,0.14)"
+            : "0 20px 50px rgba(0,0,0,0.25), 0 0 1px rgba(0,0,0,0.1)",
           overflow: "hidden",
           fontFamily: "inherit",
           animation: "kb-pop-in 220ms ease-out",
@@ -550,6 +673,7 @@ function ReservationModal({
 
         {/* form body */}
         <div
+          className="sb-modal-scroll"
           style={{
             padding: "20px 24px",
             display: "flex",
@@ -582,11 +706,11 @@ function ReservationModal({
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(3, 1fr)",
+                gridTemplateColumns: "repeat(2, 1fr)",
                 gap: 8,
               }}
             >
-              {(Object.keys(TYPE_META) as ReservationType[]).map((t) => {
+              {BOOKING_TYPE_OPTIONS.map((t) => {
                 const tm = TYPE_META[t];
                 const sel = type === t;
                 return (
@@ -655,7 +779,8 @@ function ReservationModal({
                 type="time"
                 value={start}
                 onChange={(e) => setStart(e.target.value)}
-                style={inputStyle}
+                aria-invalid={Boolean(timeError)}
+                style={timeInputStyle}
                 required
               />
             </div>
@@ -668,11 +793,30 @@ function ReservationModal({
                 type="time"
                 value={end}
                 onChange={(e) => setEnd(e.target.value)}
-                style={inputStyle}
+                aria-invalid={Boolean(timeError)}
+                style={timeInputStyle}
                 required
               />
             </div>
           </div>
+          {timeError && (
+            <div
+              role="alert"
+              style={{
+                marginTop: -6,
+                padding: "10px 12px",
+                borderRadius: 10,
+                border: "1px solid #fecaca",
+                background: "#fff7f7",
+                color: "#b91c1c",
+                fontSize: 13,
+                fontWeight: 700,
+                lineHeight: 1.45,
+              }}
+            >
+              {timeError}
+            </div>
+          )}
 
           {/* organizer + attendees */}
           <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12 }}>
@@ -984,20 +1128,20 @@ function ReservationModal({
           </button>
           <button
             type="submit"
-            disabled={saving}
+            disabled={saving || Boolean(timeError) || checkingConflict}
             style={{
               padding: "10px 22px",
               fontSize: 14,
               fontWeight: 700,
               border: "none",
-              background: saving ? "#6a6a6a" : "#0a0a0a",
+              background: saving || timeError || checkingConflict ? "#6a6a6a" : "#0a0a0a",
               color: "#fff",
               borderRadius: 8,
-              cursor: saving ? "not-allowed" : "pointer",
+              cursor: saving || timeError || checkingConflict ? "not-allowed" : "pointer",
               fontFamily: "inherit",
             }}
           >
-            {saving ? "저장 중..." : "예약 추가"}
+            {checkingConflict ? "시간 확인 중..." : saving ? "저장 중..." : "예약 추가"}
           </button>
         </div>
       </form>
@@ -1007,14 +1151,23 @@ function ReservationModal({
 
 /* ───── page ───── */
 
-export default function SpaceBooking() {
+type SpaceBookingProps = {
+  readOnly?: boolean;
+  bare?: boolean;
+};
+
+export default function SpaceBooking({
+  readOnly = false,
+  bare = false,
+}: SpaceBookingProps = {}) {
   const { authData } = useAuth();
-  const currentUserName =
-    authData.profile.fullName ??
-    authData.profile.displayName ??
-    authData.profile.email?.split("@")[0] ??
-    "";
-  const currentUserId = authData.profile.id;
+  const currentUserName = readOnly
+    ? ""
+    : authData.profile.fullName ??
+      authData.profile.displayName ??
+      authData.profile.email?.split("@")[0] ??
+      "";
+  const currentUserId = readOnly ? null : authData.profile.id;
 
   const today = new Date();
   const [viewYear, setViewYear] = useState(today.getFullYear());
@@ -1040,7 +1193,8 @@ export default function SpaceBooking() {
       try {
         const fromDate = new Date(viewYear, viewMonth - 1, 25);
         const toDate = new Date(viewYear, viewMonth + 1, 7);
-        const data = await listBookingsInRange(
+        const loadBookings = readOnly ? listPublicBookingsInRange : listBookingsInRange;
+        const data = await loadBookings(
           fmtDate(fromDate),
           fmtDate(toDate),
         );
@@ -1061,7 +1215,7 @@ export default function SpaceBooking() {
     return () => {
       cancelled = true;
     };
-  }, [viewYear, viewMonth]);
+  }, [readOnly, viewYear, viewMonth]);
 
   // keep last selected date for content during close animation
   useEffect(() => {
@@ -1140,9 +1294,9 @@ export default function SpaceBooking() {
 
   return (
     <div
-      className="kb-root sb-page"
+      className={`kb-root sb-page${bare ? " sb-page-bare" : ""}`}
       style={{
-        minHeight: "calc(100vh - 4rem)",
+        minHeight: bare ? "100vh" : "calc(100vh - 4rem)",
         background: "#ffffff",
       }}
     >
@@ -1151,8 +1305,13 @@ export default function SpaceBooking() {
           margin: -32px;
           padding: 32px;
         }
+        .sb-page-bare {
+          margin: 0;
+          padding: 20px;
+        }
         @media (max-width: 768px) {
           .sb-page { margin: -32px -16px; padding: 16px 12px; }
+          .sb-page-bare { margin: 0; padding: 10px; }
           .sb-header { flex-direction: column; align-items: stretch !important; gap: 16px !important; }
           .sb-header-cta { width: 100%; justify-content: center; }
           .sb-toolbar { flex-direction: column; align-items: stretch !important; gap: 12px !important; padding: 14px 16px !important; }
@@ -1212,6 +1371,7 @@ export default function SpaceBooking() {
         }}
       >
         {/* ─── page header ─── */}
+        {!bare && (
         <div
           className="sb-header"
           style={{
@@ -1278,8 +1438,24 @@ export default function SpaceBooking() {
           </div>
 
         </div>
+        )}
 
         {/* ─── calendar container ─── */}
+        {bare && loadError && (
+          <div
+            style={{
+              padding: "8px 12px",
+              fontSize: 13,
+              color: "#dc2626",
+              background: "#fef2f2",
+              border: "1px solid #fecaca",
+              borderRadius: 8,
+            }}
+          >
+            {loadError}
+          </div>
+        )}
+
         <div ref={calendarRef} style={{ ...CONTAINER_STYLE, padding: 0, overflow: "hidden" }}>
           {/* calendar header */}
           <div
@@ -1358,7 +1534,7 @@ export default function SpaceBooking() {
                   color: "var(--kb-ink-500)",
                 }}
               >
-                {(Object.keys(TYPE_META) as ReservationType[]).map((t) => (
+                {BOOKING_TYPE_OPTIONS.map((t) => (
                   <span
                     key={t}
                     style={{ display: "flex", alignItems: "center", gap: 5 }}
@@ -1880,6 +2056,7 @@ export default function SpaceBooking() {
         </div>
 
         {/* ─── new reservation button (below) ─── */}
+        {!readOnly && (
         <div style={{ display: "flex", justifyContent: "flex-end" }}>
           <button
             type="button"
@@ -1902,12 +2079,14 @@ export default function SpaceBooking() {
             <Plus style={{ width: 15, height: 15 }} />새 예약
           </button>
         </div>
+        )}
 
-        {modalOpen && (
+        {!readOnly && modalOpen && (
           <ReservationModal
             defaultDate={selectedIso ?? fmtDate(today)}
             defaultOrganizer={currentUserName}
             currentUserId={currentUserId ?? ""}
+            existingReservations={allReservations}
             onClose={() => setModalOpen(false)}
             onSave={async (r) => {
               if (!currentUserId) {

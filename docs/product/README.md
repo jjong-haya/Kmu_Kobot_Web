@@ -1,5 +1,7 @@
 # Product Policy Documents
 
+최근 추가 문서: [폼 / 참여자 조사](./forms.md) — Google Forms식 질문 빌더, 응답, 댓글, 게임대회 팀/리그전.
+
 이 폴더는 Kobot 웹사이트의 제품 정책, 권한 모델, 운영 흐름을 정리하는 공간입니다.
 
 ## 문서 목록

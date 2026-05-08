@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { Link } from "react-router";
-import { Check, Edit3, Loader2, Plus, ShieldAlert, Tag as TagIcon, Trash2, X } from "lucide-react";
+import { Check, Edit3, Loader2, MoreHorizontal, Plus, ShieldAlert, Sparkles, Tag as TagIcon, Trash2, X } from "lucide-react";
 import {
   createTag,
   deleteTag,
@@ -18,7 +18,9 @@ import {
   isSensitivePermission,
   SENSITIVE_PERMISSION_MESSAGE,
 } from "../../config/tag-policy";
+import { TAG_ICON_GROUPS, normalizeTagIconName } from "../../config/tag-icons";
 import { TagChip } from "../../components/TagChip";
+import { useIsMobile } from "../../components/ui/use-mobile";
 import { sanitizeUserError } from "../../utils/sanitize-error";
 
 const PAGE_STYLE: CSSProperties = {
@@ -39,12 +41,14 @@ const CARD_STYLE: CSSProperties = {
 const SLUG_PATTERN = /^[a-z][a-z0-9_-]{1,30}$/;
 
 export default function Tags() {
+  const isMobile = useIsMobile();
   const [tags, setTags] = useState<MemberTagWithCounts[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [modal, setModal] = useState<
     { mode: "create" } | { mode: "edit"; tag: MemberTagWithCounts } | null
   >(null);
+  const [mobileActionsTag, setMobileActionsTag] = useState<MemberTagWithCounts | null>(null);
 
   async function load() {
     try {
@@ -75,8 +79,12 @@ export default function Tags() {
     }
   }
 
+  function openMobileTagActions(tag: MemberTagWithCounts) {
+    setMobileActionsTag(tag);
+  }
+
   return (
-    <div style={PAGE_STYLE}>
+    <div style={{ ...PAGE_STYLE, padding: isMobile ? 18 : 32 }}>
       <div style={{ maxWidth: 980, margin: "0 auto" }}>
         <div
           style={{
@@ -124,14 +132,20 @@ export default function Tags() {
               TagChip으로, 권한과 메뉴는 같은 팝업 안에서 같이 수정합니다.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => setModal({ mode: "create" })}
-            style={primaryButtonStyle}
-          >
-            <Plus style={{ width: 16, height: 16 }} />
-            새 태그
-          </button>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <Link to="/member/tags/icons" style={{ ...secondaryButtonStyle, textDecoration: "none" }}>
+              <Sparkles style={{ width: 16, height: 16 }} />
+              아이콘 후보
+            </Link>
+            <button
+              type="button"
+              onClick={() => setModal({ mode: "create" })}
+              style={primaryButtonStyle}
+            >
+              <Plus style={{ width: 16, height: 16 }} />
+              새 태그
+            </button>
+          </div>
         </div>
 
         {error ? (
@@ -153,28 +167,7 @@ export default function Tags() {
           </div>
         ) : null}
 
-        <section style={{ ...CARD_STYLE, padding: 0, overflow: "hidden" }}>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "minmax(220px, 1.15fr) minmax(150px, 0.75fr) 70px 70px 70px 96px",
-              padding: "12px 18px",
-              fontSize: 11,
-              textTransform: "uppercase",
-              letterSpacing: "0.1em",
-              color: "var(--kb-ink-400)",
-              borderBottom: "1px solid #ececeb",
-              fontWeight: 700,
-              gap: 12,
-            }}
-          >
-            <div>태그</div>
-            <div>멤버 표시</div>
-            <div>권한</div>
-            <div>메뉴</div>
-            <div>부원</div>
-            <div></div>
-          </div>
+        <section style={{ ...CARD_STYLE, padding: 0, overflow: "visible" }}>
           {loading ? (
             <div style={{ padding: 24, textAlign: "center", color: "var(--kb-ink-400)" }}>
               <Loader2 style={{ width: 18, height: 18, animation: "spin 1s linear infinite" }} />
@@ -193,81 +186,53 @@ export default function Tags() {
               아직 태그가 없습니다. 우상단에서 새로 만들어 주세요.
             </div>
           ) : (
-            tags.map((tag, index) => (
-              <div
-                key={tag.id}
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "minmax(220px, 1.15fr) minmax(150px, 0.75fr) 70px 70px 70px 96px",
-                  alignItems: "center",
-                  padding: "14px 18px",
-                  borderTop: index === 0 ? "none" : "1px solid #f3f3f0",
-                  fontSize: 14,
-                  gap: 12,
-                }}
-              >
-                <Link
-                  to={`/member/tags/${tag.slug}`}
-                  style={{
-                    minWidth: 0,
-                    color: "inherit",
-                    textDecoration: "none",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 12,
-                  }}
-                >
-                  <span
-                    aria-hidden
-                    style={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: 9,
-                      background: tag.color,
-                      flexShrink: 0,
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      boxShadow: "0 2px 4px rgba(0,0,0,0.08)",
-                    }}
-                  >
-                    <TagIcon style={{ width: 14, height: 14, color: "#fff" }} />
-                  </span>
-                  <span style={{ minWidth: 0 }}>
-                    <span style={{ display: "block", fontWeight: 700, color: "var(--kb-ink-900)" }}>
-                      {tag.label}
-                    </span>
-                    <span
-                      className="kb-mono"
-                      style={{ display: "block", fontSize: 11.5, color: "var(--kb-ink-400)" }}
-                    >
-                      {tag.slug}
-                      {tag.isClub ? " · 동아리" : ""}
-                    </span>
-                    {tag.description ? (
-                      <span style={{ display: "block", fontSize: 12, color: "var(--kb-ink-500)", marginTop: 2 }}>
-                        {tag.description}
-                      </span>
-                    ) : null}
-                  </span>
-                </Link>
-
-                <div style={{ display: "flex", alignItems: "center", minHeight: 44, overflow: "visible" }}>
-                  <TagChip tag={tag} size="md" />
+            <>
+              <div style={{ ...desktopTagTableStyle, display: isMobile ? "none" : "block" }}>
+                <div style={desktopTagHeaderStyle}>
+                  <div>태그</div>
+                  <div>멤버 표시</div>
+                  <div>권한</div>
+                  <div>메뉴</div>
+                  <div>부원</div>
+                  <div></div>
                 </div>
-                <CountChip count={tag.permissionCount} unit="개" />
-                <CountChip count={tag.navCount} unit="개" />
-                <CountChip count={tag.memberCount} unit="명" />
-                <div style={{ display: "inline-flex", justifyContent: "flex-end", gap: 6 }}>
-                  <IconButton label="수정" color="var(--kb-ink-700)" onClick={() => setModal({ mode: "edit", tag })}>
-                    <Edit3 style={{ width: 14, height: 14 }} />
-                  </IconButton>
-                  <IconButton label="삭제" color="#dc2626" onClick={() => handleDelete(tag)}>
-                    <Trash2 style={{ width: 14, height: 14 }} />
-                  </IconButton>
-                </div>
+                {tags.map((tag, index) => (
+                  <DesktopTagRow
+                    key={tag.id}
+                    tag={tag}
+                    index={index}
+                    onEdit={() => setModal({ mode: "edit", tag })}
+                    onDelete={() => void handleDelete(tag)}
+                  />
+                ))}
               </div>
-            ))
+              <div style={{ ...mobileTagListStyle, display: isMobile ? "flex" : "none" }}>
+                {tags.map((tag) => (
+                  <button
+                    key={tag.id}
+                    type="button"
+                    onClick={() => openMobileTagActions(tag)}
+                    style={mobileTagRowStyle}
+                  >
+                    <span style={{ minWidth: 0 }}>
+                      <span style={{ display: "block", fontWeight: 800, color: "var(--kb-ink-900)" }}>
+                        {tag.label}
+                      </span>
+                      <span className="kb-mono" style={{ display: "block", fontSize: 11.5, color: "var(--kb-ink-400)" }}>
+                        {tag.slug}
+                        {tag.isClub ? " · 동아리" : ""}
+                      </span>
+                    </span>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+                      <span style={{ minHeight: 42, display: "inline-flex", alignItems: "center" }}>
+                        <TagChip tag={tag} size="sm" />
+                      </span>
+                      <MoreHorizontal style={{ width: 18, height: 18, color: "var(--kb-ink-400)" }} />
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </>
           )}
         </section>
       </div>
@@ -284,6 +249,213 @@ export default function Tags() {
           onError={setError}
         />
       ) : null}
+      {mobileActionsTag ? (
+        <MobileTagActionsModal
+          tag={mobileActionsTag}
+          onClose={() => setMobileActionsTag(null)}
+          onEdit={() => {
+            setModal({ mode: "edit", tag: mobileActionsTag });
+            setMobileActionsTag(null);
+          }}
+          onDelete={() => {
+            const tag = mobileActionsTag;
+            setMobileActionsTag(null);
+            void handleDelete(tag);
+          }}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function DesktopTagRow({
+  tag,
+  index,
+  onEdit,
+  onDelete,
+}: {
+  tag: MemberTagWithCounts;
+  index: number;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: desktopTagGridColumns,
+        alignItems: "center",
+        padding: "14px 18px",
+        borderTop: index === 0 ? "none" : "1px solid #f3f3f0",
+        fontSize: 14,
+        gap: 12,
+      }}
+    >
+      <Link
+        to={`/member/tags/${tag.slug}`}
+        style={{
+          minWidth: 0,
+          color: "inherit",
+          textDecoration: "none",
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+        }}
+      >
+        <span
+          aria-hidden
+          style={{
+            width: 32,
+            height: 32,
+            borderRadius: 9,
+            background: tag.color,
+            flexShrink: 0,
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            boxShadow: "0 2px 4px rgba(0,0,0,0.08)",
+          }}
+        >
+          <TagIcon style={{ width: 14, height: 14, color: "#fff" }} />
+        </span>
+        <span style={{ minWidth: 0 }}>
+          <span style={{ display: "block", fontWeight: 700, color: "var(--kb-ink-900)" }}>
+            {tag.label}
+          </span>
+          <span
+            className="kb-mono"
+            style={{ display: "block", fontSize: 11.5, color: "var(--kb-ink-400)" }}
+          >
+            {tag.slug}
+            {tag.isClub ? " · 동아리" : ""}
+          </span>
+          {tag.description ? (
+            <span style={{ display: "block", fontSize: 12, color: "var(--kb-ink-500)", marginTop: 2 }}>
+              {tag.description}
+            </span>
+          ) : null}
+        </span>
+      </Link>
+
+      <div style={{ display: "flex", alignItems: "center", minHeight: 44, overflow: "visible" }}>
+        <TagChip tag={tag} size="md" />
+      </div>
+      <CountChip count={tag.permissionCount} unit="개" />
+      <CountChip count={tag.navCount} unit="개" />
+      <CountChip count={tag.memberCount} unit="명" />
+      <div style={{ display: "inline-flex", justifyContent: "flex-end", gap: 6 }}>
+        <IconButton label="수정" color="var(--kb-ink-700)" onClick={onEdit}>
+          <Edit3 style={{ width: 14, height: 14 }} />
+        </IconButton>
+        <IconButton label="삭제" color="#dc2626" onClick={onDelete}>
+          <Trash2 style={{ width: 14, height: 14 }} />
+        </IconButton>
+      </div>
+    </div>
+  );
+}
+
+function MobileTagActionsModal({
+  tag,
+  onClose,
+  onEdit,
+  onDelete,
+}: {
+  tag: MemberTagWithCounts;
+  onClose: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 125,
+        background: "rgba(0,0,0,0.48)",
+        display: "flex",
+        alignItems: "flex-end",
+        justifyContent: "center",
+        padding: 12,
+      }}
+    >
+      <section
+        onClick={(event) => event.stopPropagation()}
+        style={{
+          width: "100%",
+          maxWidth: 420,
+          background: "#fff",
+          borderRadius: 14,
+          boxShadow: "0 18px 50px rgba(0,0,0,0.28)",
+          overflow: "hidden",
+        }}
+      >
+        <header
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            gap: 12,
+            padding: 18,
+            borderBottom: "1px solid #f1ede4",
+          }}
+        >
+          <div style={{ minWidth: 0 }}>
+            <div style={{ minHeight: 42, display: "flex", alignItems: "center", marginBottom: 10 }}>
+              <TagChip tag={tag} size="md" />
+            </div>
+            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 850, color: "var(--kb-ink-900)" }}>
+              {tag.label}
+            </h2>
+            <p className="kb-mono" style={{ margin: "4px 0 0", fontSize: 12, color: "var(--kb-ink-400)" }}>
+              {tag.slug}
+              {tag.isClub ? " · 동아리" : ""}
+            </p>
+          </div>
+          <button type="button" onClick={onClose} aria-label="닫기" style={ghostIconButtonStyle}>
+            <X style={{ width: 17, height: 17 }} />
+          </button>
+        </header>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, padding: "14px 18px" }}>
+          <MobileMetric label="권한" value={tag.permissionCount} />
+          <MobileMetric label="메뉴" value={tag.navCount} />
+          <MobileMetric label="부원" value={tag.memberCount} />
+        </div>
+        <div style={{ display: "grid", gap: 8, padding: "0 18px 18px" }}>
+          <button type="button" onClick={onEdit} style={mobileActionButtonStyle}>
+            <Edit3 style={{ width: 16, height: 16 }} />
+            수정 및 설정
+          </button>
+          <Link to={`/member/tags/${tag.slug}`} onClick={onClose} style={{ ...mobileActionButtonStyle, textDecoration: "none" }}>
+            <TagIcon style={{ width: 16, height: 16 }} />
+            상세/부원 관리
+          </Link>
+          <button
+            type="button"
+            onClick={onDelete}
+            style={{ ...mobileActionButtonStyle, color: "#dc2626", borderColor: "#fecaca", background: "#fffafa" }}
+          >
+            <Trash2 style={{ width: 16, height: 16 }} />
+            삭제
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function MobileMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <div style={{ border: "1px solid #e8e8e4", borderRadius: 8, padding: "9px 8px", textAlign: "center" }}>
+      <div style={{ fontSize: 17, fontWeight: 850, color: "var(--kb-ink-900)", lineHeight: 1.1 }}>
+        {value}
+      </div>
+      <div style={{ marginTop: 3, fontSize: 11.5, color: "var(--kb-ink-400)", fontWeight: 700 }}>
+        {label}
+      </div>
     </div>
   );
 }
@@ -311,6 +483,9 @@ function TagEditModal({
   const [color, setColor] = useState(tag?.color ?? "#0ea5e9");
   const [description, setDescription] = useState(tag?.description ?? "");
   const [isClub, setIsClub] = useState(tag?.isClub ?? false);
+  const [selectedIconName, setSelectedIconName] = useState<string | null>(
+    normalizeTagIconName(tag?.iconName),
+  );
   const [permissions, setPermissions] = useState<Set<string>>(new Set());
   const [navHrefs, setNavHrefs] = useState<Set<string>>(new Set());
 
@@ -368,6 +543,7 @@ function TagEditModal({
     setColor(detail.color);
     setDescription(detail.description ?? "");
     setIsClub(detail.isClub);
+    setSelectedIconName(normalizeTagIconName(detail.iconName));
     setPermissions(new Set(detail.permissions));
     setNavHrefs(new Set(detail.navHrefs));
   }
@@ -410,6 +586,7 @@ function TagEditModal({
           color,
           description: description.trim() || null,
           isClub,
+          iconName: selectedIconName,
         });
         await Promise.all([
           setTagPermissions(created.id, [...permissions]),
@@ -424,6 +601,7 @@ function TagEditModal({
           color,
           description: description.trim() || null,
           isClub,
+          iconName: selectedIconName,
         });
         await Promise.all([
           isClub ? Promise.resolve() : setTagPermissions(tag.id, [...permissions]),
@@ -440,7 +618,7 @@ function TagEditModal({
   }
 
   const title = mode === "create" ? "새 태그" : "태그 수정";
-  const preview = { slug: slug || "preview", label: label || "라벨", color, isClub };
+  const preview = { slug: slug || "preview", label: label || "라벨", color, isClub, iconName: selectedIconName };
 
   return (
     <div
@@ -562,11 +740,13 @@ function TagEditModal({
               color={color}
               description={description}
               isClub={isClub}
+              selectedIconName={selectedIconName}
               onSlug={setSlug}
               onLabel={setLabel}
               onColor={setColor}
               onDescription={setDescription}
               onIsClub={handleIsClubChange}
+              onIconName={setSelectedIconName}
             />
           ) : activeTab === "permissions" ? (
             <>
@@ -654,11 +834,13 @@ function BasicFields({
   color,
   description,
   isClub,
+  selectedIconName,
   onSlug,
   onLabel,
   onColor,
   onDescription,
   onIsClub,
+  onIconName,
 }: {
   mode: "create" | "edit";
   slug: string;
@@ -666,14 +848,16 @@ function BasicFields({
   color: string;
   description: string;
   isClub: boolean;
+  selectedIconName: string | null;
   onSlug: (value: string) => void;
   onLabel: (value: string) => void;
   onColor: (value: string) => void;
   onDescription: (value: string) => void;
   onIsClub: (value: boolean) => void;
+  onIconName: (value: string | null) => void;
 }) {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14 }}>
       <label style={fieldStyle}>
         <span style={fieldLabel}>slug</span>
         <input
@@ -728,6 +912,97 @@ function BasicFields({
         />
         동아리 태그
       </label>
+      <IconPicker
+        selectedIconName={selectedIconName}
+        color={color}
+        onIconName={onIconName}
+      />
+    </div>
+  );
+}
+
+function IconPicker({
+  selectedIconName,
+  color,
+  onIconName,
+}: {
+  selectedIconName: string | null;
+  color: string;
+  onIconName: (value: string | null) => void;
+}) {
+  return (
+    <div style={{ gridColumn: "1 / -1" }}>
+      <div style={{ ...fieldLabel, marginBottom: 8 }}>아이콘</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <button
+          type="button"
+          onClick={() => onIconName(null)}
+          style={{
+            ...iconChoiceButtonStyle,
+            borderColor: selectedIconName === null ? "#0a0a0a" : "#e8e8e4",
+            background: selectedIconName === null ? "#fafaf9" : "#fff",
+          }}
+        >
+          <span
+            style={{
+              width: 30,
+              height: 30,
+              borderRadius: 8,
+              border: "1px dashed #cbd5e1",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "var(--kb-ink-400)",
+              flexShrink: 0,
+            }}
+          >
+            -
+          </span>
+          <span style={{ textAlign: "left" }}>
+            <span style={{ display: "block", fontWeight: 760, color: "var(--kb-ink-900)" }}>
+              아이콘 없음
+            </span>
+            <span style={{ display: "block", fontSize: 11.5, color: "var(--kb-ink-400)" }}>
+              기존 회장/KOBOT 태그는 저장값이 없으면 기본 아이콘을 사용합니다.
+            </span>
+          </span>
+        </button>
+        {TAG_ICON_GROUPS.map((group) => (
+          <div key={group.title}>
+            <div style={{ marginBottom: 7, fontSize: 12.5, fontWeight: 800, color: group.accent }}>
+              {group.title}
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(128px, 1fr))", gap: 7 }}>
+              {group.items.map((item) => {
+                const Icon = item.Icon;
+                const active = selectedIconName === item.name;
+                return (
+                  <button
+                    key={item.name}
+                    type="button"
+                    onClick={() => onIconName(item.name)}
+                    title={item.name}
+                    style={{
+                      ...iconChoiceButtonStyle,
+                      minHeight: 46,
+                      borderColor: active ? "#0a0a0a" : "#e8e8e4",
+                      background: active ? "#fafaf9" : "#fff",
+                    }}
+                  >
+                    <Icon
+                      aria-hidden
+                      style={{ width: 18, height: 18, color: active ? color : item.color, flexShrink: 0 }}
+                    />
+                    <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {item.label}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -880,6 +1155,81 @@ function toggleSet(current: Set<string>, value: string, next: boolean) {
   else copy.delete(value);
   return copy;
 }
+
+const desktopTagGridColumns =
+  "minmax(220px, 1.15fr) minmax(150px, 0.75fr) 70px 70px 70px 96px";
+
+const desktopTagTableStyle: CSSProperties = {
+  width: "100%",
+};
+
+const desktopTagHeaderStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: desktopTagGridColumns,
+  padding: "12px 18px",
+  fontSize: 11,
+  textTransform: "uppercase",
+  letterSpacing: "0.1em",
+  color: "var(--kb-ink-400)",
+  borderBottom: "1px solid #ececeb",
+  fontWeight: 700,
+  gap: 12,
+};
+
+const mobileTagListStyle: CSSProperties = {
+  flexDirection: "column",
+  gap: 0,
+  padding: 8,
+};
+
+const mobileTagRowStyle: CSSProperties = {
+  width: "100%",
+  minHeight: 78,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 12,
+  padding: "13px 10px",
+  border: "none",
+  borderBottom: "1px solid #f1ede4",
+  background: "#fff",
+  color: "inherit",
+  fontFamily: "inherit",
+  textAlign: "left",
+  cursor: "pointer",
+};
+
+const mobileActionButtonStyle: CSSProperties = {
+  minHeight: 44,
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 8,
+  padding: "10px 14px",
+  borderRadius: 9,
+  border: "1px solid #e8e8e4",
+  background: "#fff",
+  color: "var(--kb-ink-800)",
+  fontFamily: "inherit",
+  fontSize: 14,
+  fontWeight: 800,
+  cursor: "pointer",
+};
+
+const iconChoiceButtonStyle: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 8,
+  padding: "8px 10px",
+  borderRadius: 8,
+  border: "1px solid #e8e8e4",
+  background: "#fff",
+  color: "var(--kb-ink-700)",
+  fontFamily: "inherit",
+  fontSize: 13,
+  fontWeight: 700,
+  cursor: "pointer",
+};
 
 const primaryButtonStyle: CSSProperties = {
   display: "inline-flex",

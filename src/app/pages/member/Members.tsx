@@ -4,6 +4,7 @@ import {
   AlertCircle,
   Building2,
   Check,
+  Copy,
   Edit3,
   Filter,
   FolderKanban,
@@ -29,6 +30,7 @@ import {
   type MemberDirectoryProfile,
   type MemberDirectoryTag,
 } from "../../api/member-directory";
+import { copyTextToClipboard } from "../../api/clipboard.js";
 import { useAuth } from "../../auth/useAuth";
 import { sanitizeUserError } from "../../utils/sanitize-error";
 import { safeImageUrl } from "../../utils/safe-image-url";
@@ -354,8 +356,8 @@ function ContactButton({
   return (
     <a
       href={href}
-      target={href.startsWith("mailto:") ? undefined : "_blank"}
-      rel={href.startsWith("mailto:") ? undefined : "noopener noreferrer"}
+      target="_blank"
+      rel="noopener noreferrer"
       title={label}
       style={{
         width: 34,
@@ -373,6 +375,198 @@ function ContactButton({
     >
       {icon}
     </a>
+  );
+}
+
+type EmailCopyState = "idle" | "copied" | "failed";
+
+function useEmailReveal(email: string | null | undefined) {
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [emailCopyState, setEmailCopyState] = useState<EmailCopyState>("idle");
+
+  useEffect(() => {
+    if (!email) {
+      setEmailOpen(false);
+    }
+    setEmailCopyState("idle");
+  }, [email]);
+
+  useEffect(() => {
+    if (emailCopyState === "idle") {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => setEmailCopyState("idle"), 1600);
+    return () => window.clearTimeout(timeoutId);
+  }, [emailCopyState]);
+
+  async function handleCopyEmail() {
+    if (!email) {
+      return;
+    }
+
+    try {
+      await copyTextToClipboard(email);
+      setEmailCopyState("copied");
+    } catch {
+      setEmailCopyState("failed");
+    }
+  }
+
+  return {
+    emailCopyState,
+    emailOpen,
+    handleCopyEmail,
+    toggleEmail: () => {
+      if (email) {
+        setEmailOpen((current) => !current);
+      }
+    },
+  };
+}
+
+function EmailToggleButton({
+  controlsId,
+  disabled,
+  open,
+  onToggle,
+}: {
+  controlsId: string;
+  disabled?: boolean;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  if (disabled) {
+    return (
+      <span
+        title="이메일 없음"
+        style={{
+          width: 34,
+          height: 34,
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          border: "1px solid #ebe8e0",
+          borderRadius: 8,
+          color: "var(--kb-ink-300)",
+          background: "#fafaf9",
+        }}
+      >
+        <Mail style={{ width: 15, height: 15 }} />
+      </span>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      aria-expanded={open}
+      aria-controls={controlsId}
+      title={open ? "이메일 접기" : "이메일 보기"}
+      onClick={onToggle}
+      style={{
+        width: 34,
+        height: 34,
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        border: "1px solid #ebe8e0",
+        borderRadius: 8,
+        color: open ? "var(--kb-navy-800)" : "var(--kb-ink-700)",
+        background: open ? "#eef2ff" : "#fff",
+        cursor: "pointer",
+      }}
+      className="hover:bg-[#fafaf6]"
+    >
+      <Mail style={{ width: 15, height: 15 }} />
+    </button>
+  );
+}
+
+function EmailRevealPanel({
+  copyState,
+  email,
+  id,
+  open,
+  onCopy,
+}: {
+  copyState: EmailCopyState;
+  email: string | null | undefined;
+  id: string;
+  open: boolean;
+  onCopy: () => void;
+}) {
+  const copyLabel = copyState === "copied" ? "복사됨" : copyState === "failed" ? "실패" : "복사";
+
+  return (
+    <div
+      id={id}
+      aria-hidden={!open}
+      style={{
+        display: "grid",
+        gridTemplateRows: open && email ? "1fr" : "0fr",
+        transition: "grid-template-rows 180ms ease",
+      }}
+    >
+      <div style={{ overflow: "hidden" }}>
+        {email ? (
+          <div
+            style={{
+              marginTop: 10,
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              border: "1px solid #ebe8e0",
+              borderRadius: 10,
+              background: "#fafaf6",
+              padding: "10px 12px",
+            }}
+          >
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ color: "var(--kb-ink-400)", fontSize: 11.5, fontWeight: 800 }}>이메일</div>
+              <div
+                style={{
+                  marginTop: 2,
+                  color: "var(--kb-ink-800)",
+                  fontSize: 13.5,
+                  lineHeight: 1.35,
+                  overflowWrap: "anywhere",
+                }}
+              >
+                {email}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onCopy}
+              title="이메일 복사"
+              style={{
+                flexShrink: 0,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                border: "1px solid #ded8cc",
+                borderRadius: 8,
+                background: copyState === "copied" ? "#ecfdf3" : "#fff",
+                color: copyState === "failed" ? "#b91c1c" : "var(--kb-ink-800)",
+                cursor: "pointer",
+                fontSize: 12,
+                fontWeight: 800,
+                padding: "8px 10px",
+              }}
+              className="hover:bg-white"
+            >
+              {copyState === "copied" ? (
+                <Check style={{ width: 14, height: 14 }} />
+              ) : (
+                <Copy style={{ width: 14, height: 14 }} />
+              )}
+              {copyLabel}
+            </button>
+          </div>
+        ) : null}
+      </div>
+    </div>
   );
 }
 
@@ -456,6 +650,8 @@ function MemberCard({
   const email = member.publicEmail ?? member.email;
   const github = normalizeUrl(member.githubUrl);
   const linkedin = normalizeUrl(member.linkedinUrl);
+  const emailPanelId = `member-card-email-${member.id}`;
+  const { emailCopyState, emailOpen, handleCopyEmail, toggleEmail } = useEmailReveal(email);
 
   return (
     <article
@@ -534,10 +730,11 @@ function MemberCard({
           {member.department ?? member.college ?? "학과 미등록"}
         </span>
         <div style={{ display: "inline-flex", gap: 6 }}>
-          <ContactButton
-            href={email ? `mailto:${email}` : null}
-            label="이메일"
-            icon={<Mail style={{ width: 15, height: 15 }} />}
+          <EmailToggleButton
+            controlsId={emailPanelId}
+            disabled={!email}
+            open={emailOpen}
+            onToggle={toggleEmail}
           />
           <ContactButton
             href={github}
@@ -551,6 +748,13 @@ function MemberCard({
           />
         </div>
       </div>
+      <EmailRevealPanel
+        id={emailPanelId}
+        email={email}
+        open={emailOpen}
+        copyState={emailCopyState}
+        onCopy={handleCopyEmail}
+      />
     </article>
   );
 }
@@ -567,6 +771,8 @@ function MemberListRow({
   const email = member.publicEmail ?? member.email;
   const github = normalizeUrl(member.githubUrl);
   const linkedin = normalizeUrl(member.linkedinUrl);
+  const emailPanelId = `member-row-email-${member.id}`;
+  const { emailCopyState, emailOpen, handleCopyEmail, toggleEmail } = useEmailReveal(email);
 
   return (
     <article
@@ -620,9 +826,23 @@ function MemberListRow({
           isFavorite={member.isFavorite}
           onClick={() => onToggleFavorite(member)}
         />
-        <ContactButton href={email ? `mailto:${email}` : null} label="이메일" icon={<Mail style={{ width: 15, height: 15 }} />} />
+        <EmailToggleButton
+          controlsId={emailPanelId}
+          disabled={!email}
+          open={emailOpen}
+          onToggle={toggleEmail}
+        />
         <ContactButton href={github} label="GitHub" icon={<Github style={{ width: 15, height: 15 }} />} />
         <ContactButton href={linkedin} label="LinkedIn" icon={<Linkedin style={{ width: 15, height: 15 }} />} />
+      </div>
+      <div style={{ gridColumn: "1 / -1" }}>
+        <EmailRevealPanel
+          id={emailPanelId}
+          email={email}
+          open={emailOpen}
+          copyState={emailCopyState}
+          onCopy={handleCopyEmail}
+        />
       </div>
     </article>
   );

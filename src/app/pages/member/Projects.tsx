@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
-import { Link, useNavigate } from "react-router";
+import { Link, useNavigate, useSearchParams } from "react-router";
 import {
   Archive,
   ChevronRight,
@@ -24,6 +24,8 @@ import {
   getProjectDetailPath,
   getProjectStatusLabel,
   PROJECT_FILTERS,
+  readProjectFilterKey,
+  writeProjectFilterSearchParams,
 } from "../../api/project-policy.js";
 import { useAuth } from "../../auth/useAuth";
 import { ProjectFormModal } from "../../components/member/ProjectFormModal";
@@ -195,8 +197,9 @@ function ProjectRow({ project }: { project: ProjectSummary }) {
 export default function Projects() {
   const { user, hasPermission } = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
-  const [activeFilter, setActiveFilter] = useState<FilterKey>("mine");
+  const activeFilter = readProjectFilterKey(searchParams.get("filter")) as FilterKey;
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -219,6 +222,13 @@ export default function Projects() {
     () => projects.filter((project) => project.isRecruiting).length,
     [projects],
   );
+
+  function selectFilter(nextFilter: FilterKey) {
+    setSearchParams(
+      (current) => writeProjectFilterSearchParams(current, nextFilter),
+      { replace: true },
+    );
+  }
 
   async function refresh() {
     if (!user) {
@@ -316,7 +326,7 @@ export default function Projects() {
                   <button
                     key={filter.key}
                     type="button"
-                    onClick={() => setActiveFilter(filter.key)}
+                    onClick={() => selectFilter(filter.key)}
                     className="inline-flex items-center gap-2 rounded-full border px-4 py-2 text-[14px] font-medium transition-colors"
                     style={{
                       borderColor: active ? "#0a0a0a" : "#ebe8e0",

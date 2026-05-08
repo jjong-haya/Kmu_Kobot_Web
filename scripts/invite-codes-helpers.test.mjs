@@ -1,10 +1,24 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import {
+  formatInviteJoinTitle,
   generateInviteCode,
+  getInviteTargetLabel,
+  hasHangulFinalConsonant,
   normalizeInviteCode,
   normalizeInviteTags,
 } from "../src/app/api/invite-codes.ts";
+
+const inviteCourseSource = readFileSync(
+  resolve(process.cwd(), "src/app/pages/public/InviteCourse.tsx"),
+  "utf8",
+);
+const previewMigrationSource = readFileSync(
+  resolve(process.cwd(), "supabase/migrations/20260507014000_course_invite_public_preview.sql"),
+  "utf8",
+);
 
 test("normalizeInviteCode trims, uppercases, and removes whitespace", () => {
   assert.equal(normalizeInviteCode("  abcdef  "), "ABCDEF");
@@ -75,4 +89,31 @@ test("normalizeInviteTags returns empty array for non-string/non-array input", (
 
 test("normalizeInviteTags ignores non-string elements in arrays", () => {
   assert.deepEqual(normalizeInviteTags(["foo", 1, null, "bar"]), ["foo", "bar"]);
+});
+
+test("formats invite landing copy from the invite club tag label", () => {
+  assert.equal(getInviteTargetLabel({ clubLabel: "연구팀" }), "연구팀");
+  assert.equal(getInviteTargetLabel(null), "초대받은 동아리");
+  assert.equal(hasHangulFinalConsonant("코봇"), true);
+  assert.equal(hasHangulFinalConsonant("홍보"), false);
+  assert.equal(formatInviteJoinTitle({ clubLabel: "코봇" }), "코봇으로 가입");
+  assert.equal(formatInviteJoinTitle({ clubLabel: "홍보" }), "홍보로 가입");
+  assert.equal(formatInviteJoinTitle({ clubLabel: "KOBOT" }), "KOBOT로 가입");
+  assert.equal(formatInviteJoinTitle(null), "초대 코드로 가입");
+});
+
+test("invite landing page does not hard-code KOSS display copy", () => {
+  assert.doesNotMatch(inviteCourseSource, /KOSS로 가입/);
+  assert.doesNotMatch(inviteCourseSource, /KOSS 참여자용/);
+  assert.doesNotMatch(inviteCourseSource, /KOSS 회원이 사용할 수 있는 메뉴/);
+  assert.doesNotMatch(inviteCourseSource, /KOSS 권한/);
+  assert.match(inviteCourseSource, /getInviteCoursePreview/);
+  assert.match(inviteCourseSource, /formatInviteJoinTitle/);
+});
+
+test("invite preview RPC derives the public club label from club tags", () => {
+  assert.match(previewMigrationSource, /get_course_invite_preview/);
+  assert.match(previewMigrationSource, /cic\.default_tags/);
+  assert.match(previewMigrationSource, /mt\.is_club = true/);
+  assert.match(previewMigrationSource, /grant execute on function public\.get_course_invite_preview\(text\) to anon, authenticated/);
 });

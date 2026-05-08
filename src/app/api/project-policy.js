@@ -7,6 +7,31 @@ export const PROJECT_FILTERS = [
   { key: "archived", label: "완료" },
 ];
 
+export const DEFAULT_PROJECT_FILTER_KEY = "mine";
+
+const PROJECT_FILTER_KEYS = new Set(PROJECT_FILTERS.map((filter) => filter.key));
+
+export function readProjectFilterKey(value) {
+  const normalized = typeof value === "string" ? value.trim() : "";
+
+  return PROJECT_FILTER_KEYS.has(normalized)
+    ? normalized
+    : DEFAULT_PROJECT_FILTER_KEY;
+}
+
+export function writeProjectFilterSearchParams(currentSearch, filterKey) {
+  const params = new URLSearchParams(currentSearch ?? "");
+  const safeFilterKey = readProjectFilterKey(filterKey);
+
+  if (safeFilterKey === DEFAULT_PROJECT_FILTER_KEY) {
+    params.delete("filter");
+  } else {
+    params.set("filter", safeFilterKey);
+  }
+
+  return params;
+}
+
 export function getProjectStatusLabel(status) {
   switch (status) {
     case "active":

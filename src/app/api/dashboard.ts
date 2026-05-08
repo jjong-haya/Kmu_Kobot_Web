@@ -42,8 +42,10 @@ export type DashboardBooking = {
   start: string;
   end: string;
   organizer: string;
+  organizerId: string;
   type: string;
   attendees: number;
+  isMine: boolean;
 };
 
 export type DashboardContactRequest = {
@@ -119,6 +121,14 @@ type ContactRequestRow = {
   created_at: string;
   requester_user_id: string;
   recipient_user_id: string;
+};
+
+type MemberTagAssignmentRow = {
+  tag_id: string;
+};
+
+type TeamMembershipTargetRow = {
+  team_id: string;
 };
 
 function toIsoDate(date: Date) {
@@ -286,29 +296,63 @@ async function listDashboardProjects(userId: string) {
   }));
 }
 
+async function listDashboardBookingTargets(userId: string) {
+  const supabase = getSupabaseBrowserClient();
+  const [tagResult, teamResult] = await Promise.all([
+    supabase
+      .from("member_tag_assignments")
+      .select("tag_id")
+      .eq("user_id", userId),
+    supabase
+      .from("team_memberships")
+      .select("team_id")
+      .eq("user_id", userId)
+      .eq("active", true),
+  ]);
+
+  if (tagResult.error) throw new Error(sanitizeUserError(tagResult.error, FALLBACK));
+  if (teamResult.error) throw new Error(sanitizeUserError(teamResult.error, FALLBACK));
+
+  return {
+    tagIds: new Set(((tagResult.data ?? []) as MemberTagAssignmentRow[]).map((row) => row.tag_id)),
+    teamIds: new Set(((teamResult.data ?? []) as TeamMembershipTargetRow[]).map((row) => row.team_id)),
+  };
+}
+
+function isDashboardBookingMine(
+  booking: Awaited<ReturnType<typeof listBookingsInRange>>[number],
+  userId: string,
+  userTagIds: Set<string>,
+  userTeamIds: Set<string>,
+) {
+  return (
+    booking.organizerId === userId ||
+    booking.participants.some((participant) => participant.id === userId) ||
+    booking.audienceTags.some((tag) => userTagIds.has(tag.id)) ||
+    booking.audienceTeams.some((team) => userTeamIds.has(team.id))
+  );
+}
+
 async function listDashboardBookings(userId: string) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const bookings = await listBookingsInRange(toIsoDate(today), toIsoDate(addDays(today, 45)));
+  const [bookings, targets] = await Promise.all([
+    listBookingsInRange(toIsoDate(today), toIsoDate(addDays(today, 45))),
+    listDashboardBookingTargets(userId),
+  ]);
 
-  return bookings
-    .filter(
-      (booking) =>
-        booking.organizerId === userId ||
-        booking.participants.some((participant) => participant.id === userId) ||
-        booking.audienceTags.length > 0 ||
-        booking.audienceTeams.length > 0,
-    )
-    .map((booking) => ({
-      id: booking.id,
-      title: booking.title,
-      date: booking.date,
-      start: booking.start,
-      end: booking.end,
-      organizer: booking.organizer,
-      type: booking.type,
-      attendees: booking.attendees,
-    }));
+  return bookings.map((booking) => ({
+    id: booking.id,
+    title: booking.title,
+    date: booking.date,
+    start: booking.start,
+    end: booking.end,
+    organizer: booking.organizer,
+    organizerId: booking.organizerId,
+    type: booking.type,
+    attendees: booking.attendees,
+    isMine: isDashboardBookingMine(booking, userId, targets.tagIds, targets.teamIds),
+  }));
 }
 
 async function listDashboardContactRequests(userId: string) {

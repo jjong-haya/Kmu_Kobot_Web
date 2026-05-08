@@ -3,6 +3,7 @@ import {
   getSensitivePermissions,
   SENSITIVE_PERMISSION_MESSAGE,
 } from "../config/tag-policy";
+import { normalizeTagIconName } from "../config/tag-icons";
 import { sanitizeUserError } from "../utils/sanitize-error";
 
 const FALLBACK = "태그 정보를 처리하지 못했습니다.";
@@ -18,6 +19,8 @@ export type MemberTag = {
   isSystem: boolean;
   /** 동아리 태그 여부. true 면 부원 카드의 "건물 아이콘 + 동아리명" 메타에 자동 노출 */
   isClub: boolean;
+  /** TagChip 위에 올릴 Lucide 아이콘 컴포넌트 이름. 없으면 legacy slug fallback 사용 */
+  iconName: string | null;
   autoStatus: TagAutoStatus;
   createdAt: string;
   updatedAt: string;
@@ -50,6 +53,7 @@ type MemberTagDbRow = {
   color: string;
   is_system: boolean;
   is_club?: boolean | null;
+  icon_name?: string | null;
   auto_status: TagAutoStatus;
   created_at: string;
   updated_at: string;
@@ -64,6 +68,7 @@ function rowToTag(row: MemberTagDbRow): MemberTag {
     color: row.color,
     isSystem: row.is_system,
     isClub: row.is_club === true,
+    iconName: normalizeTagIconName(row.icon_name),
     autoStatus: row.auto_status,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -72,33 +77,45 @@ function rowToTag(row: MemberTagDbRow): MemberTag {
 
 const TAG_SELECT_FULL =
   "id, slug, label, description, color, is_system, is_club, auto_status, created_at, updated_at";
+const TAG_SELECT_FULL_WITH_ICON =
+  "id, slug, label, description, color, is_system, is_club, icon_name, auto_status, created_at, updated_at";
 const TAG_SELECT_LEGACY =
   "id, slug, label, description, color, is_system, auto_status, created_at, updated_at";
+const TAG_SELECT_LEGACY_WITH_ICON =
+  "id, slug, label, description, color, is_system, icon_name, auto_status, created_at, updated_at";
 
 const IS_CLUB_SCHEMA_CACHE_KEY = "kobot.memberTags.isClubColumnAvailable";
+const ICON_NAME_SCHEMA_CACHE_KEY = "kobot.memberTags.iconNameColumnAvailable";
 const SCHEMA_CAPABILITY_TTL_MS = 5 * 60 * 1000;
 const CLUB_TAG_SERVER_CONFIG_ERROR =
   "서버 설정이 아직 반영되지 않아 동아리 태그를 저장할 수 없습니다. 잠시 후 다시 시도하거나 운영 설정을 확인해 주세요.";
+const ICON_TAG_SERVER_CONFIG_ERROR =
+  "서버 설정이 아직 반영되지 않아 태그 아이콘을 저장할 수 없습니다. 잠시 후 다시 시도하거나 운영 설정을 확인해 주세요.";
 
-// 운영 DB 에 20260506030000 마이그레이션이 아직 안 올라간 경우를 대비해 defensive fallback.
-function isMissingColumn(error: { code?: string; message?: string } | null): boolean {
+// 운영 DB 에 최신 member_tags 표시 컬럼 마이그레이션이 아직 안 올라간 경우를 대비해 defensive fallback.
+function isMissingColumn(
+  error: { code?: string; message?: string } | null,
+  column?: "is_club" | "icon_name",
+): boolean {
   if (!error) return false;
+  const message = error.message?.toLowerCase() ?? "";
+  if (column && !message.includes(column)) return false;
   if (error.code === "42703") return true; // PG: undefined_column
   if (error.code === "PGRST204") return true; // PostgREST schema cache cannot find column
-  const message = error.message?.toLowerCase() ?? "";
   return (
     /column .* does not exist/i.test(error.message ?? "") ||
     message.includes("could not find") ||
     message.includes("schema cache") ||
-    message.includes("is_club")
+    message.includes("is_club") ||
+    message.includes("icon_name")
   );
 }
 
-function readSchemaCapability() {
+function readSchemaCapability(key: string) {
   if (typeof window === "undefined") return null;
 
   try {
-    const raw = window.localStorage.getItem(IS_CLUB_SCHEMA_CACHE_KEY);
+    const raw = window.localStorage.getItem(key);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as { checkedAt?: unknown; value?: unknown };
     if (typeof parsed.checkedAt !== "number" || typeof parsed.value !== "boolean") return null;
@@ -109,12 +126,12 @@ function readSchemaCapability() {
   }
 }
 
-function writeSchemaCapability(value: boolean) {
+function writeSchemaCapability(key: string, value: boolean) {
   if (typeof window === "undefined") return;
 
   try {
     window.localStorage.setItem(
-      IS_CLUB_SCHEMA_CACHE_KEY,
+      key,
       JSON.stringify({ checkedAt: Date.now(), value }),
     );
   } catch {
@@ -123,33 +140,93 @@ function writeSchemaCapability(value: boolean) {
 }
 
 function shouldSelectIsClub() {
-  return readSchemaCapability() !== false;
+  return readSchemaCapability(IS_CLUB_SCHEMA_CACHE_KEY) !== false;
 }
 
-function rememberSelectSuccess(usedFullSelect: boolean) {
-  if (usedFullSelect) writeSchemaCapability(true);
+function shouldSelectIconName() {
+  return readSchemaCapability(ICON_NAME_SCHEMA_CACHE_KEY) !== false;
+}
+
+type TagSelectMode = {
+  isClub: boolean;
+  iconName: boolean;
+};
+
+function initialTagSelectMode(): TagSelectMode {
+  return {
+    isClub: shouldSelectIsClub(),
+    iconName: shouldSelectIconName(),
+  };
+}
+
+function tagSelectFor(mode: TagSelectMode) {
+  if (mode.isClub && mode.iconName) return TAG_SELECT_FULL_WITH_ICON;
+  if (mode.isClub) return TAG_SELECT_FULL;
+  if (mode.iconName) return TAG_SELECT_LEGACY_WITH_ICON;
+  return TAG_SELECT_LEGACY;
+}
+
+function nextTagSelectMode(
+  error: { code?: string; message?: string } | null,
+  mode: TagSelectMode,
+) {
+  let changed = false;
+  const next = { ...mode };
+
+  if (mode.iconName && isMissingColumn(error, "icon_name")) {
+    writeSchemaCapability(ICON_NAME_SCHEMA_CACHE_KEY, false);
+    next.iconName = false;
+    changed = true;
+  }
+
+  if (mode.isClub && isMissingColumn(error, "is_club")) {
+    writeSchemaCapability(IS_CLUB_SCHEMA_CACHE_KEY, false);
+    next.isClub = false;
+    changed = true;
+  }
+
+  if (!changed && isMissingColumn(error)) {
+    if (mode.iconName) {
+      writeSchemaCapability(ICON_NAME_SCHEMA_CACHE_KEY, false);
+      next.iconName = false;
+      changed = true;
+    } else if (mode.isClub) {
+      writeSchemaCapability(IS_CLUB_SCHEMA_CACHE_KEY, false);
+      next.isClub = false;
+      changed = true;
+    }
+  }
+
+  return changed ? next : null;
+}
+
+function rememberSelectSuccess(mode: TagSelectMode) {
+  if (mode.isClub) writeSchemaCapability(IS_CLUB_SCHEMA_CACHE_KEY, true);
+  if (mode.iconName) writeSchemaCapability(ICON_NAME_SCHEMA_CACHE_KEY, true);
 }
 
 export async function listTags(): Promise<MemberTag[]> {
   const supabase = getSupabaseBrowserClient();
-  const useFullSelect = shouldSelectIsClub();
-  let usedFullSelectSuccessfully = useFullSelect;
-  let { data, error } = await supabase
-    .from("member_tags")
-    .select(useFullSelect ? TAG_SELECT_FULL : TAG_SELECT_LEGACY)
-    .order("is_system", { ascending: false })
-    .order("label", { ascending: true });
-  if (error && isMissingColumn(error)) {
-    writeSchemaCapability(false);
-    usedFullSelectSuccessfully = false;
-    ({ data, error } = await supabase
+  let mode = initialTagSelectMode();
+  let data: unknown[] | null = null;
+  let error: { code?: string; message?: string } | null = null;
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const result = await supabase
       .from("member_tags")
-      .select(TAG_SELECT_LEGACY)
+      .select(tagSelectFor(mode))
       .order("is_system", { ascending: false })
-      .order("label", { ascending: true }));
+      .order("label", { ascending: true });
+    data = result.data as unknown[] | null;
+    error = result.error;
+    if (!error) break;
+    const next = nextTagSelectMode(error, mode);
+    if (!next) break;
+    mode = next;
   }
+
   if (error) throw new Error(sanitizeUserError(error, FALLBACK));
-  rememberSelectSuccess(usedFullSelectSuccessfully);
+  rememberSelectSuccess(mode);
   return ((data ?? []) as MemberTagDbRow[]).map(rowToTag);
 }
 
@@ -192,24 +269,24 @@ export type MemberTagWithCounts = MemberTag & {
 
 export async function listTagsWithCounts(): Promise<MemberTagWithCounts[]> {
   const supabase = getSupabaseBrowserClient();
-  const useFullSelect = shouldSelectIsClub();
-  let usedFullSelectSuccessfully = useFullSelect;
-  let tagsQuery = supabase
-    .from("member_tags")
-    .select(useFullSelect ? TAG_SELECT_FULL : TAG_SELECT_LEGACY)
-    .order("is_system", { ascending: false })
-    .order("label", { ascending: true });
-  let tagsResult = await tagsQuery;
-  if (tagsResult.error && isMissingColumn(tagsResult.error)) {
-    writeSchemaCapability(false);
-    usedFullSelectSuccessfully = false;
-    tagsQuery = supabase
+  let mode = initialTagSelectMode();
+  let tagsResult: {
+    data: unknown[] | null;
+    error: { code?: string; message?: string } | null;
+  } = { data: null, error: null };
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    tagsResult = await supabase
       .from("member_tags")
-      .select(TAG_SELECT_LEGACY)
+      .select(tagSelectFor(mode))
       .order("is_system", { ascending: false })
       .order("label", { ascending: true });
-    tagsResult = await tagsQuery;
+    if (!tagsResult.error) break;
+    const next = nextTagSelectMode(tagsResult.error, mode);
+    if (!next) break;
+    mode = next;
   }
+
   const [permsResult, navsResult, assignsResult] = await Promise.all([
     supabase.from("member_tag_permissions").select("tag_id"),
     supabase.from("member_tag_nav").select("tag_id"),
@@ -219,7 +296,7 @@ export async function listTagsWithCounts(): Promise<MemberTagWithCounts[]> {
   if (permsResult.error) throw new Error(sanitizeUserError(permsResult.error, FALLBACK));
   if (navsResult.error) throw new Error(sanitizeUserError(navsResult.error, FALLBACK));
   if (assignsResult.error) throw new Error(sanitizeUserError(assignsResult.error, FALLBACK));
-  rememberSelectSuccess(usedFullSelectSuccessfully);
+  rememberSelectSuccess(mode);
 
   function tally(rows: Array<{ tag_id: string }> | null) {
     const map = new Map<string, number>();
@@ -241,25 +318,27 @@ export async function listTagsWithCounts(): Promise<MemberTagWithCounts[]> {
 
 export async function getTagBySlug(slug: string): Promise<TagDetail | null> {
   const supabase = getSupabaseBrowserClient();
-  const useFullSelect = shouldSelectIsClub();
-  let usedFullSelectSuccessfully = useFullSelect;
-  let { data, error } = await supabase
-    .from("member_tags")
-    .select(useFullSelect ? TAG_SELECT_FULL : TAG_SELECT_LEGACY)
-    .eq("slug", slug)
-    .maybeSingle();
-  if (error && isMissingColumn(error)) {
-    writeSchemaCapability(false);
-    usedFullSelectSuccessfully = false;
-    ({ data, error } = await supabase
+  let mode = initialTagSelectMode();
+  let data: unknown | null = null;
+  let error: { code?: string; message?: string } | null = null;
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const result = await supabase
       .from("member_tags")
-      .select(TAG_SELECT_LEGACY)
+      .select(tagSelectFor(mode))
       .eq("slug", slug)
-      .maybeSingle());
+      .maybeSingle();
+    data = result.data;
+    error = result.error;
+    if (!error) break;
+    const next = nextTagSelectMode(error, mode);
+    if (!next) break;
+    mode = next;
   }
+
   if (error) throw new Error(sanitizeUserError(error, FALLBACK));
   if (!data) return null;
-  rememberSelectSuccess(usedFullSelectSuccessfully);
+  rememberSelectSuccess(mode);
   const tag = rowToTag(data as MemberTagDbRow);
 
   const [permsResult, navResult, assignResult] = await Promise.all([
@@ -338,38 +417,63 @@ export type CreateTagInput = {
   description?: string | null;
   color?: string;
   isClub?: boolean;
+  iconName?: string | null;
 };
 
 export async function createTag(input: CreateTagInput): Promise<MemberTag> {
   const supabase = getSupabaseBrowserClient();
+  const iconName = normalizeTagIconName(input.iconName);
   const baseRow: Record<string, unknown> = {
     slug: input.slug.trim(),
     label: input.label.trim(),
     description: input.description?.trim() || null,
     color: input.color?.trim() || "#6b7280",
   };
-  const useFullSelect = shouldSelectIsClub();
-  let usedFullSelectSuccessfully = useFullSelect;
+  let mode = initialTagSelectMode();
+  let insertRow = {
+    ...baseRow,
+    ...(mode.isClub ? { is_club: input.isClub === true } : {}),
+    ...(mode.iconName ? { icon_name: iconName } : {}),
+  };
   let { data, error } = await supabase
     .from("member_tags")
-    .insert(useFullSelect ? { ...baseRow, is_club: input.isClub === true } : baseRow)
-    .select(useFullSelect ? TAG_SELECT_FULL : TAG_SELECT_LEGACY)
+    .insert(insertRow)
+    .select(tagSelectFor(mode))
     .single();
-  if (error && isMissingColumn(error)) {
-    writeSchemaCapability(false);
-    usedFullSelectSuccessfully = false;
+
+  if (error && mode.iconName && isMissingColumn(error, "icon_name")) {
+    writeSchemaCapability(ICON_NAME_SCHEMA_CACHE_KEY, false);
+    if (iconName) {
+      throw new Error(ICON_TAG_SERVER_CONFIG_ERROR);
+    }
+    mode = { ...mode, iconName: false };
+    insertRow = {
+      ...baseRow,
+      ...(mode.isClub ? { is_club: input.isClub === true } : {}),
+    };
+    ({ data, error } = await supabase
+      .from("member_tags")
+      .insert(insertRow)
+      .select(tagSelectFor(mode))
+      .single());
+  }
+
+  if (error && mode.isClub && isMissingColumn(error, "is_club")) {
+    writeSchemaCapability(IS_CLUB_SCHEMA_CACHE_KEY, false);
     if (input.isClub === true) {
       throw new Error(CLUB_TAG_SERVER_CONFIG_ERROR);
     }
+    mode = { ...mode, isClub: false };
     ({ data, error } = await supabase
       .from("member_tags")
-      .insert(baseRow)
-      .select(TAG_SELECT_LEGACY)
+      .insert(mode.iconName ? { ...baseRow, icon_name: iconName } : baseRow)
+      .select(tagSelectFor(mode))
       .single());
   }
+
   if (error) throw new Error(sanitizeUserError(error, "태그를 생성하지 못했습니다."));
-  rememberSelectSuccess(usedFullSelectSuccessfully);
-  return rowToTag(data as MemberTagDbRow);
+  rememberSelectSuccess(mode);
+  return rowToTag(data as unknown as MemberTagDbRow);
 }
 
 export type UpdateTagInput = {
@@ -377,6 +481,7 @@ export type UpdateTagInput = {
   description?: string | null;
   color?: string;
   isClub?: boolean;
+  iconName?: string | null;
 };
 
 export async function updateTag(id: string, patch: UpdateTagInput): Promise<void> {
@@ -390,10 +495,15 @@ export async function updateTag(id: string, patch: UpdateTagInput): Promise<void
   if (patch.description !== undefined)
     update.description = patch.description?.trim() || null;
   if (patch.isClub !== undefined && canWriteIsClub) update.is_club = patch.isClub;
+  if (patch.iconName !== undefined) update.icon_name = normalizeTagIconName(patch.iconName);
   if (patch.color !== undefined) update.color = patch.color.trim();
   let { error } = await supabase.from("member_tags").update(update).eq("id", id);
+  if (error && isMissingColumn(error, "icon_name") && patch.iconName !== undefined) {
+    writeSchemaCapability(ICON_NAME_SCHEMA_CACHE_KEY, false);
+    throw new Error(ICON_TAG_SERVER_CONFIG_ERROR);
+  }
   if (error && isMissingColumn(error) && patch.isClub !== undefined) {
-    writeSchemaCapability(false);
+    writeSchemaCapability(IS_CLUB_SCHEMA_CACHE_KEY, false);
     const legacyUpdate = { ...update };
     delete legacyUpdate.is_club;
     ({ error } = await supabase.from("member_tags").update(legacyUpdate).eq("id", id));

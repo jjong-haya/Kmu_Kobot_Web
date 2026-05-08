@@ -356,7 +356,7 @@ async function fetchProfileFallback(
     .maybeSingle();
 
   if (!fullProfileQuery.error) {
-    return fullProfileQuery.data as Record<string, unknown> | null;
+    return fullProfileQuery.data as unknown as Record<string, unknown> | null;
   }
 
   const minimalProfileQuery = await supabase

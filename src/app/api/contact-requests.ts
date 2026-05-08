@@ -168,7 +168,7 @@ async function listProfilesByIds(ids: string[]) {
   );
 
   return new Map(
-    ((profilesResult.data ?? []) as ProfileDbRow[]).map((profile) => [
+    ((profilesResult.data ?? []) as unknown as ProfileDbRow[]).map((profile) => [
       profile.id,
       toProfileSummary(profile, statusByUserId.get(profile.id) ?? null),
     ]),
@@ -250,7 +250,7 @@ export async function listContactRequests(viewerUserId: string) {
 
   if (error) throw new Error(sanitizeUserError(error, FALLBACK));
 
-  const rows = ((data ?? []) as ContactRequestDbRow[]).filter((row) =>
+  const rows = ((data ?? []) as unknown as ContactRequestDbRow[]).filter((row) =>
     shouldShowRow(row, viewerUserId),
   );
   const userIds = [
@@ -278,7 +278,7 @@ export async function listContactRequestRecipients(viewerUserId: string) {
     ((accountsResult.data ?? []) as AccountDbRow[]).map((row) => [row.user_id, row.status]),
   );
 
-  return ((profilesResult.data ?? []) as ProfileDbRow[])
+  return ((profilesResult.data ?? []) as unknown as ProfileDbRow[])
     .filter((profile) => profile.id !== viewerUserId && statusByUserId.has(profile.id))
     .map((profile) => toProfileSummary(profile, statusByUserId.get(profile.id) ?? null))
     .sort((a, b) => a.displayName.localeCompare(b.displayName, "ko"));

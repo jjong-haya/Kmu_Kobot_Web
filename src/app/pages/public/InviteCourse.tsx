@@ -8,7 +8,14 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { useAuth } from "../../auth/useAuth";
-import { normalizeInviteCode } from "../../api/invite-codes";
+import {
+  formatInviteJoinTitle,
+  getInviteCoursePreview,
+  getInviteTargetLabel,
+  InviteCoursePreviewUnavailableError,
+  normalizeInviteCode,
+  type InviteCoursePreview,
+} from "../../api/invite-codes";
 import { sanitizeUserError } from "../../utils/sanitize-error";
 
 const COURSE_INVITE_KEY = "kobot:course-invite-code";
@@ -37,8 +44,8 @@ export default function InviteCourse() {
   const [params] = useSearchParams();
   const pathParams = useParams<{ code?: string }>();
   // Resolve invite code in this priority order:
-  //   1. path param  /invite/course/KOSS2026  (survives most redirects)
-  //   2. query param /invite/course?code=KOSS2026
+  //   1. path param  /invite/course/ABCD2026  (survives most redirects)
+  //   2. query param /invite/course?code=ABCD2026
   //   3. localStorage (set by previous successful visit, OAuth round-trip)
   //   4. raw window.location.search (defensive fallback if useSearchParams misfires)
   const inviteCode = useMemo(() => {
@@ -62,6 +69,24 @@ export default function InviteCourse() {
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [preview, setPreview] = useState<InviteCoursePreview | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewUnavailable, setPreviewUnavailable] = useState(false);
+
+  const targetLabel = getInviteTargetLabel(preview);
+  const joinTitle = formatInviteJoinTitle(preview);
+  const scopeTitle = preview?.clubLabel
+    ? `${preview.clubLabel} 회원이 사용할 수 있는 메뉴`
+    : "초대받은 사용자가 사용할 수 있는 메뉴";
+  const permissionText = preview?.clubLabel
+    ? `${preview.clubLabel} 태그`
+    : "초대 태그";
+  const previewKnownInvalid = Boolean(
+    inviteCode && !preview && !previewLoading && !previewUnavailable,
+  );
+  const inviteUnavailable = Boolean(preview && !preview.isAvailable);
+  const cannotContinue =
+    !inviteCode || previewLoading || previewKnownInvalid || inviteUnavailable;
 
   // Store invite code so AuthCallback can pick it up after OAuth round-trip
   useEffect(() => {
@@ -72,6 +97,37 @@ export default function InviteCourse() {
         /* localStorage may be unavailable */
       }
     }
+  }, [inviteCode]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setPreview(null);
+    setPreviewUnavailable(false);
+
+    if (!inviteCode) return () => {
+      cancelled = true;
+    };
+
+    setPreviewLoading(true);
+    void getInviteCoursePreview(inviteCode)
+      .then((nextPreview) => {
+        if (!cancelled) setPreview(nextPreview);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        if (err instanceof InviteCoursePreviewUnavailableError) {
+          setPreviewUnavailable(true);
+          return;
+        }
+        setError(sanitizeUserError(err, "초대 코드 정보를 불러오지 못했습니다."));
+      })
+      .finally(() => {
+        if (!cancelled) setPreviewLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [inviteCode]);
 
   if (session && !isInitializing) {
@@ -140,7 +196,7 @@ export default function InviteCourse() {
               lineHeight: 1.3,
             }}
           >
-            KOSS로 가입
+            {previewLoading ? "초대 정보 확인 중..." : joinTitle}
           </h1>
           <p
             style={{
@@ -150,7 +206,7 @@ export default function InviteCourse() {
               lineHeight: 1.55,
             }}
           >
-            초대 코드로 들어온 KOSS 참여자용 가입 링크입니다.
+            초대 코드로 들어온 {targetLabel} 참여자용 가입 링크입니다.
           </p>
         </div>
 
@@ -175,7 +231,7 @@ export default function InviteCourse() {
                 marginBottom: 10,
               }}
             >
-              KOSS 회원이 사용할 수 있는 메뉴
+              {scopeTitle}
             </div>
             <div
               style={{
@@ -274,6 +330,62 @@ export default function InviteCourse() {
             </div>
           )}
 
+          {previewKnownInvalid && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "flex-start",
+                gap: 10,
+                padding: "12px 14px",
+                background: "#fef2f2",
+                border: "1px solid #fecaca",
+                borderRadius: 10,
+                fontSize: 13.5,
+                color: "#b91c1c",
+                lineHeight: 1.5,
+              }}
+            >
+              <AlertCircle
+                style={{
+                  width: 16,
+                  height: 16,
+                  flexShrink: 0,
+                  marginTop: 2,
+                  color: "#dc2626",
+                }}
+              />
+              존재하지 않는 초대 코드입니다. 운영진에게 받은 정확한 링크로 다시 접속해 주세요.
+            </div>
+          )}
+
+          {inviteUnavailable && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "flex-start",
+                gap: 10,
+                padding: "12px 14px",
+                background: "#fef2f2",
+                border: "1px solid #fecaca",
+                borderRadius: 10,
+                fontSize: 13.5,
+                color: "#b91c1c",
+                lineHeight: 1.5,
+              }}
+            >
+              <AlertCircle
+                style={{
+                  width: 16,
+                  height: 16,
+                  flexShrink: 0,
+                  marginTop: 2,
+                  color: "#dc2626",
+                }}
+              />
+              만료되었거나 사용 한도에 도달한 초대 코드입니다.
+            </div>
+          )}
+
           {error && (
             <div
               style={{
@@ -294,7 +406,7 @@ export default function InviteCourse() {
           <button
             type="button"
             onClick={handleSignup}
-            disabled={submitting || !isConfigured || isInitializing || !inviteCode}
+            disabled={submitting || !isConfigured || isInitializing || cannotContinue}
             style={{
               display: "inline-flex",
               alignItems: "center",
@@ -303,14 +415,14 @@ export default function InviteCourse() {
               width: "100%",
               padding: "14px 20px",
               background:
-                submitting || !inviteCode ? "#6a6a6a" : "#0a0a0a",
+                submitting || cannotContinue ? "#6a6a6a" : "#0a0a0a",
               color: "#fff",
               border: "none",
               borderRadius: 12,
               fontSize: 15,
               fontWeight: 700,
               cursor:
-                submitting || !inviteCode ? "not-allowed" : "pointer",
+                submitting || cannotContinue ? "not-allowed" : "pointer",
               fontFamily: "inherit",
             }}
           >
@@ -328,7 +440,7 @@ export default function InviteCourse() {
               lineHeight: 1.5,
             }}
           >
-            로그인 후 자동으로 KOSS 권한이 적용됩니다.
+            로그인 후 자동으로 {permissionText}가 적용됩니다.
             <br />
             정규 부원으로 가입하려면{" "}
             <Link

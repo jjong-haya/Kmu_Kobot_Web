@@ -104,6 +104,63 @@ function readString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
+export function getStableNotificationTitle(
+  row: Pick<
+    NotificationDbRow,
+    "type" | "title" | "related_entity_table" | "metadata"
+  >,
+) {
+  const metadata = normalizeMetadata(row.metadata);
+
+  if (row.related_entity_table === "contact_requests") {
+    if (row.type === "contact_request_created") {
+      return "연락 요청이 도착했습니다";
+    }
+
+    if (row.type === "contact_request_decided") {
+      return metadata.decision === "accepted"
+        ? "연락 요청이 수락되었습니다"
+        : "연락 요청이 거절되었습니다";
+    }
+  }
+
+  if (
+    row.type === "membership_application_submitted" &&
+    row.related_entity_table === "membership_applications"
+  ) {
+    return "가입 신청이 도착했습니다";
+  }
+
+  return row.title;
+}
+
+function readLegacyMembershipApplicantLabel(body: string | null) {
+  const suffix = " submitted a membership application.";
+
+  if (typeof body === "string" && body.endsWith(suffix)) {
+    return body.slice(0, -suffix.length).trim();
+  }
+
+  return null;
+}
+
+export function getStableNotificationBody(
+  row: Pick<NotificationDbRow, "type" | "body" | "related_entity_table">,
+  actor?: NotificationActor | null,
+) {
+  if (
+    row.type === "membership_application_submitted" &&
+    row.related_entity_table === "membership_applications"
+  ) {
+    const applicantLabel =
+      actor?.displayName ?? readLegacyMembershipApplicantLabel(row.body) ?? "새 회원";
+
+    return `${applicantLabel} 님이 가입 신청서를 제출했습니다.`;
+  }
+
+  return row.body;
+}
+
 function toActor(row: ProfileDbRow): NotificationActor {
   return {
     id: row.id,
@@ -134,20 +191,22 @@ function mapNotificationRow(
   applicationsById: Map<string, NotificationMembershipApplication>,
 ): NotificationItem {
   const relatedEntityTable = row.related_entity_table;
+  const metadata = normalizeMetadata(row.metadata);
   const category = getNotificationCategory({
     type: row.type,
     relatedEntityTable,
   }) as NotificationCategory;
+  const actor = row.actor_user_id ? actorsById.get(row.actor_user_id) ?? null : null;
 
   return {
     id: row.id,
     recipientUserId: row.recipient_user_id,
     actorUserId: row.actor_user_id,
-    actor: row.actor_user_id ? actorsById.get(row.actor_user_id) ?? null : null,
+    actor,
     type: row.type,
     category,
-    title: row.title,
-    body: row.body,
+    title: getStableNotificationTitle(row),
+    body: getStableNotificationBody(row, actor),
     channel: row.channel,
     importance: row.importance,
     relatedEntityTable,
@@ -161,7 +220,7 @@ function mapNotificationRow(
       row.type === "membership_application_submitted" && row.related_entity_id
         ? applicationsById.get(row.related_entity_id) ?? null
         : null,
-    metadata: normalizeMetadata(row.metadata),
+    metadata,
     readAt: row.read_at,
     createdAt: row.created_at,
     expiresAt: row.expires_at,
@@ -244,7 +303,7 @@ export async function listNotifications(userId: string, limit = 80) {
     throw new Error(sanitizeUserError(error, FALLBACK));
   }
 
-  const rows = (data ?? []) as NotificationDbRow[];
+  const rows = (data ?? []) as unknown as NotificationDbRow[];
   const actorIds = [
     ...new Set(rows.map((row) => row.actor_user_id).filter((id): id is string => Boolean(id))),
   ];

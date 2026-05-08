@@ -409,7 +409,7 @@ function TagChip({ tag }: { tag: QuestTagRef }) {
   // 단일 칩 컴포넌트로 통일 — 슬러그→아이콘 매핑(KOBOT 로봇 등)도 자동 반영.
   return (
     <SharedTagChip
-      tag={{ slug: tag.slug, label: tag.label, color: tag.color }}
+      tag={{ slug: tag.slug, label: tag.label, color: tag.color, iconName: tag.iconName }}
       size="sm"
     />
   );

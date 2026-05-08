@@ -102,6 +102,7 @@ https://kobot.kookmin.ac.kr/terms
 - 로봇 D팀
 - IoT팀
 - 연구팀
+- 학술팀
 
 공식 팀은 회장, 부회장, 공식 팀장 권한과 연결된다.
 
