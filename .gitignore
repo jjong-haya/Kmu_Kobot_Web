@@ -14,5 +14,7 @@ design_dl/
 .tmp-landing/
 .vite-codex.*.log
 *.private-key.pem
+*.pem
+*.key
 
 .vercel

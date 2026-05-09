@@ -14,6 +14,7 @@ import {
 import { listTags, type MemberTag } from "../../api/tags";
 import { getNoticeDetailPath } from "../../api/announcement-policy.js";
 import { useAuth } from "../../auth/useAuth";
+import { ConfirmActionDialog } from "../../components/ConfirmActionDialog";
 import { sanitizeUserError } from "../../utils/sanitize-error";
 
 const PANEL: CSSProperties = {
@@ -58,6 +59,8 @@ export default function Announcements() {
   const [editing, setEditing] = useState<NoticeRow | null>(null);
   const [creating, setCreating] = useState(false);
   const [tagsCatalog, setTagsCatalog] = useState<MemberTag[]>([]);
+  const [deleteTarget, setDeleteTarget] = useState<NoticeRow | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -96,15 +99,21 @@ export default function Announcements() {
     return filter === "all" ? rows : rows.filter((row) => row.status === filter);
   }, [canManage, filter, rows]);
 
-  async function handleDelete(row: NoticeRow) {
-    if (!window.confirm(`"${row.title}" 공지를 삭제할까요?`)) return;
-
+  async function performDeleteNotice(row: NoticeRow) {
     try {
+      setDeleting(true);
       await deleteNotice(row.id);
+      setDeleteTarget(null);
       await load();
     } catch (err) {
-      setError(sanitizeUserError(err, "공지 삭제에 실패했습니다."));
+      setError(sanitizeUserError(err, "怨듭? ??젣???ㅽ뙣?덉뒿?덈떎."));
+    } finally {
+      setDeleting(false);
     }
+  }
+
+  async function handleDelete(row: NoticeRow) {
+    await performDeleteNotice(row);
   }
 
   return (
@@ -272,7 +281,7 @@ export default function Announcements() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => void handleDelete(row)}
+                      onClick={() => setDeleteTarget(row)}
                       title="삭제"
                       style={iconButtonStyle("#fff", "#dc2626", "#fecaca")}
                     >
@@ -302,6 +311,24 @@ export default function Announcements() {
           }}
         />
       ) : null}
+      <ConfirmActionDialog
+        open={deleteTarget != null}
+        title="공지 삭제"
+        description={
+          deleteTarget
+            ? `"${deleteTarget.title}" 공지를 삭제할까요? 이 작업은 되돌릴 수 없습니다.`
+            : "공지를 삭제할까요?"
+        }
+        confirmLabel="삭제"
+        destructive
+        busy={deleting}
+        onOpenChange={(open) => {
+          if (!open && !deleting) setDeleteTarget(null);
+        }}
+        onConfirm={() => {
+          if (deleteTarget) void handleDelete(deleteTarget);
+        }}
+      />
     </div>
   );
 }

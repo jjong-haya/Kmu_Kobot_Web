@@ -239,6 +239,10 @@ export const router = createBrowserRouter([
         element: memberElement(EventCreate, EVENT_CREATE_PERMISSIONS),
       },
       {
+        path: "events/:eventId/edit",
+        element: memberElement(EventCreate, EVENT_CREATE_PERMISSIONS),
+      },
+      {
         path: "events/:eventId",
         element: memberElement(EventDetail, ["events.read", "events.manage"]),
       },
@@ -270,6 +274,7 @@ export const router = createBrowserRouter([
       { path: "votes", element: memberElement(Votes) },
       { path: "forms", element: memberElement(Forms, ["forms.manage"]) },
       { path: "forms/new", element: memberElement(FormCreate, ["forms.manage"]) },
+      { path: "forms/:formId/edit", element: memberElement(FormCreate, ["forms.manage"]) },
       {
         path: "forms/:formId",
         element: memberElement(FormDetail, undefined, { allowCourseMember: true }),

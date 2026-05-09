@@ -1,3 +1,6 @@
+import { getSupabaseBrowserClient } from "../auth/supabase";
+import { sanitizeUserError } from "../utils/sanitize-error";
+
 export type EventStatus = "scheduled" | "ongoing" | "closed";
 
 export type EventImageTone = "navy" | "amber" | "green" | "slate" | "red";
@@ -70,6 +73,7 @@ export type EventScheduleItem = {
 
 export type ClubEvent = {
   id: string;
+  createdBy?: string | null;
   title: string;
   description: string;
   startsAt: string;
@@ -77,15 +81,20 @@ export type ClubEvent = {
   location: string;
   organizer: string;
   capacityLabel: string;
+  imageUrl?: string | null;
   imageTone: EventImageTone;
   imageTones?: EventImageTone[];
+  formId?: string | null;
+  formTitle?: string | null;
   schedule: EventScheduleItem[];
   features: EventFeatureSettings;
 };
 
-export type CreateClubEventInput = Omit<ClubEvent, "id"> & {
+export type CreateClubEventInput = Omit<ClubEvent, "id" | "createdBy"> & {
   id?: string;
 };
+
+export type UpdateClubEventInput = Omit<ClubEvent, "id" | "createdBy">;
 
 export const EVENT_STATUS_LABELS: Record<EventStatus, string> = {
   scheduled: "예정",
@@ -168,254 +177,35 @@ function disabledTeamFormation(): EventTeamFormationFeature {
 function features(
   overrides: Partial<EventFeatureSettings> = {},
 ): EventFeatureSettings {
+  const externalForm = overrides.externalForm ?? disabledExternalForm();
+  const participantSurvey = overrides.participantSurvey ?? disabledSurvey();
+  const attendanceCheck = overrides.attendanceCheck ?? disabledAttendance();
+  const teamFormation = overrides.teamFormation ?? disabledTeamFormation();
+
   return {
-    externalForm: overrides.externalForm ?? disabledExternalForm(),
-    participantSurvey: overrides.participantSurvey ?? disabledSurvey(),
-    attendanceCheck: overrides.attendanceCheck ?? disabledAttendance(),
-    teamFormation: overrides.teamFormation ?? disabledTeamFormation(),
+    externalForm: {
+      ...externalForm,
+      requiredFields: uniqueStrings(externalForm.requiredFields),
+    },
+    participantSurvey,
+    attendanceCheck,
+    teamFormation,
   };
 }
 
-const EVENTS: ClubEvent[] = [
-  {
-    id: "kobot-game-cup-2026",
-    title: "KOBOT 게임 로봇 대회",
-    description:
-      "소형 로봇으로 미션을 수행하는 내부 게임 대회입니다. 참가자는 사전 신청 후 장비 보유 여부와 팀 구성을 제출해야 합니다.",
-    startsAt: "2026-06-13T13:00:00+09:00",
-    endsAt: "2026-06-13T18:00:00+09:00",
-    location: "공학관 로봇실",
-    organizer: "KOBOT 운영팀",
-    capacityLabel: "최대 24명",
-    imageTone: "red",
-    imageTones: ["red", "navy", "amber"],
-    schedule: [
-      { time: "13:00", title: "참가자 확인 및 장비 세팅" },
-      { time: "14:00", title: "예선 미션" },
-      { time: "16:00", title: "결승 토너먼트" },
-      { time: "17:30", title: "결과 발표" },
-    ],
-    features: features({
-      externalForm: {
-        enabled: true,
-        provider: "internal",
-        title: "대회 참가 신청",
-        url: "/member/forms/kobot-game-cup-2026-registration",
-        deadline: "2026-06-10T23:59:00+09:00",
-        requiredFields: ["이름", "연락처", "팀 이름", "장비 보유 여부", "리그전 팀 등록"],
-      },
-      participantSurvey: {
-        enabled: true,
-        title: "참여자 사전 조사",
-        description: "팀 구성과 장비 준비 상태를 대회 전에 확인합니다.",
-        questions: [
-          {
-            id: "robot-kit",
-            label: "개인 로봇 키트를 보유하고 있나요?",
-            type: "single_choice",
-            required: true,
-            choices: ["보유", "대여 필요"],
-          },
-          {
-            id: "team-size",
-            label: "희망 팀 인원",
-            type: "single_choice",
-            required: true,
-            choices: ["1명", "2명", "3명"],
-          },
-          {
-            id: "notes",
-            label: "운영팀에 전달할 내용",
-            type: "short_text",
-            required: false,
-          },
-        ],
-      },
-      attendanceCheck: {
-        enabled: true,
-        expectedCount: 24,
-        checkedInCount: 0,
-        method: "manual",
-      },
-      teamFormation: {
-        enabled: true,
-        teamSize: 3,
-        description: "최대 3명까지 한 팀으로 참가할 수 있습니다.",
-      },
-    }),
-  },
-  {
-    id: "demo-day-2026",
-    title: "2026 KOBOT 데모데이",
-    description: "프로젝트 팀별 로봇 시연과 기술 발표를 한 자리에서 공유합니다.",
-    startsAt: "2026-05-18T15:00:00+09:00",
-    endsAt: "2026-05-18T18:00:00+09:00",
-    location: "공학관 로봇실",
-    organizer: "프로젝트 운영팀",
-    capacityLabel: "자유 참여",
-    imageTone: "navy",
-    imageTones: ["navy", "green", "amber"],
-    schedule: [
-      { time: "15:00", title: "프로젝트 부스 오픈" },
-      { time: "16:00", title: "팀별 발표" },
-      { time: "17:30", title: "피드백 및 네트워킹" },
-    ],
-    features: features({
-      externalForm: {
-        enabled: true,
-        provider: "google_forms",
-        title: "데모데이 참석 신청",
-        url: "https://forms.gle/example-kobot-demo-day",
-        deadline: "2026-05-17T23:59:00+09:00",
-        requiredFields: ["이름", "참석 가능 시간"],
-      },
-      attendanceCheck: {
-        enabled: true,
-        expectedCount: 40,
-        checkedInCount: 0,
-        method: "manual",
-      },
-    }),
-  },
-  {
-    id: "autonomous-workshop-2026",
-    title: "자율주행 로봇 제작 워크숍",
-    description: "센서 세팅부터 경로 계획까지 직접 조립하고 테스트합니다.",
-    startsAt: "2026-05-06T10:00:00+09:00",
-    endsAt: "2026-05-08T18:00:00+09:00",
-    location: "KOBOT 팀실",
-    organizer: "교육팀",
-    capacityLabel: "선착순 12명",
-    imageTone: "green",
-    imageTones: ["green", "navy", "slate"],
-    schedule: [
-      { time: "10:00", title: "센서/모터 세팅" },
-      { time: "13:00", title: "주행 알고리즘 실습" },
-      { time: "16:00", title: "트랙 테스트" },
-    ],
-    features: features({
-      participantSurvey: {
-        enabled: true,
-        title: "워크숍 준비 조사",
-        description: "참가자의 ROS 경험과 개인 노트북 준비 여부를 확인합니다.",
-        questions: [
-          {
-            id: "ros-level",
-            label: "ROS 사용 경험",
-            type: "single_choice",
-            required: true,
-            choices: ["없음", "기초", "프로젝트 경험 있음"],
-          },
-          {
-            id: "laptop",
-            label: "개인 노트북을 가져올 수 있나요?",
-            type: "single_choice",
-            required: true,
-            choices: ["가능", "대여 필요"],
-          },
-        ],
-      },
-      attendanceCheck: {
-        enabled: true,
-        expectedCount: 12,
-        checkedInCount: 8,
-        method: "manual",
-      },
-    }),
-  },
-  {
-    id: "summer-hack-2026",
-    title: "여름방학 해커톤",
-    description: "지정 기간 안에 독창적인 로봇 기능을 만들고 결과물을 발표합니다.",
-    startsAt: "2026-06-29T09:30:00+09:00",
-    endsAt: "2026-06-30T20:00:00+09:00",
-    location: "국민대학교 공학관",
-    organizer: "KOBOT 운영팀",
-    capacityLabel: "최대 30명",
-    imageTone: "amber",
-    imageTones: ["amber", "red", "navy"],
-    schedule: [
-      { time: "09:30", title: "주제 공개" },
-      { time: "13:00", title: "개발 스프린트" },
-      { time: "19:00", title: "중간 점검" },
-      { time: "다음날 18:00", title: "최종 발표" },
-    ],
-    features: features({
-      externalForm: {
-        enabled: true,
-        provider: "google_forms",
-        title: "해커톤 참가 신청",
-        url: "https://forms.gle/example-kobot-hackathon",
-        deadline: "2026-06-24T23:59:00+09:00",
-        requiredFields: ["이름", "희망 역할", "팀 여부"],
-      },
-      participantSurvey: {
-        enabled: true,
-        title: "역할 및 장비 조사",
-        description: "팀 편성을 위해 개발 가능 분야와 장비 준비 상태를 확인합니다.",
-        questions: [
-          {
-            id: "role",
-            label: "선호 역할",
-            type: "multiple_choice",
-            required: true,
-            choices: ["기구", "회로", "임베디드", "비전", "문서/발표"],
-          },
-        ],
-      },
-      teamFormation: {
-        enabled: true,
-        teamSize: 4,
-        description: "팀은 최대 4명까지 구성합니다.",
-      },
-    }),
-  },
-  {
-    id: "ros2-seminar-2026",
-    title: "ROS2 기초 세미나",
-    description: "노드, 토픽, 런치 파일을 실습 중심으로 정리하는 입문 세션입니다.",
-    startsAt: "2026-04-25T14:00:00+09:00",
-    endsAt: "2026-04-25T17:00:00+09:00",
-    location: "온라인",
-    organizer: "교육팀",
-    capacityLabel: "녹화 제공",
-    imageTone: "slate",
-    imageTones: ["slate", "navy", "green"],
-    schedule: [
-      { time: "14:00", title: "ROS2 개념 정리" },
-      { time: "15:00", title: "토픽/서비스 실습" },
-      { time: "16:20", title: "질의응답" },
-    ],
-    features: features(),
-  },
-  {
-    id: "vision-night-2026",
-    title: "비전 모델 실험회",
-    description: "카메라 캘리브레이션과 객체 인식 결과를 비교하고 개선점을 찾습니다.",
-    startsAt: "2026-05-02T19:00:00+09:00",
-    endsAt: "2026-05-02T22:00:00+09:00",
-    location: "공학관 세미나실",
-    organizer: "비전 스터디",
-    capacityLabel: "마감",
-    imageTone: "red",
-    imageTones: ["red", "slate", "amber"],
-    schedule: [
-      { time: "19:00", title: "데이터셋 공유" },
-      { time: "20:00", title: "모델 결과 비교" },
-      { time: "21:30", title: "개선안 정리" },
-    ],
-    features: features({
-      attendanceCheck: {
-        enabled: true,
-        expectedCount: 10,
-        checkedInCount: 10,
-        method: "manual",
-      },
-    }),
-  },
-];
+function uniqueStrings(values: string[] | null | undefined) {
+  const seen = new Set<string>();
+  const normalized: string[] = [];
 
-const LOCAL_EVENTS_STORAGE_KEY = "kobot:events:local-v1";
+  for (const value of values ?? []) {
+    const label = value.trim();
+    if (!label || seen.has(label)) continue;
+    seen.add(label);
+    normalized.push(label);
+  }
+
+  return normalized;
+}
 
 function timeOf(value: string) {
   const time = new Date(value).getTime();
@@ -490,80 +280,192 @@ export function getEventDetailPath(eventId: string) {
   return `/member/events/${encodeURIComponent(eventId)}`;
 }
 
+export function getEventEditPath(eventId: string) {
+  return `/member/events/${encodeURIComponent(eventId)}/edit`;
+}
+
+export function getEventFormPath(formId: string) {
+  return `/member/forms/${encodeURIComponent(formId)}`;
+}
+
+export function getEventParticipation(event: Pick<ClubEvent, "features" | "formId" | "formTitle">) {
+  if (event.formId?.trim()) {
+    return {
+      external: false,
+      href: getEventFormPath(event.formId),
+      title: event.formTitle?.trim() || "참여 폼",
+    };
+  }
+
+  const formFeature = event.features.externalForm;
+  const href = formFeature.url?.trim();
+  if (!formFeature.enabled || !href) return null;
+
+  return {
+    external: !href.startsWith("/"),
+    href,
+    title: formFeature.title.trim() || "참여 폼",
+  };
+}
+
 export function getEnabledEventFeatureKeys(event: Pick<ClubEvent, "features">) {
   return EVENT_FEATURE_OPTIONS.map((option) => option.key).filter(
     (key) => event.features[key].enabled,
   );
 }
 
-function canUseLocalStorage() {
-  return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
+const EVENT_SELECT_FIELDS =
+  "id, created_by, title, description, starts_at, ends_at, location, organizer, capacity_label, image_url, image_tone, image_tones, form_id, form_title, schedule, features";
+
+type EventRow = {
+  id: string;
+  created_by: string | null;
+  title: string;
+  description: string | null;
+  starts_at: string;
+  ends_at: string;
+  location: string | null;
+  organizer: string | null;
+  capacity_label: string | null;
+  image_url: string | null;
+  image_tone: string | null;
+  image_tones: string[] | null;
+  form_id: string | null;
+  form_title: string | null;
+  schedule: EventScheduleItem[] | null;
+  features: Partial<EventFeatureSettings> | null;
+};
+
+function isEventImageTone(value: string | null | undefined): value is EventImageTone {
+  return value === "navy" || value === "amber" || value === "green" || value === "slate" || value === "red";
 }
 
-function readLocalEvents() {
-  if (!canUseLocalStorage()) return [];
-
-  try {
-    const raw = window.localStorage.getItem(LOCAL_EVENTS_STORAGE_KEY);
-    if (!raw) return [];
-
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-
-    return parsed.filter((event): event is ClubEvent => {
-      return (
-        event &&
-        typeof event === "object" &&
-        typeof event.id === "string" &&
-        typeof event.title === "string" &&
-        typeof event.startsAt === "string" &&
-        typeof event.endsAt === "string" &&
-        typeof event.location === "string" &&
-        event.features &&
-        typeof event.features === "object"
-      );
-    });
-  } catch {
-    return [];
-  }
+function normalizeEventImageTone(value: string | null | undefined): EventImageTone {
+  return isEventImageTone(value) ? value : "navy";
 }
 
-function writeLocalEvents(events: ClubEvent[]) {
-  if (!canUseLocalStorage()) return;
-  window.localStorage.setItem(LOCAL_EVENTS_STORAGE_KEY, JSON.stringify(events));
+function normalizeEventImageTones(values: string[] | null | undefined, fallback: EventImageTone) {
+  const tones = (values ?? []).filter(isEventImageTone);
+  return tones.length > 0 ? [...new Set(tones)] : [fallback];
 }
 
-function createEventId(title: string) {
-  const normalized = title
-    .trim()
-    .toLocaleLowerCase("ko-KR")
-    .normalize("NFKC")
-    .replace(/[^a-z0-9가-힣]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 48);
+function mapEventRow(row: EventRow): ClubEvent {
+  const imageTone = normalizeEventImageTone(row.image_tone);
 
-  return `${normalized || "event"}-${Date.now().toString(36)}`;
-}
-
-export function listEvents() {
-  return Promise.resolve(sortEvents([...EVENTS, ...readLocalEvents()]));
-}
-
-export function getEvent(eventId: string) {
-  const normalizedId = decodeURIComponent(eventId);
-  return Promise.resolve(
-    [...EVENTS, ...readLocalEvents()].find((event) => event.id === normalizedId) ?? null,
-  );
-}
-
-export function createEvent(input: CreateClubEventInput) {
-  const event: ClubEvent = {
-    ...input,
-    id: input.id?.trim() || createEventId(input.title),
+  return {
+    id: row.id,
+    createdBy: row.created_by ?? null,
+    title: row.title,
+    description: row.description ?? "",
+    startsAt: row.starts_at,
+    endsAt: row.ends_at,
+    location: row.location ?? "",
+    organizer: row.organizer ?? "",
+    capacityLabel: row.capacity_label ?? "",
+    imageUrl: row.image_url?.trim() || null,
+    imageTone,
+    imageTones: normalizeEventImageTones(row.image_tones, imageTone),
+    formId: row.form_id?.trim() || null,
+    formTitle: row.form_title?.trim() || null,
+    schedule: Array.isArray(row.schedule) ? row.schedule : [],
+    features: features(row.features ?? {}),
   };
+}
 
-  const nextEvents = [event, ...readLocalEvents().filter((item) => item.id !== event.id)];
-  writeLocalEvents(nextEvents);
+export async function listEvents() {
+  const supabase = getSupabaseBrowserClient();
+  const { data, error } = await supabase
+    .from("events")
+    .select(EVENT_SELECT_FIELDS)
+    .order("starts_at", { ascending: true });
 
-  return Promise.resolve(event);
+  if (error) {
+    throw new Error(sanitizeUserError(error, "행사 목록을 불러오지 못했습니다."));
+  }
+
+  return sortEvents(((data ?? []) as EventRow[]).map(mapEventRow));
+}
+
+export async function getEvent(eventId: string) {
+  const normalizedId = decodeURIComponent(eventId);
+  const supabase = getSupabaseBrowserClient();
+  const { data, error } = await supabase
+    .from("events")
+    .select(EVENT_SELECT_FIELDS)
+    .eq("id", normalizedId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(sanitizeUserError(error, "행사 정보를 불러오지 못했습니다."));
+  }
+
+  return data ? mapEventRow(data as EventRow) : null;
+}
+
+export async function createEvent(input: CreateClubEventInput) {
+  const supabase = getSupabaseBrowserClient();
+  const imageTone = normalizeEventImageTone(input.imageTone);
+  const imageTones = normalizeEventImageTones(input.imageTones, imageTone);
+  const normalizedFeatures = features(input.features);
+  const { data, error } = await supabase
+    .from("events")
+    .insert({
+      title: input.title,
+      description: input.description,
+      starts_at: input.startsAt,
+      ends_at: input.endsAt,
+      location: input.location,
+      organizer: input.organizer,
+      capacity_label: input.capacityLabel,
+      image_url: input.imageUrl?.trim() || null,
+      image_tone: imageTone,
+      image_tones: imageTones,
+      form_id: input.formId?.trim() || null,
+      form_title: input.formTitle?.trim() || null,
+      schedule: input.schedule,
+      features: normalizedFeatures,
+    })
+    .select(EVENT_SELECT_FIELDS)
+    .single();
+
+  if (error) {
+    throw new Error(sanitizeUserError(error, "행사를 저장하지 못했습니다."));
+  }
+
+  return mapEventRow(data as EventRow);
+}
+
+export async function updateEvent(eventId: string, input: UpdateClubEventInput) {
+  const normalizedId = decodeURIComponent(eventId);
+  const supabase = getSupabaseBrowserClient();
+  const imageTone = normalizeEventImageTone(input.imageTone);
+  const imageTones = normalizeEventImageTones(input.imageTones, imageTone);
+  const normalizedFeatures = features(input.features);
+  const { data, error } = await supabase
+    .from("events")
+    .update({
+      title: input.title,
+      description: input.description,
+      starts_at: input.startsAt,
+      ends_at: input.endsAt,
+      location: input.location,
+      organizer: input.organizer,
+      capacity_label: input.capacityLabel,
+      image_url: input.imageUrl?.trim() || null,
+      image_tone: imageTone,
+      image_tones: imageTones,
+      form_id: input.formId?.trim() || null,
+      form_title: input.formTitle?.trim() || null,
+      schedule: input.schedule,
+      features: normalizedFeatures,
+    })
+    .eq("id", normalizedId)
+    .select(EVENT_SELECT_FIELDS)
+    .single();
+
+  if (error) {
+    throw new Error(sanitizeUserError(error, "행사를 수정하지 못했습니다."));
+  }
+
+  return mapEventRow(data as EventRow);
 }

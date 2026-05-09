@@ -1041,7 +1041,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
         );
       }
 
-      // KOSS 초대코드를 미리 redeem 해 둔 사용자는 가입 신청과 동시에
+      // 초대코드를 미리 redeem 해 둔 사용자는 가입 신청과 동시에
       // course_member 로 자동 승인. 코드가 없으면 RPC 가 false 만 돌려주므로
       // 일반 가입 흐름에 영향 없음.
       try {

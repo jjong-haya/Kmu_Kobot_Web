@@ -141,7 +141,7 @@ function isClubTag(tag: MemberDirectoryProfile["memberTags"][number]) {
   const slug = tag.slug.trim().toLocaleLowerCase("ko-KR");
   const label = tag.label.trim().toLocaleLowerCase("ko-KR");
 
-  return tag.isClub || slug === "kobot" || slug === "koss" || label === "kobot" || label === "koss";
+  return tag.isClub || slug === "kobot" || label === "kobot";
 }
 
 function compareTagSlugAsc(a: Pick<MemberDirectoryTag, "slug">, b: Pick<MemberDirectoryTag, "slug">) {
@@ -265,15 +265,12 @@ function Chip({
 }) {
   const normalized = children.trim().toLocaleLowerCase("ko-KR");
   const isKobotTag = normalized === "kobot" || normalized === "코봇";
-  const isKossTag = normalized === "koss" || normalized === "코스";
   const isPresidentTag = normalized === "회장" || normalized === "president";
   const colors = isPresidentTag
     ? { bg: "#fff1c2", fg: "#8a5a00", border: "#f4d36b" }
     : isKobotTag
       ? { bg: "#dff7ef", fg: "#1e6b5b", border: "#aee8d7" }
-      : isKossTag
-        ? { bg: "#eee7ff", fg: "#5b3f96", border: "#d6c6ff" }
-        : tone === "strong"
+      : tone === "strong"
       ? { bg: "#e9f0ff", fg: "#2f4f9f", border: "#cddafd" }
       : tone === "muted"
         ? { bg: "#f7f5f0", fg: "var(--kb-ink-500)", border: "#ebe8e0" }
@@ -613,7 +610,7 @@ function MemberMeta({ member }: { member: MemberDirectoryProfile }) {
     roleDisplayLabel(member.positionLabels[0]) ??
     "부원";
 
-  // 건물 옆에는 동아리 태그만 둔다. 기존 KOBOT/KOSS 데이터가 is_club 백필 전이어도 표시한다.
+  // 건물 옆에는 동아리 태그만 둔다. 기존 KOBOT 데이터가 is_club 백필 전이어도 표시한다.
   const clubLabel = displayClubTagFor(member)?.label ?? null;
 
   return (

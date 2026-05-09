@@ -11,9 +11,11 @@ import { useAuth } from "../../auth/useAuth";
 import {
   formatInviteJoinTitle,
   getInviteCoursePreview,
+  getInviteIssueMessage,
   getInviteTargetLabel,
   InviteCoursePreviewUnavailableError,
   normalizeInviteCode,
+  type InviteIssueStatus,
   type InviteCoursePreview,
 } from "../../api/invite-codes";
 import { sanitizeUserError } from "../../utils/sanitize-error";
@@ -71,6 +73,7 @@ export default function InviteCourse() {
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<InviteCoursePreview | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewChecked, setPreviewChecked] = useState(false);
   const [previewUnavailable, setPreviewUnavailable] = useState(false);
 
   const targetLabel = getInviteTargetLabel(preview);
@@ -82,31 +85,47 @@ export default function InviteCourse() {
     ? `${preview.clubLabel} 태그`
     : "초대 태그";
   const previewKnownInvalid = Boolean(
-    inviteCode && !preview && !previewLoading && !previewUnavailable,
+    inviteCode && previewChecked && !preview && !previewLoading && !previewUnavailable && !error,
   );
-  const inviteUnavailable = Boolean(preview && !preview.isAvailable);
+  const inviteIssue: InviteIssueStatus | null = previewKnownInvalid
+    ? "missing"
+    : preview && preview.availabilityStatus !== "available"
+      ? preview.availabilityStatus
+      : null;
+  const inviteUnavailable = inviteIssue != null;
   const cannotContinue =
-    !inviteCode || previewLoading || previewKnownInvalid || inviteUnavailable;
+    !inviteCode || !previewChecked || previewLoading || previewKnownInvalid || inviteUnavailable;
 
-  // Store invite code so AuthCallback can pick it up after OAuth round-trip
+  // Store only usable invite codes so AuthCallback can pick them up after OAuth round-trip.
   useEffect(() => {
-    if (inviteCode) {
-      try {
+    if (!inviteCode) return;
+
+    try {
+      if (previewUnavailable || preview?.availabilityStatus === "available") {
         window.localStorage.setItem(COURSE_INVITE_KEY, inviteCode);
-      } catch {
-        /* localStorage may be unavailable */
+        return;
       }
+
+      if (!previewLoading) {
+        window.localStorage.removeItem(COURSE_INVITE_KEY);
+      }
+    } catch {
+      /* localStorage may be unavailable */
     }
-  }, [inviteCode]);
+  }, [inviteCode, preview?.availabilityStatus, previewLoading, previewUnavailable]);
 
   useEffect(() => {
     let cancelled = false;
     setPreview(null);
+    setPreviewChecked(false);
     setPreviewUnavailable(false);
 
-    if (!inviteCode) return () => {
-      cancelled = true;
-    };
+    if (!inviteCode) {
+      setPreviewChecked(true);
+      return () => {
+        cancelled = true;
+      };
+    }
 
     setPreviewLoading(true);
     void getInviteCoursePreview(inviteCode)
@@ -122,7 +141,10 @@ export default function InviteCourse() {
         setError(sanitizeUserError(err, "초대 코드 정보를 불러오지 못했습니다."));
       })
       .finally(() => {
-        if (!cancelled) setPreviewLoading(false);
+        if (!cancelled) {
+          setPreviewLoading(false);
+          setPreviewChecked(true);
+        }
       });
 
     return () => {
@@ -130,7 +152,7 @@ export default function InviteCourse() {
     };
   }, [inviteCode]);
 
-  if (session && !isInitializing) {
+  if (session && !isInitializing && inviteCode && previewChecked && !previewLoading && !inviteIssue) {
     return <Navigate to="/member" replace />;
   }
 
@@ -330,7 +352,7 @@ export default function InviteCourse() {
             </div>
           )}
 
-          {previewKnownInvalid && (
+          {inviteIssue && (
             <div
               style={{
                 display: "flex",
@@ -354,35 +376,7 @@ export default function InviteCourse() {
                   color: "#dc2626",
                 }}
               />
-              존재하지 않는 초대 코드입니다. 운영진에게 받은 정확한 링크로 다시 접속해 주세요.
-            </div>
-          )}
-
-          {inviteUnavailable && (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "flex-start",
-                gap: 10,
-                padding: "12px 14px",
-                background: "#fef2f2",
-                border: "1px solid #fecaca",
-                borderRadius: 10,
-                fontSize: 13.5,
-                color: "#b91c1c",
-                lineHeight: 1.5,
-              }}
-            >
-              <AlertCircle
-                style={{
-                  width: 16,
-                  height: 16,
-                  flexShrink: 0,
-                  marginTop: 2,
-                  color: "#dc2626",
-                }}
-              />
-              만료되었거나 사용 한도에 도달한 초대 코드입니다.
+              {getInviteIssueMessage(inviteIssue)}
             </div>
           )}
 

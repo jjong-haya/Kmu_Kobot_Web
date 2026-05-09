@@ -21,7 +21,7 @@ const STATUS_LABELS: Record<Exclude<MemberStatus, null>, string> = {
   rejected: "승인 보류",
   alumni: "비활동",
   project_only: "프로젝트 참여",
-  course_member: "KOSS",
+  course_member: "초대 회원",
   withdrawn: "탈퇴 처리",
 };
 
@@ -93,9 +93,9 @@ const STATUS_COPY: Record<
     icon: AlertCircle,
   },
   course_member: {
-    eyebrow: "KOSS",
-    title: "KOSS 회원으로 가입되었습니다",
-    description: "초대 링크를 통해 가입한 KOSS 멤버입니다. 일부 메뉴만 접근 가능해요.",
+    eyebrow: "초대 회원",
+    title: "초대 링크로 가입되었습니다",
+    description: "초대 링크를 통해 가입한 멤버입니다. 일부 메뉴만 접근 가능해요.",
     note: "전체 권한이 필요하면 운영진에게 문의해 주세요.",
     accentClassName: "bg-amber-500",
     icon: CheckCircle2,

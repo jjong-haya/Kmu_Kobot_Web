@@ -318,7 +318,7 @@ export default function ProfileSettings() {
   const normalizedLoginId = loginId.trim().toLowerCase();
   const isPasswordConfirmMismatched =
     passwordConfirm.length > 0 && password !== passwordConfirm;
-  // 초대코드(KOSS 등)는 태그/권한만 부여한다. 단과대·학과·약관 동의 같은 기본
+  // 초대코드는 태그/권한만 부여한다. 단과대·학과·약관 동의 같은 기본
   // 가입 절차는 정규 부원과 동일하게 거치게 강제한다.
   const isJoinRequest =
     memberStatus === "pending" ||

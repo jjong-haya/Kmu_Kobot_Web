@@ -6,11 +6,11 @@ import {
   CalendarDays,
   CheckCircle2,
   ClipboardList,
+  Edit3,
   ExternalLink,
   ListChecks,
   MapPin,
   RefreshCw,
-  Settings2,
   TriangleAlert,
   Trophy,
   UsersRound,
@@ -20,16 +20,17 @@ import {
   EVENT_STATUS_LABELS,
   getEnabledEventFeatureKeys,
   getEvent,
+  getEventEditPath,
   getEventImageTones,
+  getEventParticipation,
   getEventStatus,
   type ClubEvent,
   type EventFeatureKey,
   type EventQuestionType,
   type EventStatus,
 } from "../../api/events";
-import { EVENT_CREATE_PERMISSIONS } from "../../api/event-policy.js";
 import { useAuth } from "../../auth/useAuth";
-import { buildEventImage } from "../../utils/event-visuals";
+import { buildEventImage, hasEventImage } from "../../utils/event-visuals";
 import { sanitizeUserError } from "../../utils/sanitize-error";
 
 const PAGE_STYLE: CSSProperties = {
@@ -245,14 +246,13 @@ function EventNotFound() {
 export default function EventDetail() {
   const navigate = useNavigate();
   const { eventId } = useParams();
-  const { hasPermission } = useAuth();
+  const { hasPermission, user } = useAuth();
   const [event, setEvent] = useState<ClubEvent | null>(null);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const status = event ? getEventStatus(event) : "scheduled";
-  const canCreateEvent = hasPermission(...EVENT_CREATE_PERMISSIONS);
   const tones = useMemo(() => (event ? getEventImageTones(event) : []), [event]);
   const enabledFeatures = useMemo(
     () => (event ? getEnabledEventFeatureKeys(event) : []),
@@ -293,12 +293,17 @@ export default function EventDetail() {
   if (!event) return <EventNotFound />;
 
   const currentImageTone = tones[activeImageIndex] ?? event.imageTone;
+  const eventImageUploaded = hasEventImage(event);
+  const participation = getEventParticipation(event);
   const formFeature = event.features.externalForm;
-  const formUrl = formFeature.url?.trim() ?? "";
-  const isInternalForm = formUrl.startsWith("/");
+  const formUrl = participation?.href ?? "";
+  const isInternalForm = Boolean(participation && !participation.external);
   const surveyFeature = event.features.participantSurvey;
   const attendanceFeature = event.features.attendanceCheck;
   const teamFeature = event.features.teamFormation;
+  const canEditEvent =
+    hasPermission("events.manage") ||
+    (hasPermission("events.create") && Boolean(event.createdBy && event.createdBy === user?.id));
   const attendanceRate =
     attendanceFeature.expectedCount > 0
       ? Math.min(100, Math.round((attendanceFeature.checkedInCount / attendanceFeature.expectedCount) * 100))
@@ -316,14 +321,13 @@ export default function EventDetail() {
             <ArrowLeft className="h-4 w-4" />
             행사 목록
           </button>
-
-          {canCreateEvent ? (
+          {canEditEvent ? (
             <Link
-              to="/member/events/new"
+              to={getEventEditPath(event.id)}
               className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0a0a0a] px-3.5 text-[14px] font-bold text-white no-underline transition-colors hover:bg-[#222222]"
             >
-              <Settings2 className="h-4 w-4" />
-              행사 만들기
+              <Edit3 className="h-4 w-4" />
+              수정
             </Link>
           ) : null}
         </div>
@@ -340,12 +344,14 @@ export default function EventDetail() {
               <img
                 src={buildEventImage(event, currentImageTone, activeImageIndex)}
                 alt={`${event.title} 이미지 ${activeImageIndex + 1}`}
-                className="aspect-square w-full rounded-[8px] object-cover"
+                className={`aspect-video w-full rounded-[8px] ${
+                  eventImageUploaded ? "object-cover" : "object-contain p-12"
+                }`}
                 draggable={false}
               />
             </div>
 
-            {tones.length > 1 ? (
+            {eventImageUploaded && tones.length > 1 ? (
               <div className="mt-3 grid grid-cols-3 gap-2">
                 {tones.map((tone, index) => (
                   <button
@@ -391,21 +397,21 @@ export default function EventDetail() {
               <InfoRow icon={UsersRound} label="참여 규모" value={event.capacityLabel} />
               <InfoRow
                 icon={ListChecks}
-                label="운영 기능"
-                value={enabledFeatures.length > 0 ? `${enabledFeatures.length}개 사용` : "기본 안내"}
+                label="참여"
+                value={participation ? participation.title : "참여 폼 없음"}
               />
             </div>
 
-            {formFeature.enabled ? (
+            {participation ? (
               <section className="mt-8 rounded-[10px] border border-[#d9e7ff] bg-[#f7fbff] p-5">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div>
                     <div className="inline-flex items-center gap-2 text-[13px] font-black text-[#183b80]">
                       <ExternalLink className="h-4 w-4" />
-                      {formFeature.provider === "google_forms" ? "Google Forms" : "내부 신청 폼"}
+                      {participation.external ? "외부 신청 폼" : "KOBOT 참여 폼"}
                     </div>
                     <h2 className="mb-0 mt-2 text-[22px] font-black text-[#111111]">
-                      {formFeature.title}
+                      {participation.title}
                     </h2>
                     {formFeature.deadline ? (
                       <p className="mb-0 mt-2 text-[14px] font-semibold text-[#514d47]">
@@ -420,7 +426,7 @@ export default function EventDetail() {
                         to={formUrl}
                         className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#103078] px-4 text-[14px] font-bold text-white no-underline transition-colors hover:bg-[#061b4c]"
                       >
-                        참여자 조사 열기
+                        참여하기
                         <ExternalLink className="h-4 w-4" />
                       </Link>
                     ) : (
@@ -430,7 +436,7 @@ export default function EventDetail() {
                         rel="noreferrer"
                         className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#103078] px-4 text-[14px] font-bold text-white no-underline transition-colors hover:bg-[#061b4c]"
                       >
-                        신청 폼 열기
+                        참여하기
                         <ExternalLink className="h-4 w-4" />
                       </a>
                     )
@@ -563,17 +569,39 @@ export default function EventDetail() {
 
                 <div className="rounded-[10px] border border-[#eeeae2] bg-white p-5">
                   <h2 className="m-0 inline-flex items-center gap-2 text-[18px] font-black text-[#111111]">
-                    <Settings2 className="h-5 w-5 text-[#103078]" />
-                    생성 옵션
+                    <ClipboardList className="h-5 w-5 text-[#103078]" />
+                    참여
                   </h2>
-                  <p className="mt-2 text-[13px] leading-5 text-[#6f6a62]">
-                    이 행사는 생성 시 아래 기능을 선택한 상태입니다.
-                  </p>
-                  <div className="mt-4 grid gap-3">
-                    {EVENT_FEATURE_OPTIONS.map((option) => (
-                      <FeatureStateCard key={option.key} event={event} featureKey={option.key} />
-                    ))}
-                  </div>
+                  {participation ? (
+                    <>
+                      <p className="mt-2 text-[13px] leading-5 text-[#6f6a62]">
+                        {participation.title}
+                      </p>
+                      {participation.external ? (
+                        <a
+                          href={participation.href}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-[8px] bg-[#103078] px-4 text-[14px] font-bold text-white no-underline transition-colors hover:bg-[#061b4c]"
+                        >
+                          참여하기
+                          <ExternalLink className="h-4 w-4" />
+                        </a>
+                      ) : (
+                        <Link
+                          to={participation.href}
+                          className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-[8px] bg-[#103078] px-4 text-[14px] font-bold text-white no-underline transition-colors hover:bg-[#061b4c]"
+                        >
+                          참여하기
+                          <ExternalLink className="h-4 w-4" />
+                        </Link>
+                      )}
+                    </>
+                  ) : (
+                    <p className="mb-0 mt-2 text-[13px] leading-5 text-[#6f6a62]">
+                      이 행사는 아직 참여 폼이 연결되지 않았습니다.
+                    </p>
+                  )}
                 </div>
 
                 <div className="rounded-[10px] border border-[#eeeae2] bg-[#fbfaf7] p-5">

@@ -93,3 +93,22 @@ select {
 /* hide scrollbars in horizontal carousels */
 .kb-no-scrollbar { scrollbar-width: none; }
 .kb-no-scrollbar::-webkit-scrollbar { display: none; }
+
+.kb-form-thread-scroll {
+  scrollbar-width: none;
+  scroll-behavior: smooth;
+  scroll-padding-inline: 0;
+}
+
+.kb-form-thread-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.kb-linked-question-stack {
+  scrollbar-width: none;
+  overscroll-behavior: contain;
+}
+
+.kb-linked-question-stack::-webkit-scrollbar {
+  display: none;
+}

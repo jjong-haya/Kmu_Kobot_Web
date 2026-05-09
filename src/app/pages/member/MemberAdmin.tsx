@@ -31,6 +31,7 @@ import {
   type MemberTag,
 } from "../../api/tags";
 import { useAuth } from "../../auth/useAuth";
+import { ConfirmActionDialog } from "../../components/ConfirmActionDialog";
 import { sanitizeUserError } from "../../utils/sanitize-error";
 
 const PAGE_STYLE: CSSProperties = {
@@ -111,6 +112,7 @@ export default function MemberAdmin() {
   const [query, setQuery] = useState("");
   const [editingUser, setEditingUser] = useState<AdminMemberRow | null>(null);
   const [tagModalFor, setTagModalFor] = useState<AdminMemberRow | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<AdminMemberRow | null>(null);
 
   async function load() {
     try {
@@ -200,11 +202,8 @@ export default function MemberAdmin() {
       setError("본인 계정은 이 화면에서 삭제할 수 없습니다.");
       return;
     }
-    const confirmed = window.confirm(
-      `'${member.displayName}' 계정을 영구 삭제할까요?\n프로필·태그·신청·승인 기록 모두 함께 삭제됩니다.`,
-    );
-    if (!confirmed) return;
     await withBusy(member.id, () => adminDeleteMember(member.id));
+    setDeleteTarget(null);
   }
 
   async function handleAssignTag(member: AdminMemberRow, tagId: string) {
@@ -320,7 +319,7 @@ export default function MemberAdmin() {
                   divider={index !== 0}
                   onApprove={() => handleApprove(member)}
                   onSetStatus={(next) => handleSetStatus(member, next)}
-                  onDelete={() => handleDelete(member)}
+                  onDelete={() => setDeleteTarget(member)}
                   onEdit={() => setEditingUser(member)}
                   onOpenTagMenu={() => setTagModalFor(member)}
                   onRemoveTag={(tagId) => handleRemoveTag(member, tagId)}
@@ -359,6 +358,24 @@ export default function MemberAdmin() {
           }}
         />
       ) : null}
+      <ConfirmActionDialog
+        open={deleteTarget != null}
+        title="회원 계정 삭제"
+        description={
+          deleteTarget
+            ? `'${deleteTarget.displayName}' 계정을 영구 삭제할까요? 프로필, 태그, 신청, 승인 기록이 함께 삭제됩니다.`
+            : "회원 계정을 삭제할까요?"
+        }
+        confirmLabel="삭제"
+        destructive
+        busy={deleteTarget != null && busyUserId === deleteTarget.id}
+        onOpenChange={(open) => {
+          if (!open && busyUserId == null) setDeleteTarget(null);
+        }}
+        onConfirm={() => {
+          if (deleteTarget) void handleDelete(deleteTarget);
+        }}
+      />
     </div>
   );
 }
@@ -688,7 +705,7 @@ function EditMemberModal({
           <Field label="학과">
             <input value={department} onChange={(e) => setDepartment(e.target.value)} style={inputStyle} />
           </Field>
-          <Field label="동아리 소속 (KOSS 등)">
+          <Field label="동아리 소속">
             <input value={clubAffiliation} onChange={(e) => setClubAffiliation(e.target.value)} style={inputStyle} />
           </Field>
         </div>

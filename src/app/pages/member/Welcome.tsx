@@ -20,10 +20,10 @@ export default function Welcome() {
     return <Navigate to="/member" replace />;
   }
   if (memberStatus === "course_member") {
-    // KOSS 코드 자동 승인된 사람도 프로필 미완료면 가입 폼으로
+    // 초대 코드가 적용된 사람도 프로필 미완료면 가입 폼으로
     return <Navigate to="/member/join?course=1" replace />;
   }
-  // pending 상태에서도 이미 KOSS 코드를 redeem 한 사용자는 정보 입력 페이지로 직행
+  // pending 상태에서도 이미 초대 코드를 redeem 한 사용자는 정보 입력 페이지로 직행
   if (authData.profile.clubAffiliation) {
     return <Navigate to="/member/join?course=1" replace />;
   }
@@ -54,7 +54,7 @@ export default function Welcome() {
       }
       // refresh authData so memberStatus updates to course_member
       await refreshAuthData();
-      // KOSS 코드만 적용된 상태 → 단과대/학과 등 프로필 정보 입력 페이지로 이동
+      // 초대 코드만 적용된 상태 → 단과대/학과 등 프로필 정보 입력 페이지로 이동
       navigate("/member/join?course=1", { replace: true });
     } catch (err) {
       setError(sanitizeUserError(err, "오류가 발생했습니다. 잠시 후 다시 시도해 주세요."));

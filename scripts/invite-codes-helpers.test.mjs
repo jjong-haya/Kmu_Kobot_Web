@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import {
   formatInviteJoinTitle,
   generateInviteCode,
+  getInviteIssueMessage,
   getInviteTargetLabel,
   hasHangulFinalConsonant,
   normalizeInviteCode,
@@ -15,8 +16,24 @@ const inviteCourseSource = readFileSync(
   resolve(process.cwd(), "src/app/pages/public/InviteCourse.tsx"),
   "utf8",
 );
+const inviteCodesPageSource = readFileSync(
+  resolve(process.cwd(), "src/app/pages/member/InviteCodes.tsx"),
+  "utf8",
+);
+const inviteCodesApiSource = readFileSync(
+  resolve(process.cwd(), "src/app/api/invite-codes.ts"),
+  "utf8",
+);
+const authCallbackSource = readFileSync(
+  resolve(process.cwd(), "src/app/pages/public/AuthCallback.tsx"),
+  "utf8",
+);
 const previewMigrationSource = readFileSync(
   resolve(process.cwd(), "supabase/migrations/20260507014000_course_invite_public_preview.sql"),
+  "utf8",
+);
+const inviteBoundaryMigrationSource = readFileSync(
+  resolve(process.cwd(), "supabase/migrations/20260509003000_invite_link_status_and_role_tag_boundary.sql"),
   "utf8",
 );
 
@@ -111,9 +128,53 @@ test("invite landing page does not hard-code KOSS display copy", () => {
   assert.match(inviteCourseSource, /formatInviteJoinTitle/);
 });
 
+test("invite link unavailable alerts distinguish expired and disappeared links", () => {
+  assert.equal(
+    getInviteIssueMessage("expired"),
+    "만료된 초대 링크입니다. 운영진에게 새 링크를 요청해 주세요.",
+  );
+  assert.equal(
+    getInviteIssueMessage("blocked"),
+    "사라진 초대 링크입니다. 운영진에게 받은 최신 링크로 다시 접속해 주세요.",
+  );
+  assert.equal(
+    getInviteIssueMessage("missing"),
+    "사라진 초대 링크입니다. 운영진에게 받은 최신 링크로 다시 접속해 주세요.",
+  );
+  assert.match(inviteCourseSource, /availabilityStatus/);
+  assert.match(inviteCourseSource, /previewChecked/);
+  assert.match(authCallbackSource, /invite-error/);
+  assert.match(authCallbackSource, /redeemResult\?\.success === false/);
+});
+
+test("prevents KOSS default invite tag pollution in new invite write paths", () => {
+  assert.doesNotMatch(inviteCodesApiSource, /input\.defaultTags \?\? \["KOSS"\]/);
+  assert.doesNotMatch(inviteCodesApiSource, /defaultTags\.length > 0 \? defaultTags : \["KOSS"\]/);
+  assert.doesNotMatch(inviteCodesPageSource, /setSelectedTagSlugs\(\[koss\.slug\]\)/);
+  assert.match(inviteCodesApiSource, /초대 코드는 동아리 태그만 기본 부여할 수 있습니다\./);
+  assert.match(inviteCodesPageSource, /tag\.isClub && tag\.inviteAssignable/);
+  assert.match(inviteBoundaryMigrationSource, /when lower\(btrim\(selected_tag\.slug\)\) = 'koss' then 'kobot'/);
+  assert.match(inviteBoundaryMigrationSource, /invite_default_tags_required/);
+  assert.match(inviteBoundaryMigrationSource, /invite_default_tag_must_be_club/);
+});
+
+test("invite codes table keeps header body and empty-state column counts aligned", () => {
+  assert.match(inviteCodesPageSource, /id: "clubTags"/);
+  assert.match(inviteCodesPageSource, /header: "동아리 태그"/);
+  assert.match(inviteCodesPageSource, /const INVITE_TABLE_COLUMN_COUNT = inviteCodeColumns\.length \+ 1/);
+  assert.match(inviteCodesPageSource, /colSpan={INVITE_TABLE_COLUMN_COUNT}/);
+  assert.doesNotMatch(inviteCodesPageSource, /colSpan={8}/);
+  assert.match(inviteCodesPageSource, /<colgroup>/);
+  assert.match(inviteCodesPageSource, /tableLayout: "fixed"/);
+});
+
 test("invite preview RPC derives the public club label from club tags", () => {
-  assert.match(previewMigrationSource, /get_course_invite_preview/);
-  assert.match(previewMigrationSource, /cic\.default_tags/);
-  assert.match(previewMigrationSource, /mt\.is_club = true/);
-  assert.match(previewMigrationSource, /grant execute on function public\.get_course_invite_preview\(text\) to anon, authenticated/);
+  const source = `${previewMigrationSource}\n${inviteBoundaryMigrationSource}`;
+  assert.match(source, /get_course_invite_preview/);
+  assert.match(source, /cic\.default_tags/);
+  assert.match(source, /mt\.is_club = true/);
+  assert.match(source, /availability_status text/);
+  assert.match(source, /when cic\.is_active = false then 'blocked'/);
+  assert.match(source, /when cic\.expires_at is not null and cic\.expires_at < now\(\) then 'expired'/);
+  assert.match(source, /grant execute on function public\.get_course_invite_preview\(text\) to anon, authenticated/);
 });

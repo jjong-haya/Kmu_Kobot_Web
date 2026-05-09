@@ -1,4 +1,6 @@
 import type { ClubEvent, EventImageTone } from "../api/events";
+import mainLogo from "../../assets/mainLogo.png";
+import { safeImageUrl } from "./safe-image-url";
 
 const TONE_META: Record<EventImageTone, { from: string; mid: string; to: string; accent: string }> = {
   navy: {
@@ -34,6 +36,11 @@ const TONE_META: Record<EventImageTone, { from: string; mid: string; to: string;
 };
 
 export function buildEventImage(event: ClubEvent, imageTone = event.imageTone, variant = 0) {
+  const explicitImage = safeImageUrl(event.imageUrl);
+  if (explicitImage) return explicitImage;
+
+  if (!imageTone || variant === 0) return mainLogo;
+
   const tone = TONE_META[imageTone];
   const offset = variant * 24;
   const svg = `
@@ -68,4 +75,8 @@ export function buildEventImage(event: ClubEvent, imageTone = event.imageTone, v
   `;
 
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+}
+
+export function hasEventImage(event: Pick<ClubEvent, "imageUrl">) {
+  return Boolean(safeImageUrl(event.imageUrl));
 }

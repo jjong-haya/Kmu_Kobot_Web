@@ -1,6 +1,6 @@
 # Product Policy Documents
 
-최근 추가 문서: [폼 / 참여자 조사](./forms.md) — Google Forms식 질문 빌더, 응답, 댓글, 게임대회 팀/리그전.
+최근 추가 문서: [폼 / 참여자 조사](./forms.md) — 폼 관리 카드, 신청자 접근 차단, Google Forms식 질문 빌더, 응답, 댓글, 게임대회 팀/리그전.
 
 이 폴더는 Kobot 웹사이트의 제품 정책, 권한 모델, 운영 흐름을 정리하는 공간입니다.
 
@@ -11,6 +11,7 @@
 - [변경 체크리스트](./CHANGE_CHECKLIST.md) — 모든 변경 전·후 펼치기. 데이터 흐름 / RLS / 마이그 의존 / 검증 절차 / 실패 패턴 카탈로그.
 - [기능-권한 운영 등록부](./feature-permission-register.md) — 전체 기능, 경로, 권한, 데이터/RPC, 감사 기록, 미구현 위험을 한 곳에서 추적한다.
 - [문서화 운영 규칙](./documentation-governance.md) — 새 기능·권한·DB·알림·외부 연동이 생길 때 어떤 문서를 같이 갱신해야 하는지 정한다.
+- [Codex 운영 권한과 원격 검증 기준](./codex-operational-capabilities.md) — 현재 세션에서 가능한 Supabase/원격 검증 작업과 DB 변경 완료 기준을 기록한다.
 
 ### 도메인별 진리원천 (코드 변경 전·후 반드시 동기화)
 
@@ -22,6 +23,7 @@
 - [프로젝트 도메인](./projects.md) — `projects.create` 권한, 생성 RPC, 프로젝트 목록/상세 연결.
 - [프로젝트 개발·스터디 DDD](./project-study-development.md) — 프로젝트 작업 공간, 스터디 기록, 자료, 과제, 알림, RLS를 같이 설계한 사전 명세.
 - [미션 / 퀘스트](./quests.md) — 미션 승인 시 보상 태그 자동 부여.
+- [폼 / 참여자 조사](./forms.md) — 폼 관리, 상태변화, 신청자 화면 접근 정책, 연결 질문 빌더.
 - 공지 visibility — 공개(`public`) 또는 선택 태그(`tag_in`)로 읽기 범위를 정한다. 공개 랜딩은 `public_notices`만 읽고, 멤버 공지는 RLS/RPC가 최종 판정한다.
 - 투표 eligibility — 별도 구현 예정. 투표마다 포함/제외 태그와 예외 멤버를 저장한다. 졸업은 상태가 아니라 태그이며, 투표별로 제외하거나 예외 허용한다.
 
@@ -47,3 +49,9 @@
 - `/member` 첫 화면은 `대시보드`라고 부른다.
 - 권한, 초대, 프로젝트 팀, GitHub 연동, 감사 기록은 구현 전 이 문서를 기준으로 맞춘다.
 - 기능이 생기면 기능-권한 운영 등록부에 경로, 권한, 데이터/RPC, 감사/보안 기록, 남은 위험을 남긴다.
+## 2026-05-09 최신 추가 문서
+
+- [행사 도메인](./events.md) — 행사 목록/상세/생성, Supabase `events` 테이블, `events.read/create/manage` 권한.
+- [공간 예약](./space-booking.md) — 월간 달력, 날짜 상세, 예약 생성 RPC와 충돌 방지.
+- [시크릿과 개인 키 취급](./secret-handling.md) — `.env`, GitHub App private key, 원격 Git 노출 시 회전/히스토리 정리 절차.
+- [Codex 운영 권한과 원격 검증 기준](./codex-operational-capabilities.md) — `events` 원격 404 재발 방지를 위한 migration list, db push, REST 검증 절차.

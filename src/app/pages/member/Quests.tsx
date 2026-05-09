@@ -28,6 +28,7 @@ import {
 import { listTags, type MemberTag } from "../../api/tags";
 import { useAuth } from "../../auth/useAuth";
 import { sanitizeUserError } from "../../utils/sanitize-error";
+import { ConfirmActionDialog } from "../../components/ConfirmActionDialog";
 import { TagChip as SharedTagChip } from "../../components/TagChip";
 
 const PAGE_STYLE: CSSProperties = {
@@ -583,6 +584,7 @@ function EditQuestModal({
   );
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -603,13 +605,13 @@ function EditQuestModal({
 
   async function handleDelete() {
     if (deleting) return;
-    if (!window.confirm(`'${quest.label}' 미션을 삭제할까요? 관련 신청도 함께 삭제됩니다.`)) return;
+    setDeleteConfirmOpen(false);
     try {
       setDeleting(true);
       await deleteQuest(quest.id);
       await onSaved();
     } catch (err) {
-      onError(sanitizeUserError(err, "미션을 삭제하지 못했습니다."));
+      onError(sanitizeUserError(err, "誘몄뀡????젣?섏? 紐삵뻽?듬땲??"));
     } finally {
       setDeleting(false);
     }
@@ -678,7 +680,7 @@ function EditQuestModal({
         <div style={{ display: "flex", justifyContent: "space-between", marginTop: 14 }}>
           <button
             type="button"
-            onClick={handleDelete}
+            onClick={() => setDeleteConfirmOpen(true)}
             disabled={deleting}
             style={{ ...ghostBtn, color: "#dc2626", borderColor: "#fecaca" }}
           >
@@ -694,6 +696,18 @@ function EditQuestModal({
           </div>
         </div>
       </form>
+      <ConfirmActionDialog
+        open={deleteConfirmOpen}
+        title="미션 삭제"
+        description={`'${quest.label}' 미션을 삭제할까요? 관련 신청도 함께 삭제됩니다.`}
+        confirmLabel="삭제"
+        destructive
+        busy={deleting}
+        onOpenChange={(open) => {
+          if (!open && !deleting) setDeleteConfirmOpen(false);
+        }}
+        onConfirm={() => void handleDelete()}
+      />
     </ModalShell>
   );
 }

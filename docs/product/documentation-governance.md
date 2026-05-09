@@ -10,6 +10,7 @@
 | --- | --- |
 | `docs/product/feature-permission-register.md` | 전체 기능, 경로, 권한, 데이터, RPC, 감사 기록의 운영 등록부 |
 | `docs/product/CHANGE_CHECKLIST.md` | 변경 전후 점검 절차 |
+| `docs/product/codex-operational-capabilities.md` | Codex 세션의 실제 실행 권한, Supabase 원격 migration 적용 여부, REST/RPC 운영 검증 기준 |
 | `docs/product/tag-system.md` | 태그, 권한, 메뉴, 소속 표시의 기준 |
 | `docs/product/member-status.md` | 가입 lifecycle 상태 기준 |
 | `docs/product/projects.md` | 프로젝트 생성, 승인, 반려, 참여, 설정의 현재 정책 |
@@ -39,7 +40,7 @@
 | --- | --- |
 | 새 페이지 추가 | `feature-permission-register.md`, `routes.tsx` 기준 권한 표 |
 | 새 메뉴 추가 | `feature-permission-register.md`, `tag-system.md`, `nav-catalog.ts`와 대조 |
-| 새 DB 테이블 | 도메인 문서, RLS/권한 표, 마이그레이션 설명 |
+| 새 DB 테이블 | 도메인 문서, RLS/권한 표, 마이그레이션 설명, `codex-operational-capabilities.md`의 원격 migration 검증 기록 |
 | 새 RPC | 기능 등록부의 주요 RPC, 감사/알림 여부 |
 | 승인/반려/상태 전이 | 도메인 문서, 이벤트/알림 문서 |
 | 파일 업로드 | 기능 등록부, 보안 감사 문서, storage bucket 정책 |
@@ -53,8 +54,9 @@
 3. 화면만 있고 데이터가 없으면 `부분 구현` 또는 `준비중`으로 남긴다.
 4. 권한이 UI에만 있으면 `남은 위험`에 적고 DB/RPC 보강 이슈로 남긴다.
 5. 마이그레이션이 있으면 어떤 함수/테이블이 생겼는지 문서에 적는다.
-6. 알림 type이 생기면 CTA와 원본 테이블을 같이 적는다.
-7. 보안 이벤트가 생기면 누가 조회할 수 있는지 적는다.
+6. 원격 Supabase에 영향을 주는 변경이면 `npx supabase migration list --linked`, 필요 시 `npx supabase db push --yes`, 실제 REST/RPC endpoint 검증 결과를 `codex-operational-capabilities.md`와 해당 도메인 문서에 남긴다.
+7. 알림 type이 생기면 CTA와 원본 테이블을 같이 적는다.
+8. 보안 이벤트가 생기면 누가 조회할 수 있는지 적는다.
 
 ## 문서 미갱신을 막는 규칙
 

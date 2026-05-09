@@ -21,6 +21,7 @@ import {
 import { TAG_ICON_GROUPS, normalizeTagIconName } from "../../config/tag-icons";
 import { TagChip } from "../../components/TagChip";
 import { useIsMobile } from "../../components/ui/use-mobile";
+import { ConfirmActionDialog } from "../../components/ConfirmActionDialog";
 import { sanitizeUserError } from "../../utils/sanitize-error";
 
 const PAGE_STYLE: CSSProperties = {
@@ -49,6 +50,8 @@ export default function Tags() {
     { mode: "create" } | { mode: "edit"; tag: MemberTagWithCounts } | null
   >(null);
   const [mobileActionsTag, setMobileActionsTag] = useState<MemberTagWithCounts | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<MemberTagWithCounts | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   async function load() {
     try {
@@ -67,15 +70,15 @@ export default function Tags() {
   }, []);
 
   async function handleDelete(tag: MemberTagWithCounts) {
-    const confirmed = window.confirm(
-      `'${tag.label}' 태그를 삭제하면 부여된 모든 부원에게서 즉시 회수됩니다. 정말 삭제할까요?`,
-    );
-    if (!confirmed) return;
     try {
+      setDeleting(true);
       await deleteTag(tag.id);
+      setDeleteTarget(null);
       await load();
     } catch (err) {
-      setError(sanitizeUserError(err, "태그를 삭제하지 못했습니다."));
+      setError(sanitizeUserError(err, "?쒓렇瑜???젣?섏? 紐삵뻽?듬땲??"));
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -202,7 +205,7 @@ export default function Tags() {
                     tag={tag}
                     index={index}
                     onEdit={() => setModal({ mode: "edit", tag })}
-                    onDelete={() => void handleDelete(tag)}
+                    onDelete={() => setDeleteTarget(tag)}
                   />
                 ))}
               </div>
@@ -260,10 +263,28 @@ export default function Tags() {
           onDelete={() => {
             const tag = mobileActionsTag;
             setMobileActionsTag(null);
-            void handleDelete(tag);
+            setDeleteTarget(tag);
           }}
         />
       ) : null}
+      <ConfirmActionDialog
+        open={deleteTarget != null}
+        title="태그 삭제"
+        description={
+          deleteTarget
+            ? `'${deleteTarget.label}' 태그를 삭제하면 부여된 모든 부원에게서 즉시 회수됩니다. 정말 삭제할까요?`
+            : "태그를 삭제할까요?"
+        }
+        confirmLabel="삭제"
+        destructive
+        busy={deleting}
+        onOpenChange={(open) => {
+          if (!open && !deleting) setDeleteTarget(null);
+        }}
+        onConfirm={() => {
+          if (deleteTarget) void handleDelete(deleteTarget);
+        }}
+      />
     </div>
   );
 }

@@ -26,6 +26,7 @@ import { useAuth } from "../../auth/useAuth";
 import { sanitizeUserError } from "../../utils/sanitize-error";
 import { NAV_CATALOG, PERMISSION_CATALOG } from "../../config/nav-catalog";
 import type { NavCatalogEntry } from "../../config/nav-catalog";
+import { ConfirmActionDialog } from "../../components/ConfirmActionDialog";
 
 const PAGE_STYLE: CSSProperties = {
   minHeight: "calc(100vh - 4rem)",
@@ -92,6 +93,7 @@ export default function TagDetail() {
   const [allMembers, setAllMembers] = useState<MemberDirectoryProfile[]>([]);
   const [memberQuery, setMemberQuery] = useState("");
   const [assigning, setAssigning] = useState<string | null>(null);
+  const [removeConfirmUserId, setRemoveConfirmUserId] = useState<string | null>(null);
 
   // Active tab in the right-side editor
   const [activeTab, setActiveTab] = useState<"meta" | "perms" | "nav">("meta");
@@ -210,22 +212,25 @@ export default function TagDetail() {
 
   async function handleRemove(userId: string) {
     if (!tag) return;
-    if (tag.isSystem && tag.autoStatus) {
-      const okay = window.confirm(
-        "시스템 태그(KOBOT/KOSS)는 부원 상태가 바뀌면 자동으로 다시 부여됩니다. 그래도 회수할까요?",
-      );
-      if (!okay) return;
-    }
     try {
       setAssigning(userId);
       await removeTagFromUser(tag.id, userId);
+      setRemoveConfirmUserId(null);
       await refreshTags();
       await load();
     } catch (err) {
-      setError(sanitizeUserError(err, "태그 회수에 실패했습니다."));
+      setError(sanitizeUserError(err, "?쒓렇 ?뚯닔???ㅽ뙣?덉뒿?덈떎."));
     } finally {
       setAssigning(null);
     }
+  }
+
+  function requestRemove(userId: string) {
+    if (tag?.isSystem && tag.autoStatus) {
+      setRemoveConfirmUserId(userId);
+      return;
+    }
+    void handleRemove(userId);
   }
 
   const memberIds = useMemo(
@@ -600,7 +605,7 @@ export default function TagDetail() {
                   key={member.userId}
                   member={member}
                   busy={assigning === member.userId}
-                  onRemove={() => handleRemove(member.userId)}
+                  onRemove={() => requestRemove(member.userId)}
                 />
               ))}
             </ul>
@@ -666,6 +671,20 @@ export default function TagDetail() {
           </div>
         </section>
       </div>
+      <ConfirmActionDialog
+        open={removeConfirmUserId != null}
+        title="시스템 태그 회수"
+        description="자동 동기화 태그는 부원 상태가 바뀌면 다시 부여될 수 있습니다. 그래도 회수할까요?"
+        confirmLabel="회수"
+        destructive
+        busy={removeConfirmUserId != null && assigning === removeConfirmUserId}
+        onOpenChange={(open) => {
+          if (!open && assigning == null) setRemoveConfirmUserId(null);
+        }}
+        onConfirm={() => {
+          if (removeConfirmUserId) void handleRemove(removeConfirmUserId);
+        }}
+      />
     </div>
   );
 }

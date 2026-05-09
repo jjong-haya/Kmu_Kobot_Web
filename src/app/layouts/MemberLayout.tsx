@@ -181,6 +181,12 @@ const NAVIGATION: NavigationSection[] = [
       { name: "로드맵", href: "/member/roadmap", icon: Target },
       { name: "회고", href: "/member/retro", icon: MessageSquare },
       { name: "변경 기록", href: "/member/changelog", icon: GitBranch },
+      {
+        name: "폼 관리",
+        href: "/member/forms",
+        icon: ClipboardList,
+        permissions: ["forms.manage"],
+      },
     ],
   },
   {
@@ -200,7 +206,7 @@ const NAVIGATION: NavigationSection[] = [
         permissions: ["members.manage"],
       },
       {
-        name: "신청/폼",
+        name: "폼 관리",
         href: "/member/forms",
         icon: ClipboardList,
         permissions: ["forms.manage"],
@@ -259,7 +265,7 @@ function getMemberStatusLabel(status: string | null) {
     case "project_only":
       return "프로젝트 참여";
     case "course_member":
-      return "KOSS";
+      return "초대 회원";
     case "withdrawn":
       return "탈퇴 처리";
     default:
@@ -278,7 +284,7 @@ function getMembershipDisplayLabel(status: string | null, clubAffiliation?: stri
     case "active":
       return normalizedClub || "KOBOT";
     case "course_member":
-      return normalizedClub || "KOSS";
+      return normalizedClub || "초대 회원";
     default:
       return getMemberStatusLabel(status);
   }
@@ -580,7 +586,7 @@ export default function MemberLayout() {
         : "member";
   const viewerRoleRank = NAVIGATION_ROLE_RANK[viewerRoleLevel];
 
-  const visibleSections = NAVIGATION.map((section) => {
+  const visibleSectionsBeforeDedup = NAVIGATION.map((section) => {
     if (memberStatus === "course_member") {
       if (section.minimumRole && section.minimumRole !== "member") {
         return { ...section, items: [] };
@@ -630,6 +636,20 @@ export default function MemberLayout() {
       }),
     };
   }).filter((section) => section.items.length > 0);
+  const visibleNavigationHrefs = new Set<string>();
+  const visibleSections = visibleSectionsBeforeDedup
+    .slice()
+    .reverse()
+    .map((section) => {
+      const items = section.items.filter((item) => {
+        if (visibleNavigationHrefs.has(item.href)) return false;
+        visibleNavigationHrefs.add(item.href);
+        return true;
+      });
+      return { ...section, items };
+    })
+    .reverse()
+    .filter((section) => section.items.length > 0);
 
   async function handleSignOut() {
     try {

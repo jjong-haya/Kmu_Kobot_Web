@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import type { CSSProperties, DragEvent, FormEvent } from "react";
+import type { CSSProperties, FormEvent, ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router";
+import { DndContext, type DragEndEvent, useDraggable, useDroppable } from "@dnd-kit/core";
+import { CSS } from "@dnd-kit/utilities";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -417,7 +419,6 @@ function TaskCard({
   members,
   onMove,
   onAssigneeChange,
-  onDragStart,
 }: {
   task: ProjectTask;
   project: ProjectDetailData;
@@ -425,18 +426,28 @@ function TaskCard({
   members: ProjectMember[];
   onMove: (task: ProjectTask, status: ProjectTaskStatus) => void;
   onAssigneeChange: (task: ProjectTask, assigneeUserId: string | null) => void;
-  onDragStart: (taskId: string) => void;
 }) {
   const [collapsed, setCollapsed] = useState(false);
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: task.id,
+    data: { task },
+  });
   const priority = PRIORITY_META[task.priority];
   const prev = previousStatus(task.status);
   const next = nextStatus(task.status);
 
   return (
     <article
-      draggable
-      onDragStart={() => onDragStart(task.id)}
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
       className="group relative overflow-hidden rounded-md border border-[#e8e8e4] bg-white p-3 pb-9 shadow-sm transition-shadow hover:shadow-md"
+      style={{
+        transform: CSS.Translate.toString(transform),
+        opacity: isDragging ? 0.72 : 1,
+        cursor: isDragging ? "grabbing" : "grab",
+        zIndex: isDragging ? 30 : undefined,
+      }}
     >
       {prev || next ? (
         <div className="pointer-events-none absolute bottom-2.5 right-2.5 z-20 inline-flex items-center gap-1 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100">
@@ -533,6 +544,29 @@ function TaskCard({
   );
 }
 
+function TaskColumn({
+  column,
+  children,
+}: {
+  column: (typeof TASK_COLUMNS)[number];
+  children: ReactNode;
+}) {
+  const { isOver, setNodeRef } = useDroppable({ id: column.key });
+
+  return (
+    <section
+      ref={setNodeRef}
+      className="min-h-[430px] rounded-md border border-[#e8e8e4] bg-[#fbfbf8] transition-[border-color,background-color]"
+      style={{
+        borderColor: isOver ? column.tone : "#e8e8e4",
+        background: isOver ? "#f4f7ff" : "#fbfbf8",
+      }}
+    >
+      {children}
+    </section>
+  );
+}
+
 function ProjectWorkspace({
   project,
   userId,
@@ -549,7 +583,6 @@ function ProjectWorkspace({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [keyword, setKeyword] = useState("");
-  const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -658,11 +691,10 @@ function ProjectWorkspace({
     }
   }
 
-  function handleDrop(event: DragEvent<HTMLElement>, status: ProjectTaskStatus) {
-    event.preventDefault();
-    const task = tasks.find((item) => item.id === draggedTaskId);
-    setDraggedTaskId(null);
-    if (task) void moveTask(task, status);
+  function handleDragEnd(event: DragEndEvent) {
+    const status = event.over?.id as ProjectTaskStatus | undefined;
+    const task = tasks.find((item) => item.id === event.active.id);
+    if (task && status) void moveTask(task, status);
   }
 
   return (
@@ -876,16 +908,12 @@ function ProjectWorkspace({
         </div>
       ) : (
         <div className="grid gap-4 xl:grid-cols-[1fr_260px]">
+          <DndContext onDragEnd={handleDragEnd}>
           <div className="grid gap-4 lg:grid-cols-4">
             {TASK_COLUMNS.map((column) => {
               const columnTasks = visibleTasks.filter((task) => task.status === column.key);
               return (
-                <section
-                  key={column.key}
-                  onDragOver={(event) => event.preventDefault()}
-                  onDrop={(event) => handleDrop(event, column.key)}
-                  className="min-h-[430px] rounded-md border border-[#e8e8e4] bg-[#fbfbf8]"
-                >
+                <TaskColumn key={column.key} column={column}>
                   <div className="flex items-center justify-between border-b border-[#f1ede4] px-4 py-3">
                     <div className="flex items-center gap-2">
                       <span className="h-2 w-2 rounded-full" style={{ background: column.tone }} />
@@ -913,15 +941,15 @@ function ProjectWorkspace({
                           members={project.members}
                           onMove={moveTask}
                           onAssigneeChange={changeTaskAssignee}
-                          onDragStart={setDraggedTaskId}
                         />
                       ))
                     )}
                   </div>
-                </section>
+                </TaskColumn>
               );
             })}
           </div>
+          </DndContext>
 
           <aside className="grid h-fit gap-4">
             <section style={{ ...PANEL_STYLE, overflow: "hidden" }}>

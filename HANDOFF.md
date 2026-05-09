@@ -236,3 +236,14 @@ VITE_SUPABASE_ANON_KEY=...
 
 > 마지막 업데이트: 2026-05-03
 > 작업자: 함종하 (회장 / 개발자)
+## 2026-05-09 handoff update
+
+| 항목 | 현재 상태 | 근거 |
+| --- | --- | --- |
+| 행사 저장소 | `localStorage` 생성/조회 흐름에서 Supabase `public.events` 테이블 흐름으로 전환 | `src/app/api/events.ts`, `supabase/migrations/20260509001000_events_persistence.sql` |
+| 행사 생성 폼 | React Hook Form + Zod 검증 추가 | `src/app/pages/member/EventCreate.tsx` |
+| 공간 예약 | 날짜 클릭 후 해당 주만 남고 선택 날짜 상세 목록을 보여주는 기존 흐름 유지 | `src/app/pages/member/SpaceBooking.tsx` |
+| 프로젝트 작업 보드 | HTML drag/drop 대신 dnd-kit 기반 드래그 이동 사용 | `src/app/pages/member/ProjectDetail.tsx` |
+| 초대 코드 | React Hook Form + Zod 입력 검증, TanStack Table row model 적용 | `src/app/pages/member/InviteCodes.tsx` |
+| 서버 상태 | React Query Provider 추가, 행사/폼 목록 fetch에 Query 적용 | `src/app/App.tsx`, `src/app/pages/member/Events.tsx`, `src/app/pages/member/Forms.tsx` |
+| 시크릿 | `.pem`, `.key` ignore 보강. 로컬 기준 개인 키 파일은 현재 추적/히스토리 없음 | `.gitignore`, `docs/product/secret-handling.md` |

@@ -1,6 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
-import type { CSSProperties, FormEvent } from "react";
+import type { CSSProperties } from "react";
 import { Link } from "react-router";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+import {
+  flexRender,
+  getCoreRowModel,
+  getSortedRowModel,
+  useReactTable,
+  type ColumnDef,
+  type SortingState,
+} from "@tanstack/react-table";
 import {
   Check,
   Copy,
@@ -22,6 +33,36 @@ import { listTagsForInviteDefaults, type MemberTagPolicySummary } from "../../ap
 import { copyTextToClipboard } from "../../api/clipboard.js";
 import { sanitizeUserError } from "../../utils/sanitize-error";
 import { TagChip } from "../../components/TagChip";
+
+const inviteCodeSchema = z.object({
+  code: z.string().trim().min(4, "초대 코드는 4자 이상이어야 합니다."),
+  label: z.string().trim().optional(),
+  maxUses: z.string().trim().optional(),
+  expiresAt: z.string().trim().optional(),
+});
+
+type InviteCodeFormValues = z.infer<typeof inviteCodeSchema>;
+
+const inviteCodeColumns: ColumnDef<InviteCodeRow>[] = [
+  { accessorKey: "code", header: "코드" },
+  {
+    id: "clubTags",
+    header: "동아리 태그",
+    accessorFn: (row) =>
+      row.defaultTagObjects
+        .filter((tag) => tag.isClub)
+        .map((tag) => tag.label)
+        .join(", ") || row.clubLabel || "",
+  },
+  { accessorKey: "label", header: "용도" },
+  { accessorKey: "uses", header: "사용" },
+  { accessorKey: "expires_at", header: "만료" },
+  { accessorKey: "is_active", header: "상태" },
+];
+
+const INVITE_TABLE_COLUMN_WIDTHS = [170, 180, 230, 96, 120, 96] as const;
+const INVITE_TABLE_ACTION_WIDTH = 180;
+const INVITE_TABLE_COLUMN_COUNT = inviteCodeColumns.length + 1;
 
 const CONTAINER_STYLE: CSSProperties = {
   background: "#ffffff",
@@ -46,6 +87,7 @@ export default function InviteCodes() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [sorting, setSorting] = useState<SortingState>([]);
 
   async function load() {
     setLoading(true);
@@ -94,6 +136,15 @@ export default function InviteCodes() {
     const totalUses = codes.reduce((s, c) => s + c.uses, 0);
     return { total, active, totalUses };
   }, [codes]);
+  const table = useReactTable({
+    data: codes,
+    columns: inviteCodeColumns,
+    state: { sorting },
+    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+  });
+  const visibleCodeRows = table.getRowModel().rows.map((row) => row.original);
 
   return (
     <div
@@ -208,45 +259,79 @@ export default function InviteCodes() {
               borderCollapse: "collapse",
               fontSize: 13.5,
               minWidth: 920,
+              tableLayout: "fixed",
             }}
           >
+            <colgroup>
+              {INVITE_TABLE_COLUMN_WIDTHS.map((width, index) => (
+                <col key={index} style={{ width }} />
+              ))}
+              <col style={{ width: INVITE_TABLE_ACTION_WIDTH }} />
+            </colgroup>
             <thead>
-              <tr style={{ background: "#fafaf9" }}>
-                {[
-                  ["CODE", 120],
-                  ["동아리", 90],
-                  ["태그", 120],
-                  ["라벨", 0],
-                  ["사용", 100],
-                  ["만료", 110],
-                  ["상태", 80],
-                  ["", 220],
-                ].map(([label, w], i) => (
+              {table.getHeaderGroups().map((headerGroup) => (
+                <tr key={headerGroup.id} style={{ background: "#fafaf9" }}>
+                  {headerGroup.headers.map((header, i) => {
+                    const sorted = header.column.getIsSorted();
+                    return (
+                      <th
+                        key={header.id}
+                        style={{
+                          padding: "12px 16px",
+                          fontSize: 11.5,
+                          fontWeight: 700,
+                          color: "var(--kb-ink-500)",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.06em",
+                          textAlign: "left",
+                          borderBottom: "1px solid #f1ede4",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={header.column.getToggleSortingHandler()}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 4,
+                            border: 0,
+                            padding: 0,
+                            background: "transparent",
+                            color: "inherit",
+                            font: "inherit",
+                            cursor: "pointer",
+                            textTransform: "inherit",
+                            letterSpacing: "inherit",
+                          }}
+                        >
+                          {flexRender(header.column.columnDef.header, header.getContext())}
+                          <span aria-hidden="true">{sorted === "asc" ? "?" : sorted === "desc" ? "?" : ""}</span>
+                        </button>
+                      </th>
+                    );
+                  })}
                   <th
-                    key={i}
                     style={{
                       padding: "12px 16px",
                       fontSize: 11.5,
                       fontWeight: 700,
                       color: "var(--kb-ink-500)",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.06em",
-                      textAlign: i === 7 ? "right" : "left",
+                      textAlign: "right",
                       borderBottom: "1px solid #f1ede4",
-                      width: w || undefined,
                       whiteSpace: "nowrap",
                     }}
                   >
-                    {label}
+                    작업
                   </th>
-                ))}
-              </tr>
+                </tr>
+              ))}
             </thead>
             <tbody>
               {loading && codes.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={8}
+                    colSpan={INVITE_TABLE_COLUMN_COUNT}
                     style={{
                       padding: "56px 28px",
                       textAlign: "center",
@@ -256,10 +341,10 @@ export default function InviteCodes() {
                     불러오는 중...
                   </td>
                 </tr>
-              ) : codes.length === 0 ? (
+              ) : visibleCodeRows.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={8}
+                    colSpan={INVITE_TABLE_COLUMN_COUNT}
                     style={{
                       padding: "56px 28px",
                       textAlign: "center",
@@ -278,7 +363,8 @@ export default function InviteCodes() {
                   </td>
                 </tr>
               ) : (
-                codes.map((row) => {
+                visibleCodeRows.map((row) => {
+                  const clubTags = row.defaultTagObjects.filter((tag) => tag.isClub);
                   const exhausted =
                     row.max_uses != null && row.uses >= row.max_uses;
                   const expired =
@@ -295,36 +381,35 @@ export default function InviteCodes() {
                         <span
                           className="kb-mono"
                           style={{
+                            display: "block",
                             fontSize: 14,
                             fontWeight: 700,
                             color: "var(--kb-ink-900)",
                             letterSpacing: "0.02em",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
                           }}
                         >
                           {row.code}
                         </span>
                       </td>
-                      <td style={{ padding: "14px 16px" }}>
-                        {row.clubLabel ? (
-                          <span
-                            style={{
-                              fontSize: 12,
-                              fontWeight: 650,
-                              color: "var(--kb-ink-800)",
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            {row.clubLabel}
-                          </span>
-                        ) : (
-                          <span style={{ color: "var(--kb-ink-400)" }}>—</span>
-                        )}
-                      </td>
-                      <td style={{ padding: "14px 16px" }}>
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
-                          {row.defaultTagObjects.map((tag) => (
-                            <TagChip key={`${row.id}-${tag.slug}`} tag={tag} />
-                          ))}
+                      <td style={{ padding: "12px 16px" }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            flexWrap: "wrap",
+                            alignItems: "center",
+                            gap: 5,
+                            minHeight: 38,
+                          }}
+                        >
+                          {clubTags.length > 0 ? (
+                            clubTags.map((tag) => (
+                              <TagChip key={`${row.id}-${tag.slug}`} tag={tag} />
+                            ))
+                          ) : (
+                            <span style={{ color: "var(--kb-ink-400)" }}>—</span>
+                          )}
                         </div>
                       </td>
                       <td
@@ -472,6 +557,15 @@ function CreateModal({
 }) {
   const [code, setCode] = useState(() => generateInviteCode());
   const [label, setLabel] = useState("");
+  const form = useForm<InviteCodeFormValues>({
+    resolver: zodResolver(inviteCodeSchema),
+    defaultValues: {
+      code,
+      label: "",
+      maxUses: "",
+      expiresAt: "",
+    },
+  });
   // member_tags 의 slug 배열. redeem_course_invite() 가 lower(slug) 매칭으로
   // member_tag_assignments 에 자동 INSERT 한다. (docs/product/invite-codes.md)
   const [selectedTagSlugs, setSelectedTagSlugs] = useState<string[]>([]);
@@ -481,6 +575,10 @@ function CreateModal({
   const [expiresAt, setExpiresAt] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const inviteTagsCatalog = useMemo(
+    () => tagsCatalog.filter((tag) => tag.isClub && tag.inviteAssignable),
+    [tagsCatalog],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -489,9 +587,6 @@ function CreateModal({
         const list = await listTagsForInviteDefaults();
         if (cancelled) return;
         setTagsCatalog(list);
-        // 기본값: KOSS 태그가 있으면 미리 선택해 두기
-        const koss = list.find((tag) => tag.slug.toLowerCase() === "koss" && tag.inviteAssignable);
-        if (koss) setSelectedTagSlugs([koss.slug]);
       } catch {
         // 태그 목록 로드 실패해도 코드는 발급할 수 있도록 무시
       } finally {
@@ -526,20 +621,23 @@ function CreateModal({
     };
   }, [onClose]);
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    const normalizedCode = normalizeInviteCode(code);
+  async function handleSubmit(values: InviteCodeFormValues) {
+    const normalizedCode = normalizeInviteCode(values.code);
     if (!normalizedCode) return;
+    if (selectedTagSlugs.length === 0) {
+      setError("부여할 동아리 태그를 1개 이상 선택해 주세요.");
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
       await createInviteCode({
         code: normalizedCode,
-        label: label.trim() || null,
+        label: values.label?.trim() || null,
         defaultTags: selectedTagSlugs,
-        maxUses: maxUses ? Math.max(1, parseInt(maxUses, 10)) : null,
-        expiresAt: expiresAt
-          ? new Date(`${expiresAt}T23:59:59`).toISOString()
+        maxUses: values.maxUses ? Math.max(1, parseInt(values.maxUses, 10)) : null,
+        expiresAt: values.expiresAt
+          ? new Date(`${values.expiresAt}T23:59:59`).toISOString()
           : null,
       });
       onCreated();
@@ -580,7 +678,9 @@ function CreateModal({
       }}
     >
       <form
-        onSubmit={handleSubmit}
+        onSubmit={form.handleSubmit(handleSubmit, (errors) => {
+          setError(Object.values(errors)[0]?.message ?? "입력값을 확인해 주세요.");
+        })}
         onClick={(e) => e.stopPropagation()}
         style={{
           width: "100%",
@@ -649,14 +749,22 @@ function CreateModal({
               <input
                 type="text"
                 value={code}
-                onChange={(e) => setCode(normalizeInviteCode(e.target.value))}
+                onChange={(e) => {
+                  const next = normalizeInviteCode(e.target.value);
+                  setCode(next);
+                  form.setValue("code", next, { shouldValidate: true });
+                }}
                 style={{ ...inputStyle, fontFamily: "var(--kb-font-mono)", fontWeight: 700 }}
                 maxLength={16}
                 required
               />
               <button
                 type="button"
-                onClick={() => setCode(generateInviteCode())}
+                onClick={() => {
+                  const next = generateInviteCode();
+                  setCode(next);
+                  form.setValue("code", next, { shouldValidate: true });
+                }}
                 title="랜덤 생성"
                 style={{
                   padding: "0 14px",
@@ -695,7 +803,10 @@ function CreateModal({
             <input
               type="text"
               value={label}
-              onChange={(e) => setLabel(e.target.value)}
+              onChange={(e) => {
+                setLabel(e.target.value);
+                form.setValue("label", e.target.value);
+              }}
               placeholder="예: 2026 봄 SLAM 코스"
               style={inputStyle}
             />
@@ -719,7 +830,7 @@ function CreateModal({
                   color: "var(--kb-ink-800)",
                 }}
               >
-                부여 태그
+                부여 동아리 태그
                 <span
                   style={{
                     marginLeft: 8,
@@ -751,7 +862,7 @@ function CreateModal({
               >
                 태그 목록을 불러오는 중...
               </div>
-            ) : tagsCatalog.length === 0 ? (
+            ) : inviteTagsCatalog.length === 0 ? (
               <div
                 style={{
                   fontSize: 12.5,
@@ -761,7 +872,7 @@ function CreateModal({
                   borderRadius: 8,
                 }}
               >
-                아직 만든 태그가 없습니다. <Link to="/member/tags" style={{ color: "#0a0a0a", fontWeight: 700 }}>태그 관리</Link>에서 먼저 태그를 만들어 주세요.
+                초대코드에 부여할 동아리 태그가 없습니다. <Link to="/member/tags" style={{ color: "#0a0a0a", fontWeight: 700 }}>태그 관리</Link>에서 동아리 태그를 먼저 만들어 주세요.
               </div>
             ) : (
               <div
@@ -775,11 +886,11 @@ function CreateModal({
                   background: "#fbfaf7",
                 }}
               >
-                {tagsCatalog.map((tag) => {
+                {inviteTagsCatalog.map((tag) => {
                   const selected = selectedTagSlugs.some(
                     (entry) => entry.toLowerCase() === tag.slug.toLowerCase(),
                   );
-                  const blocked = !tag.inviteAssignable;
+                  const blocked = false;
                   return (
                     <button
                       key={tag.id}
@@ -887,7 +998,10 @@ function CreateModal({
               <input
                 type="number"
                 value={maxUses}
-                onChange={(e) => setMaxUses(e.target.value)}
+                onChange={(e) => {
+                  setMaxUses(e.target.value);
+                  form.setValue("maxUses", e.target.value);
+                }}
                 min={1}
                 placeholder="예: 30"
                 style={inputStyle}
@@ -912,7 +1026,10 @@ function CreateModal({
               <input
                 type="date"
                 value={expiresAt}
-                onChange={(e) => setExpiresAt(e.target.value)}
+                onChange={(e) => {
+                  setExpiresAt(e.target.value);
+                  form.setValue("expiresAt", e.target.value);
+                }}
                 style={inputStyle}
               />
             </div>

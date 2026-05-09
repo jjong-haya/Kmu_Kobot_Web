@@ -12,13 +12,13 @@ import {
 } from "../../components/ui/card";
 import { getSupabaseBrowserClient, isSupabaseConfigured } from "../../auth/supabase";
 import { useAuth } from "../../auth/useAuth";
-import { normalizeInviteCode } from "../../api/invite-codes";
+import { getInviteIssueMessage, normalizeInviteCode } from "../../api/invite-codes";
 import { getPostAuthMemberPath } from "../../auth/onboarding";
 import { getSafeInternalPath, withNextPath } from "../../auth/redirects";
 import { sanitizeUserError } from "../../utils/sanitize-error";
 import robotRun from "../../../assets/auth-callback/toy-robot-run.webp";
 
-type CallbackStatus = "loading" | "cancelled" | "restricted" | "retry" | "error";
+type CallbackStatus = "loading" | "cancelled" | "restricted" | "retry" | "invite-error" | "error";
 
 const LOADING_STEPS = [
   "국민대학교 계정 확인 중",
@@ -96,6 +96,23 @@ export default function AuthCallback() {
       normalized.includes("vite_") ||
       normalized.includes(".env")
     );
+  }
+
+  function getInviteRedeemFailureMessage(value: unknown) {
+    const message =
+      typeof value === "string" && value.trim()
+        ? value.trim()
+        : "초대 링크를 사용할 수 없습니다.";
+
+    if (message.includes("만료")) return getInviteIssueMessage("expired");
+    if (message.includes("비활성") || message.includes("존재하지")) {
+      return getInviteIssueMessage("missing");
+    }
+    if (message.includes("한도") || message.includes("소진")) {
+      return getInviteIssueMessage("exhausted");
+    }
+
+    return message;
   }
 
   async function handleRetryWithDifferentAccount() {
@@ -264,22 +281,37 @@ export default function AuthCallback() {
 
         // If user came through /invite/course, redeem the code BEFORE refreshing
         // auth data so the new status is reflected.
-        try {
+        if (searchParams.get("course") === "1") {
           const inviteCode = normalizeInviteCode(
             window.localStorage.getItem("kobot:course-invite-code") ?? "",
           );
           if (inviteCode) {
             const supabase = getSupabaseBrowserClient();
-            const { error: redeemErr } = await supabase.rpc("redeem_course_invite", {
+            const { data: redeemData, error: redeemErr } = await supabase.rpc("redeem_course_invite", {
               invite_code: inviteCode,
             });
+            const redeemResult = Array.isArray(redeemData) ? redeemData[0] : redeemData;
+
+            if (redeemErr || redeemResult?.success === false) {
+              window.localStorage.removeItem("kobot:course-invite-code");
+              await waitForMinimumLoading();
+
+              if (!disposed) {
+                setStatus("invite-error");
+                setMessage(
+                  redeemErr
+                    ? sanitizeUserError(redeemErr, "초대 링크를 확인하지 못했습니다. 운영진에게 문의해 주세요.")
+                    : getInviteRedeemFailureMessage(redeemResult?.message),
+                );
+              }
+              return;
+            }
+
             // success or already-redeemed → clear the code so it isn't reused
             if (!redeemErr) {
               window.localStorage.removeItem("kobot:course-invite-code");
             }
           }
-        } catch {
-          // non-blocking: even if RPC fails, continue to normal callback flow
         }
 
         const authData = await runLoadingStep(2, refreshAuthData);
@@ -414,6 +446,12 @@ export default function AuthCallback() {
                 </ul>
               </div>
             </div>
+          ) : status === "invite-error" ? (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>초대 링크를 사용할 수 없습니다</AlertTitle>
+              <AlertDescription>{message}</AlertDescription>
+            </Alert>
           ) : (
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />

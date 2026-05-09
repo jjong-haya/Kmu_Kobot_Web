@@ -235,3 +235,20 @@ DB 湲곗??? 留덉씠洹몃젅?댁뀡 ?뚯씪紐?湲곗? `20260507005000_projec
 | ?ㅽ꽣??湲곕줉 | `docs/product/project-study-development.md`, `docs/product/feature-permission-register.md` |
 | ?뚮┝ | `docs/product/notifications.md`, `docs/product/feature-permission-register.md` |
 | 蹂댁븞/媛먯궗 | `SECURITY_AUDIT_*.md`, `docs/product/feature-permission-register.md` |
+## 2026-05-09 구현 갱신
+
+| 기능 | 경로 | 현재 상태 | 읽기/쓰기 권한 | 데이터/RPC | 근거 |
+| --- | --- | --- | --- | --- | --- |
+| 행사 목록/상세/생성 | `/member/events`, `/member/events/:eventId`, `/member/events/new` | Supabase `events` 테이블 기반으로 전환 | 읽기: active member 또는 `events.read/manage`, 생성: `events.create/manage`, 삭제: `events.manage` | `src/app/api/events.ts`, `supabase/migrations/20260509001000_events_persistence.sql` | 브라우저 `localStorage`에 행사 생성 결과를 저장하지 않는다. |
+| 공간 예약 날짜 상세 | `/member/space-booking` | 날짜 클릭 시 기존 선택 주 collapse 흐름과 날짜별 상세 목록 유지 | active/course member route, 공개 캘린더는 제한 컬럼 only | `src/app/pages/member/SpaceBooking.tsx`, `src/app/api/space-bookings.ts` | 이전처럼 선택 날짜 예약 목록만 보여준다. |
+| 앱 확인창 | 공지/멤버관리/퀘스트/태그 | `window.confirm` 대신 앱 AlertDialog 기반 확인창 사용 | 각 화면의 기존 manage 권한 유지 | `src/app/components/ConfirmActionDialog.tsx` | 삭제/제거 액션을 앱 UI 안에서 처리한다. |
+| 시크릿 취급 | 로컬/운영 문서 | 개인 키 파일은 현재 추적되지 않음. 원격 노출 시 회전/히스토리 정리 필요 | repo write 권한자 | `.gitignore`, `docs/product/secret-handling.md` | `git ls-files`와 `git log --all` 기준 로컬 추적/히스토리 없음. |
+
+## 2026-05-09 폼 관리 갱신
+
+| 기능 | 경로/진입점 | 상태 | 읽기/쓰기 권한 | 데이터/API | 기록/주의 |
+| --- | --- | --- | --- | --- | --- |
+| 폼 관리 목록 | `/member/forms` | 카드형 관리 UI. 앞면은 요약/신청자 `열기`, 점 3개 메뉴는 수정·삭제·상태변화 | `forms.manage` | `listForms`, `updateFormStatus`, `deleteForm` | 회장·부회장 사이드바 라벨은 `폼 관리`. `MemberLayout`, `nav-catalog`, 역할 태그 seed를 같이 바꾼다. |
+| 폼 수정 | `/member/forms/:formId/edit` | 기존 폼을 생성 빌더로 다시 열어 수정 | `forms.manage` | `getForm`, `saveForm` | 같은 form id, 기존 응답/댓글/응답 시트 연결을 유지한다. |
+| 신청자 폼 열기 | `/member/forms/:formId` | 신청자가 실제 응답하는 화면 | active/course member, 단 폼 상태가 진행이고 기간 안이어야 함 | `getFormResponseAvailability`, `submitFormResponse` | 예정/마감/기간 밖은 일반 신청자에게 폼 내용을 렌더하지 않는다. 제출 API도 동일 조건으로 차단한다. |
+| 역할 태그 연결 | `/member/tags`, DB seed | 부회장 역할 태그에 폼 관리 권한/메뉴 추가 | `permissions.manage`로 태그 관리 | `member_tag_permissions`, `member_tag_nav`, `20260509002000_forms_management_nav_for_vice_president.sql` | 태그 UI 카탈로그와 실제 DB seed가 어긋나면 메뉴가 보이거나 권한이 생기는 위치가 달라진다. |

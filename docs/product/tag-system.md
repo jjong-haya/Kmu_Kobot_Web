@@ -53,6 +53,7 @@
 - `supabase/migrations/20260507009000_official_team_lead_tags.sql` — 연구팀 팀장, IOT 팀장 역할 태그 seed/backfill.
 - `supabase/migrations/20260507012000_official_team_lead_tag_permissions.sql` — 연구팀장/IOT팀장은 공식 팀장 권한 묶음(`projects.manage` 포함)을 받는다.
 - `supabase/migrations/20260507017000_academic_official_team_lead_tags.sql` — 연구 팀장/IOT 팀장 seed를 재보장하고, 학술팀장 역할 태그를 밝은 에메랄드 색상으로 추가한다. 이전 `official_team_lead_promotion` 태그가 있으면 학술팀장으로 assignment를 옮긴 뒤 삭제한다.
+- `supabase/migrations/20260509002000_forms_management_nav_for_vice_president.sql` — 회장/부회장 역할 태그에 `forms.manage`와 `/member/forms` 메뉴를 보장한다.
 
 ### API 레이어
 - `src/app/api/tags.ts` — listTags / createTag / updateTag / deleteTag / **assignTagToUser** / **removeTagFromUser** / setTagPermissions / setTagNav
@@ -62,6 +63,7 @@
 - `src/app/config/tag-policy.ts` — 위험 권한 판정(`admin.access`, `*.manage`)의 프론트 단일 출처
 - `src/app/api/member-directory.ts` — 디렉토리는 실제 assignments 를 우선한다. 레거시 회장 직위는 실제 `president` 태그가 없을 때만 가상 태그로 보정한다
 - `src/app/api/member-admin.ts` — admin 화면이 보여 줄 태그/멤버 조인 결과
+- `src/app/config/nav-catalog.ts` — 태그 생성/수정/상세에서 선택 가능한 사이드바 메뉴. `MemberLayout`과 라벨·그룹을 같이 갱신해야 한다.
 
 ### 페이지
 - `src/app/pages/member/Tags.tsx` — 태그 목록 (회장). 생성/수정은 팝업이며 기본 정보·권한·사이드바를 한 번에 다룬다.
@@ -72,6 +74,7 @@
 - `src/app/pages/member/Announcements.tsx` — 공지 공개 범위 public/tag_in + 태그 다중 선택
 - `src/app/pages/member/InviteCodes.tsx` — 부여 태그 다중 선택 칩
 - `src/app/layouts/MemberLayout.tsx` (`current_user_tag_nav_paths` 결과로 사이드바 그림)
+- `src/app/pages/member/Forms.tsx` — `폼 관리` 메뉴의 실제 대상. 회장/부회장 태그가 같은 경로를 받을 때 중복 노출과 권한을 함께 확인한다.
 
 ### 칩 렌더링 / 아이콘 매핑
 - `src/app/components/TagChip.tsx` 의 `SLUG_DECORATIONS` 가 태그 칩 아이콘/금속 질감/색상 매핑의 단일 출처다. `president=금`, `vice_president=은`, `official_team_lead_a/b/c/d/research/iot=동`, `official_team_lead_academic=밝은 에메랄드` 질감은 여기서만 바꾼다.

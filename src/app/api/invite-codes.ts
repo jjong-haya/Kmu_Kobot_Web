@@ -35,7 +35,17 @@ export type InviteCoursePreview = {
   clubLabel: string | null;
   defaultTags: string[];
   isAvailable: boolean;
+  availabilityStatus: InviteAvailabilityStatus;
 };
+
+export type InviteAvailabilityStatus =
+  | "available"
+  | "expired"
+  | "blocked"
+  | "exhausted"
+  | "unavailable";
+
+export type InviteIssueStatus = Exclude<InviteAvailabilityStatus, "available"> | "missing";
 
 export class InviteCoursePreviewUnavailableError extends Error {
   constructor() {
@@ -127,6 +137,11 @@ function requireInviteAssignableTags(slugs: string[], catalog: MemberTagPolicySu
     throw new Error("존재하는 태그만 초대 코드에 부여할 수 있습니다.");
   }
 
+  const nonClubTags = selected.filter((tag) => !tag.isClub);
+  if (nonClubTags.length > 0) {
+    throw new Error("초대 코드는 동아리 태그만 기본 부여할 수 있습니다.");
+  }
+
   const blocked = selected.filter((tag) => !tag.inviteAssignable);
   if (blocked.length > 0) {
     throw new Error(SENSITIVE_PERMISSION_MESSAGE);
@@ -163,13 +178,26 @@ export function formatInviteJoinTitle(
   return `${label}${hasHangulFinalConsonant(label) ? "으로" : "로"} 가입`;
 }
 
+export function getInviteIssueMessage(status: InviteIssueStatus) {
+  switch (status) {
+    case "expired":
+      return "만료된 초대 링크입니다. 운영진에게 새 링크를 요청해 주세요.";
+    case "blocked":
+    case "missing":
+      return "사라진 초대 링크입니다. 운영진에게 받은 최신 링크로 다시 접속해 주세요.";
+    case "exhausted":
+      return "사용 한도가 모두 소진된 초대 링크입니다. 운영진에게 새 링크를 요청해 주세요.";
+    default:
+      return "지금 사용할 수 없는 초대 링크입니다. 운영진에게 확인해 주세요.";
+  }
+}
+
 function withDefaultTags(row: Partial<InviteCodeRow>, catalog: InviteCodeTag[] = []): InviteCodeRow {
   const defaultTags = normalizeInviteTags(row.default_tags);
-  const normalizedDefaultTags = defaultTags.length > 0 ? defaultTags : ["KOSS"];
-  const defaultTagObjects = tagsForSlugs(normalizedDefaultTags, catalog);
+  const defaultTagObjects = tagsForSlugs(defaultTags, catalog);
   return {
     ...(row as InviteCodeRow),
-    default_tags: normalizedDefaultTags,
+    default_tags: defaultTags,
     defaultTagObjects,
     clubLabel: firstClubLabel(defaultTagObjects),
   };
@@ -212,9 +240,12 @@ export async function createInviteCode(
   const code = normalizeInviteCode(input.code);
   if (!code) throw new Error("초대 코드를 입력해 주세요.");
 
-  const defaultTags = normalizeInviteTags(input.defaultTags ?? ["KOSS"]);
+  const defaultTags = normalizeInviteTags(input.defaultTags ?? []);
   const inviteTags = await listTagsForInviteDefaults();
-  const selectedSlugs = defaultTags.length > 0 ? defaultTags : ["KOSS"];
+  const selectedSlugs = defaultTags;
+  if (selectedSlugs.length === 0) {
+    throw new Error("초대 코드에 부여할 동아리 태그를 1개 이상 선택해 주세요.");
+  }
   const tagObjects = requireInviteAssignableTags(selectedSlugs, inviteTags);
   const derivedClubLabel = firstClubLabel(tagObjects);
   const extended = await supabase
@@ -283,13 +314,33 @@ export async function getInviteCoursePreview(
   const row = Array.isArray(data) ? data[0] : null;
   if (!row) return null;
 
+  const availabilityStatus = normalizeInviteAvailabilityStatus(
+    row.availability_status,
+    Boolean(row.is_available),
+  );
+
   return {
     code: row.code,
     label: row.label ?? null,
     clubLabel: row.club_label ?? null,
     defaultTags: normalizeInviteTags(row.default_tags),
-    isAvailable: Boolean(row.is_available),
+    isAvailable: availabilityStatus === "available",
+    availabilityStatus,
   };
+}
+
+function normalizeInviteAvailabilityStatus(value: unknown, legacyIsAvailable: boolean): InviteAvailabilityStatus {
+  if (
+    value === "available" ||
+    value === "expired" ||
+    value === "blocked" ||
+    value === "exhausted" ||
+    value === "unavailable"
+  ) {
+    return value;
+  }
+
+  return legacyIsAvailable ? "available" : "unavailable";
 }
 
 export function normalizeInviteCode(value: string): string {
