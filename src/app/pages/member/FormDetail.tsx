@@ -1126,59 +1126,46 @@ export default function FormDetail() {
               </div>
             </section>
 
-            {/* 질문 — 한 시트 안에서 hairline divider로만 구분 (카드 나열 X) */}
-            {visibleQuestions.map((question, index) => (
+            {/* 질문 — 단일 컬럼, hairline divider로만 구분 (좌측 번호 rail 없음) */}
+            {visibleQuestions.map((question) => (
               <section
                 key={question.id}
-                className="grid gap-3 border-t border-[var(--kb-border-subtle)] px-6 py-5 sm:grid-cols-[80px_minmax(0,1fr)] sm:px-7"
+                className="border-t border-[var(--kb-border-subtle)] px-6 py-5 sm:px-7"
               >
-                <div className="flex flex-row items-baseline gap-2 sm:flex-col sm:items-start sm:gap-1">
-                  <span
-                    aria-hidden
-                    className="kb-mono text-[12px] font-semibold tracking-[0.04em] text-[var(--kb-navy-700)]"
-                  >
-                    Q{String(index + 1).padStart(2, "0")}
-                  </span>
-                  <span className="kb-mono text-[10.5px] uppercase tracking-[0.1em] text-[var(--kb-ink-400)]">
-                    {questionTypeLabel(question.type)}
-                  </span>
-                </div>
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <h3 className="kb-display m-0 text-[16px] font-semibold tracking-tight text-[var(--kb-ink-900)]">
-                      {question.title}
-                      {question.required ? (
-                        <span aria-label="필수" className="ml-1 text-[var(--kb-danger-500)]">
-                          *
-                        </span>
-                      ) : null}
-                    </h3>
-                    {question.visibleWhen ? (
-                      <StatusPill tone="accent">연결 질문</StatusPill>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <h3 className="kb-display m-0 text-[16px] font-semibold leading-tight tracking-tight text-[var(--kb-ink-900)]">
+                    {question.title}
+                    {question.required ? (
+                      <span aria-label="필수" className="ml-1 text-[var(--kb-danger-500)]">
+                        *
+                      </span>
                     ) : null}
-                  </div>
-                  {question.description ? (
-                    <p className="m-0 mt-1.5 text-[13px] leading-6 text-[var(--kb-ink-500)]">
-                      {question.description}
-                    </p>
+                  </h3>
+                  {question.visibleWhen ? (
+                    <StatusPill tone="accent">연결 질문</StatusPill>
                   ) : null}
-                  <div className="mt-3">
-                    <QuestionInput
-                      memberOptions={memberOptions}
-                      memberOptionsLoading={memberOptionsLoading}
-                      question={question}
-                      value={
-                        answers[question.id] ??
-                        (question.type === "multiple_choice" || question.type === "member_search" ? [] : "")
-                      }
-                      onChange={(value) =>
-                        setAnswers((current) => ({
-                          ...current,
-                          [question.id]: value,
-                        }))
-                      }
-                    />
-                  </div>
+                </div>
+                {question.description ? (
+                  <p className="m-0 mt-1.5 text-[13px] leading-6 text-[var(--kb-ink-500)]">
+                    {question.description}
+                  </p>
+                ) : null}
+                <div className="mt-3">
+                  <QuestionInput
+                    memberOptions={memberOptions}
+                    memberOptionsLoading={memberOptionsLoading}
+                    question={question}
+                    value={
+                      answers[question.id] ??
+                      (question.type === "multiple_choice" || question.type === "member_search" ? [] : "")
+                    }
+                    onChange={(value) =>
+                      setAnswers((current) => ({
+                        ...current,
+                        [question.id]: value,
+                      }))
+                    }
+                  />
                 </div>
               </section>
             ))}

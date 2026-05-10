@@ -1,6 +1,9 @@
 /* === Kobot Unified Design System — Foundation tokens === */
+/* Body + display: Wanted Sans (Wantedlab, 2024). Modern Korean sans, variable font. */
+@import url('https://cdn.jsdelivr.net/gh/wanteddev/wanted-sans@v1.0.3/packages/wanted-sans/fonts/webfontvariable/variable/WantedSansVariable.min.css');
+/* Fallback Korean: Pretendard. Mono: JetBrains Mono. Serif accent: Instrument Serif. */
 @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
-@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&family=Geist:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&family=Instrument+Serif&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Instrument+Serif&display=swap');
 
 :root {
   /* Brand Navy */
@@ -28,10 +31,11 @@
   --kb-ink-400:  #9a9a98;
   --kb-ink-300:  #b8b8b5;
 
-  /* Type stacks */
-  --kb-font-display: 'Nunito', 'Pretendard', system-ui, sans-serif;
-  --kb-font-body:    'Pretendard', 'Nunito', system-ui, sans-serif;
-  --kb-font-mono:    'JetBrains Mono', 'Pretendard', ui-monospace, monospace;
+  /* Type stacks — body & display unified on Wanted Sans for a modern, even
+     Korean rhythm. Pretendard remains as a fallback so old caches don't FOUT. */
+  --kb-font-display: 'Wanted Sans Variable', 'Wanted Sans', 'Pretendard', system-ui, -apple-system, 'Apple SD Gothic Neo', sans-serif;
+  --kb-font-body:    'Wanted Sans Variable', 'Wanted Sans', 'Pretendard', system-ui, -apple-system, 'Apple SD Gothic Neo', sans-serif;
+  --kb-font-mono:    'JetBrains Mono', 'Wanted Sans Variable', 'Pretendard', ui-monospace, monospace;
   --kb-font-serif:   'Instrument Serif', 'Pretendard', serif;
 
   /* Status — semantic */
@@ -170,7 +174,11 @@ select {
 }
 
 .kb-mono { font-family: var(--kb-font-mono); font-feature-settings: "ss01"; }
-.kb-display { font-family: var(--kb-font-display); letter-spacing: -0.02em; }
+.kb-display {
+  font-family: var(--kb-font-display);
+  letter-spacing: -0.02em;
+  font-feature-settings: "ss10", "calt", "kern";
+}
 .kb-serif { font-family: var(--kb-font-serif); }
 
 @keyframes kb-blink { 50% { opacity: 0; } }
