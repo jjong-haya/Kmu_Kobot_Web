@@ -28,12 +28,12 @@ const PAGE_STYLE: CSSProperties = {
   minHeight: "calc(100vh - 4rem)",
   margin: -32,
   padding: 32,
-  background: "#fafaf9",
+  background: "var(--kb-paper-2)",
 };
 
 const CARD_STYLE: CSSProperties = {
-  background: "#fff",
-  border: "1px solid #e8e8e4",
+  background: "var(--kb-surface-raised)",
+  border: "1px solid var(--kb-border-subtle)",
   borderRadius: 16,
   padding: 22,
   boxShadow: "0 2px 8px rgba(0,0,0,0.04)",

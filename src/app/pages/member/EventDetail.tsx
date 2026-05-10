@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import {
   ArrowLeft,
@@ -8,7 +8,7 @@ import {
   ClipboardList,
   Edit3,
   ExternalLink,
-  ListChecks,
+  Image as ImageIcon,
   MapPin,
   RefreshCw,
   Search,
@@ -16,7 +16,6 @@ import {
   UsersRound,
 } from "lucide-react";
 import {
-  EVENT_FEATURE_OPTIONS,
   EVENT_STATUS_LABELS,
   getEnabledEventFeatureKeys,
   getEvent,
@@ -25,7 +24,6 @@ import {
   getEventParticipation,
   getEventStatus,
   type ClubEvent,
-  type EventFeatureKey,
   type EventQuestionType,
   type EventStatus,
 } from "../../api/events";
@@ -64,13 +62,6 @@ const QUESTION_TYPE_LABELS: Record<EventQuestionType, string> = {
   time: "시간",
 };
 
-const FEATURE_ICON: Record<EventFeatureKey, typeof ClipboardList> = {
-  externalForm: ExternalLink,
-  participantSurvey: ClipboardList,
-  attendanceCheck: CheckCircle2,
-  teamFormation: Trophy,
-};
-
 function formatDate(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "날짜 미정";
@@ -83,17 +74,6 @@ function formatDate(value: string) {
     hour: "2-digit",
     minute: "2-digit",
     hourCycle: "h23",
-  }).format(date);
-}
-
-function formatDateOnly(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "미정";
-  return new Intl.DateTimeFormat("ko-KR", {
-    timeZone: "Asia/Seoul",
-    month: "long",
-    day: "numeric",
-    weekday: "short",
   }).format(date);
 }
 
@@ -125,57 +105,53 @@ function formatEventRange(event: ClubEvent) {
   return `${formatDate(event.startsAt)} - ${formatDate(event.endsAt)}`;
 }
 
-function InfoRow({
+function MetaLine({
   icon: Icon,
   label,
-  value,
+  children,
 }: {
   icon: typeof CalendarDays;
   label: string;
-  value: string;
+  children: ReactNode;
 }) {
   return (
-    <div className="flex items-start gap-3 rounded-[var(--kb-radius-md)] border border-[var(--kb-border-subtle)] bg-[var(--kb-surface-sunken)] px-3.5 py-3">
+    <div className="flex items-start gap-2 text-[13.5px] text-[var(--kb-ink-700)]">
       <Icon className="mt-0.5 h-4 w-4 shrink-0 text-[var(--kb-navy-700)]" aria-hidden />
       <div className="min-w-0">
-        <div className="kb-mono text-[10.5px] uppercase tracking-[0.12em] text-[var(--kb-ink-500)]">
+        <span className="kb-mono mr-2 text-[10.5px] uppercase tracking-[0.12em] text-[var(--kb-ink-400)]">
           {label}
-        </div>
-        <div className="mt-1 text-[14px] font-semibold leading-5 text-[var(--kb-ink-900)]">
-          {value}
-        </div>
+        </span>
+        <span className="font-medium">{children}</span>
       </div>
     </div>
   );
 }
 
-function FeatureStateChip({ feature, label }: { feature: { enabled: boolean }; label: string }) {
-  void feature;
-  void label;
-  return null;
-}
-void FeatureStateChip;
-
 function SectionCard({
   icon: Icon,
   title,
+  action,
   children,
   className,
 }: {
   icon: typeof CalendarDays;
   title: string;
-  children: React.ReactNode;
+  action?: ReactNode;
+  children: ReactNode;
   className?: string;
 }) {
   return (
     <section
       className={`rounded-[var(--kb-radius-md)] border border-[var(--kb-border-subtle)] bg-[var(--kb-surface-raised)] p-5 shadow-[var(--kb-shadow-sm)] ${className ?? ""}`}
     >
-      <h2 className="kb-display m-0 inline-flex items-center gap-2 text-[18px] font-semibold tracking-tight text-[var(--kb-ink-900)]">
-        <Icon className="h-5 w-5 text-[var(--kb-navy-700)]" aria-hidden />
-        {title}
-      </h2>
-      {children}
+      <header className="flex items-center justify-between gap-3">
+        <h2 className="kb-display m-0 inline-flex items-center gap-2 text-[16px] font-semibold tracking-tight text-[var(--kb-ink-900)]">
+          <Icon className="h-4.5 w-4.5 text-[var(--kb-navy-700)]" aria-hidden />
+          {title}
+        </h2>
+        {action}
+      </header>
+      <div className="mt-4">{children}</div>
     </section>
   );
 }
@@ -281,10 +257,35 @@ export default function EventDetail() {
           Math.round((attendanceFeature.checkedInCount / attendanceFeature.expectedCount) * 100),
         )
       : 0;
+  const hasSchedule = event.schedule && event.schedule.length > 0;
+  const hasMultipleImages = eventImageUploaded && tones.length > 1;
+  const showsSidebar = attendanceFeature.enabled || teamFeature.enabled;
+
+  const ParticipationButton = ({ size = "md", full = false }: { size?: "sm" | "md"; full?: boolean }) => {
+    if (!participation || !formUrl) return null;
+    const sizeClass = size === "sm" ? "h-9 px-3 text-[13px]" : "h-10 px-4 text-[14px]";
+    const widthClass = full ? "w-full" : "";
+    const cls = `inline-flex items-center justify-center gap-1.5 rounded-[var(--kb-radius-sm)] bg-[var(--kb-ink-900)] font-semibold text-[var(--kb-on-accent)] no-underline transition-colors hover:bg-[var(--kb-navy-900)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--kb-navy-500)] ${sizeClass} ${widthClass}`;
+    if (isInternalForm) {
+      return (
+        <Link to={formUrl} className={cls}>
+          참여하기
+          <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+        </Link>
+      );
+    }
+    return (
+      <a href={formUrl} target="_blank" rel="noreferrer" className={cls}>
+        참여하기
+        <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+      </a>
+    );
+  };
 
   return (
     <div className="kb-root" style={PAGE_STYLE}>
       <div className="kb-fade-up mx-auto flex max-w-[1180px] flex-col gap-6">
+        {/* Top action bar */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <button
             type="button"
@@ -297,7 +298,7 @@ export default function EventDetail() {
           {canEditEvent ? (
             <Link
               to={getEventEditPath(event.id)}
-              className="inline-flex h-9 items-center gap-1.5 rounded-[var(--kb-radius-sm)] bg-[var(--kb-ink-900)] px-3 text-[13.5px] font-semibold text-[var(--kb-on-accent)] no-underline transition-colors hover:bg-[var(--kb-navy-900)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--kb-navy-500)]"
+              className="inline-flex h-9 items-center gap-1.5 rounded-[var(--kb-radius-sm)] border border-[var(--kb-border-subtle)] bg-[var(--kb-surface-raised)] px-3 text-[13.5px] font-semibold text-[var(--kb-ink-700)] no-underline transition-colors hover:border-[var(--kb-navy-500)] hover:text-[var(--kb-navy-700)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--kb-navy-500)]"
             >
               <Edit3 className="h-4 w-4" aria-hidden />
               수정
@@ -314,216 +315,218 @@ export default function EventDetail() {
           </div>
         ) : null}
 
-        <main className="grid gap-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1fr)] lg:items-start">
-          <section className="lg:sticky lg:top-6">
-            <div className="overflow-hidden rounded-[var(--kb-radius-md)] border border-[var(--kb-border-subtle)] bg-[var(--kb-surface-sunken)] p-2 shadow-[var(--kb-shadow-sm)]">
-              <img
-                src={buildEventImage(event, currentImageTone, activeImageIndex)}
-                alt={`${event.title} 이미지 ${activeImageIndex + 1}`}
-                className={`aspect-video w-full rounded-[var(--kb-radius-sm)] ${
-                  eventImageUploaded ? "object-cover" : "object-contain p-12"
-                }`}
-                draggable={false}
-              />
-            </div>
-
-            {eventImageUploaded && tones.length > 1 ? (
-              <div className="mt-3 grid grid-cols-3 gap-2">
-                {tones.map((tone, index) => {
-                  const active = index === activeImageIndex;
-                  return (
-                    <button
-                      key={`${tone}-${index}`}
-                      type="button"
-                      onClick={() => setActiveImageIndex(index)}
-                      aria-label={`이미지 ${index + 1} 보기`}
-                      aria-pressed={active}
-                      className={`aspect-square rounded-[var(--kb-radius-sm)] border bg-[var(--kb-paper-3)] p-1 transition-[border-color,opacity] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--kb-navy-500)] ${
-                        active
-                          ? "border-[var(--kb-navy-500)] opacity-100"
-                          : "border-[var(--kb-border-subtle)] opacity-70 hover:opacity-100"
-                      }`}
-                    >
-                      <img
-                        src={buildEventImage(event, tone, index)}
-                        alt=""
-                        className="h-full w-full rounded-[calc(var(--kb-radius-sm)-2px)] object-cover"
-                        draggable={false}
-                      />
-                    </button>
-                  );
-                })}
-              </div>
-            ) : null}
-          </section>
-
-          <section>
-            <div className="flex flex-wrap items-center gap-2">
-              <StatusPill tone={STATUS_TONE[status]} dot>
-                {EVENT_STATUS_LABELS[status]}
-              </StatusPill>
-              <span className="rounded-[var(--kb-radius-full)] border border-[var(--kb-border-subtle)] bg-[var(--kb-paper-3)] px-2.5 py-0.5 text-[11.5px] font-medium text-[var(--kb-ink-700)]">
-                {event.organizer}
-              </span>
-            </div>
-
-            <h1 className="kb-display mt-4 text-[28px] font-semibold leading-tight tracking-tight text-[var(--kb-ink-900)] sm:text-[36px]">
-              {event.title}
-            </h1>
-            <p className="mt-3 max-w-[720px] text-[15px] leading-7 text-[var(--kb-ink-700)]">
-              {event.description}
-            </p>
-
-            <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              <InfoRow icon={CalendarDays} label="일시" value={formatEventRange(event)} />
-              <InfoRow icon={MapPin} label="장소" value={event.location} />
-              <InfoRow icon={UsersRound} label="참여 규모" value={event.capacityLabel} />
-              <InfoRow
-                icon={ListChecks}
-                label="참여"
-                value={participation ? participation.title : "참여 폼 없음"}
-              />
-            </div>
-
-            {participation ? (
-              <section className="mt-6 rounded-[var(--kb-radius-md)] border border-[color-mix(in_srgb,var(--kb-navy-500)_25%,transparent)] bg-[var(--kb-navy-50)] p-5">
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <div className="inline-flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-[0.06em] text-[var(--kb-navy-700)]">
-                      <ExternalLink className="h-3.5 w-3.5" aria-hidden />
-                      {participation.external ? "외부 신청 폼" : "KOBOT 참여 폼"}
-                    </div>
-                    <h2 className="kb-display mb-0 mt-2 text-[20px] font-semibold leading-tight tracking-tight text-[var(--kb-ink-900)]">
-                      {participation.title}
-                    </h2>
-                    {formFeature.deadline ? (
-                      <p className="mb-0 mt-2 text-[13px] font-medium text-[var(--kb-ink-700)]">
-                        마감: {formatDate(formFeature.deadline)}
-                      </p>
-                    ) : null}
-                  </div>
-
-                  {formUrl ? (
-                    isInternalForm ? (
-                      <Link
-                        to={formUrl}
-                        className="inline-flex h-10 items-center gap-1.5 rounded-[var(--kb-radius-sm)] bg-[var(--kb-ink-900)] px-4 text-[14px] font-semibold text-[var(--kb-on-accent)] no-underline transition-colors hover:bg-[var(--kb-navy-900)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--kb-navy-500)]"
-                      >
-                        참여하기
-                        <ExternalLink className="h-4 w-4" aria-hidden />
-                      </Link>
-                    ) : (
-                      <a
-                        href={formUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex h-10 items-center gap-1.5 rounded-[var(--kb-radius-sm)] bg-[var(--kb-ink-900)] px-4 text-[14px] font-semibold text-[var(--kb-on-accent)] no-underline transition-colors hover:bg-[var(--kb-navy-900)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--kb-navy-500)]"
-                      >
-                        참여하기
-                        <ExternalLink className="h-4 w-4" aria-hidden />
-                      </a>
-                    )
-                  ) : null}
-                </div>
-
-                {formFeature.requiredFields.length > 0 ? (
-                  <div className="mt-4 flex flex-wrap gap-1.5">
-                    {formFeature.requiredFields.map((field) => (
-                      <span
-                        key={field}
-                        className="rounded-[var(--kb-radius-full)] border border-[color-mix(in_srgb,var(--kb-navy-500)_25%,transparent)] bg-[var(--kb-surface-raised)] px-2.5 py-0.5 text-[11.5px] font-medium text-[var(--kb-navy-700)]"
-                      >
-                        {field}
-                      </span>
-                    ))}
+        {/* Hero — image (compact left) + info + CTA (right) */}
+        <section className="overflow-hidden rounded-[var(--kb-radius-lg)] border border-[var(--kb-border-subtle)] bg-[var(--kb-surface-raised)] shadow-[var(--kb-shadow-sm)]">
+          <div className="grid gap-0 md:grid-cols-[280px_minmax(0,1fr)] lg:grid-cols-[320px_minmax(0,1fr)]">
+            {/* Image side */}
+            <div className="flex flex-col">
+              <div className="relative aspect-video w-full overflow-hidden bg-[var(--kb-paper-3)] md:aspect-auto md:h-full md:min-h-[220px]">
+                <img
+                  src={buildEventImage(event, currentImageTone, activeImageIndex)}
+                  alt={`${event.title} 이미지 ${activeImageIndex + 1}`}
+                  className={`h-full w-full ${eventImageUploaded ? "object-cover" : "object-contain p-6"}`}
+                  draggable={false}
+                />
+                {!eventImageUploaded ? (
+                  <div className="absolute bottom-2 left-2 inline-flex items-center gap-1 rounded-[var(--kb-radius-full)] bg-[color-mix(in_srgb,var(--kb-ink-900)_55%,transparent)] px-2 py-0.5 text-[10.5px] font-medium text-[var(--kb-on-accent)]">
+                    <ImageIcon className="h-3 w-3" aria-hidden />
+                    기본 이미지
                   </div>
                 ) : null}
-              </section>
-            ) : null}
-
-            <div className="mt-6 grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
-              <div className="flex flex-col gap-5">
-                <SectionCard icon={CalendarDays} title="진행 일정">
-                  <div className="mt-4 grid gap-3">
-                    {event.schedule.map((item) => (
-                      <div
-                        key={`${item.time}-${item.title}`}
-                        className="grid grid-cols-[88px_1fr] gap-3 border-b border-[var(--kb-border-subtle)] pb-3 last:border-b-0 last:pb-0"
+              </div>
+              {hasMultipleImages ? (
+                <div className="grid grid-cols-3 gap-1 border-t border-[var(--kb-border-subtle)] p-2">
+                  {tones.map((tone, index) => {
+                    const active = index === activeImageIndex;
+                    return (
+                      <button
+                        key={`${tone}-${index}`}
+                        type="button"
+                        onClick={() => setActiveImageIndex(index)}
+                        aria-label={`이미지 ${index + 1} 보기`}
+                        aria-pressed={active}
+                        className={`aspect-square overflow-hidden rounded-[var(--kb-radius-sm)] border transition-[border-color,opacity] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--kb-navy-500)] ${
+                          active
+                            ? "border-[var(--kb-navy-500)] opacity-100"
+                            : "border-[var(--kb-border-subtle)] opacity-60 hover:opacity-100"
+                        }`}
                       >
-                        <span className="text-[13px] font-semibold text-[var(--kb-navy-700)]">
+                        <img
+                          src={buildEventImage(event, tone, index)}
+                          alt=""
+                          className="h-full w-full object-cover"
+                          draggable={false}
+                        />
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
+            </div>
+
+            {/* Info side */}
+            <div className="flex flex-col gap-4 p-5 md:p-6">
+              <div className="flex flex-wrap items-center gap-2">
+                <StatusPill tone={STATUS_TONE[status]} dot>
+                  {EVENT_STATUS_LABELS[status]}
+                </StatusPill>
+                <span className="rounded-[var(--kb-radius-full)] border border-[var(--kb-border-subtle)] bg-[var(--kb-paper-3)] px-2 py-0.5 text-[11px] font-medium text-[var(--kb-ink-700)]">
+                  {event.organizer}
+                </span>
+              </div>
+
+              <div>
+                <h1 className="kb-display m-0 text-[24px] font-semibold leading-tight tracking-tight text-[var(--kb-ink-900)] sm:text-[28px]">
+                  {event.title}
+                </h1>
+              </div>
+
+              <div className="grid gap-2 border-t border-[var(--kb-border-subtle)] pt-4">
+                <MetaLine icon={CalendarDays} label="일시">
+                  {formatEventRange(event)}
+                </MetaLine>
+                <MetaLine icon={MapPin} label="장소">
+                  {event.location}
+                </MetaLine>
+                <MetaLine icon={UsersRound} label="규모">
+                  {event.capacityLabel}
+                </MetaLine>
+              </div>
+
+              {participation ? (
+                <div className="mt-1 flex flex-wrap items-center gap-3 border-t border-[var(--kb-border-subtle)] pt-4">
+                  <div className="min-w-0 flex-1">
+                    <div className="kb-mono text-[10.5px] font-semibold uppercase tracking-[0.12em] text-[var(--kb-navy-700)]">
+                      {participation.external ? "외부 신청 폼" : "KOBOT 참여 폼"}
+                    </div>
+                    <div className="mt-1 truncate text-[13.5px] font-semibold text-[var(--kb-ink-900)]">
+                      {participation.title}
+                    </div>
+                    {formFeature.deadline ? (
+                      <div className="mt-0.5 text-[12px] text-[var(--kb-ink-500)]">
+                        마감 {formatDate(formFeature.deadline)}
+                      </div>
+                    ) : null}
+                  </div>
+                  <ParticipationButton size="md" />
+                </div>
+              ) : (
+                <div className="mt-1 border-t border-[var(--kb-border-subtle)] pt-4 text-[13px] text-[var(--kb-ink-500)]">
+                  이 행사는 아직 참여 폼이 연결되지 않았습니다.
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+
+        {/* Notice body — pre-wrapped so 줄바꿈/이모지/긴 본문 자연 표시 */}
+        {event.description ? (
+          <section className="rounded-[var(--kb-radius-md)] border border-[var(--kb-border-subtle)] bg-[var(--kb-surface-raised)] p-6 shadow-[var(--kb-shadow-sm)] sm:p-8">
+            <div className="kb-mono mb-3 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-[var(--kb-ink-500)]">
+              안내
+            </div>
+            <div className="whitespace-pre-wrap text-[14.5px] leading-[1.85] text-[var(--kb-ink-700)]">
+              {event.description}
+            </div>
+          </section>
+        ) : null}
+
+        {/* Body — only render sections with content */}
+        {(hasSchedule || surveyFeature.enabled || teamFeature.enabled || showsSidebar) ? (
+          <div
+            className={`grid gap-5 ${
+              showsSidebar ? "lg:grid-cols-[minmax(0,1fr)_320px]" : ""
+            }`}
+          >
+            <div className="flex flex-col gap-5">
+              {hasSchedule ? (
+                <SectionCard icon={CalendarDays} title="진행 일정">
+                  <ol className="grid gap-2.5">
+                    {event.schedule.map((item) => (
+                      <li
+                        key={`${item.time}-${item.title}`}
+                        className="grid grid-cols-[80px_1fr] gap-3 border-b border-[var(--kb-border-subtle)] pb-2.5 last:border-b-0 last:pb-0"
+                      >
+                        <span className="kb-mono text-[12px] font-semibold text-[var(--kb-navy-700)]">
                           {item.time}
                         </span>
-                        <span className="text-[14px] text-[var(--kb-ink-900)]">{item.title}</span>
+                        <span className="text-[13.5px] text-[var(--kb-ink-900)]">
+                          {item.title}
+                        </span>
+                      </li>
+                    ))}
+                  </ol>
+                </SectionCard>
+              ) : null}
+
+              {surveyFeature.enabled ? (
+                <SectionCard icon={ClipboardList} title={surveyFeature.title}>
+                  {surveyFeature.description ? (
+                    <p className="m-0 text-[13.5px] leading-6 text-[var(--kb-ink-500)]">
+                      {surveyFeature.description}
+                    </p>
+                  ) : null}
+                  <div className="mt-3 grid gap-2">
+                    {surveyFeature.questions.map((question) => (
+                      <div
+                        key={question.id}
+                        className="rounded-[var(--kb-radius-sm)] border border-[var(--kb-border-subtle)] bg-[var(--kb-surface-sunken)] px-3 py-2.5"
+                      >
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-[13px] font-semibold text-[var(--kb-ink-900)]">
+                            {question.label}
+                          </span>
+                          <StatusPill tone="neutral">
+                            {QUESTION_TYPE_LABELS[question.type]}
+                          </StatusPill>
+                          {question.required ? <StatusPill tone="danger">필수</StatusPill> : null}
+                        </div>
+                        {question.choices && question.choices.length > 0 ? (
+                          <div className="mt-1.5 flex flex-wrap gap-1.5">
+                            {question.choices.map((choice) => (
+                              <span
+                                key={choice}
+                                className="rounded-[var(--kb-radius-full)] border border-[var(--kb-border-subtle)] bg-[var(--kb-surface-raised)] px-2 py-0.5 text-[11px] font-medium text-[var(--kb-ink-700)]"
+                              >
+                                {choice}
+                              </span>
+                            ))}
+                          </div>
+                        ) : null}
                       </div>
                     ))}
                   </div>
                 </SectionCard>
+              ) : null}
 
-                {surveyFeature.enabled ? (
-                  <SectionCard icon={ClipboardList} title={surveyFeature.title}>
-                    <p className="mt-2 text-[14px] leading-6 text-[var(--kb-ink-500)]">
-                      {surveyFeature.description}
-                    </p>
-                    <div className="mt-4 grid gap-2.5">
-                      {surveyFeature.questions.map((question) => (
-                        <div
-                          key={question.id}
-                          className="rounded-[var(--kb-radius-sm)] border border-[var(--kb-border-subtle)] bg-[var(--kb-surface-sunken)] px-3.5 py-3"
-                        >
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-[13.5px] font-semibold text-[var(--kb-ink-900)]">
-                              {question.label}
-                            </span>
-                            <StatusPill tone="neutral">
-                              {QUESTION_TYPE_LABELS[question.type]}
-                            </StatusPill>
-                            {question.required ? (
-                              <StatusPill tone="danger">필수</StatusPill>
-                            ) : null}
-                          </div>
-                          {question.choices && question.choices.length > 0 ? (
-                            <div className="mt-2 flex flex-wrap gap-1.5">
-                              {question.choices.map((choice) => (
-                                <span
-                                  key={choice}
-                                  className="rounded-[var(--kb-radius-full)] border border-[var(--kb-border-subtle)] bg-[var(--kb-surface-raised)] px-2 py-0.5 text-[11px] font-medium text-[var(--kb-ink-700)]"
-                                >
-                                  {choice}
-                                </span>
-                              ))}
-                            </div>
-                          ) : null}
-                        </div>
-                      ))}
-                    </div>
-                  </SectionCard>
-                ) : null}
-
-                {teamFeature.enabled ? (
-                  <SectionCard icon={Trophy} title="팀 편성">
-                    <p className="mb-0 mt-2 text-[14px] leading-6 text-[var(--kb-ink-500)]">
+              {teamFeature.enabled ? (
+                <SectionCard icon={Trophy} title="팀 편성">
+                  {teamFeature.description ? (
+                    <p className="m-0 text-[13.5px] leading-6 text-[var(--kb-ink-500)]">
                       {teamFeature.description}
                     </p>
-                    <div className="mt-3 inline-flex items-center gap-2 rounded-[var(--kb-radius-sm)] bg-[var(--kb-paper-2)] px-3 py-2 text-[13px] font-semibold text-[var(--kb-ink-900)]">
-                      <UsersRound className="h-4 w-4 text-[var(--kb-navy-700)]" aria-hidden />
-                      팀당 최대 {teamFeature.teamSize}명
-                    </div>
-                  </SectionCard>
-                ) : null}
-              </div>
+                  ) : null}
+                  <div className="mt-3 inline-flex items-center gap-2 rounded-[var(--kb-radius-sm)] bg-[var(--kb-paper-2)] px-3 py-2 text-[13px] font-semibold text-[var(--kb-ink-900)]">
+                    <UsersRound className="h-4 w-4 text-[var(--kb-navy-700)]" aria-hidden />
+                    팀당 최대 {teamFeature.teamSize}명
+                  </div>
+                </SectionCard>
+              ) : null}
+            </div>
 
+            {showsSidebar ? (
               <aside className="flex flex-col gap-5">
                 {attendanceFeature.enabled ? (
                   <SectionCard icon={CheckCircle2} title="참석 체크">
-                    <div className="mt-3 flex items-end gap-2">
-                      <span className="kb-display text-[34px] font-semibold leading-none text-[var(--kb-ink-900)]">
+                    <div className="flex items-end gap-2">
+                      <span className="kb-display text-[32px] font-semibold leading-none text-[var(--kb-ink-900)]">
                         {attendanceFeature.checkedInCount}
                       </span>
-                      <span className="pb-1 text-[13px] font-medium text-[var(--kb-ink-500)]">
+                      <span className="pb-1 text-[12.5px] font-medium text-[var(--kb-ink-500)]">
                         / {attendanceFeature.expectedCount}명
                       </span>
                     </div>
-                    <div className="mt-3 h-2 overflow-hidden rounded-full bg-[var(--kb-paper-3)]">
+                    <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[var(--kb-paper-3)]">
                       <div
                         role="progressbar"
                         aria-valuenow={attendanceRate}
@@ -533,60 +536,15 @@ export default function EventDetail() {
                         style={{ width: `${attendanceRate}%` }}
                       />
                     </div>
-                    <p className="mb-0 mt-2 text-[12px] text-[var(--kb-ink-500)]">
+                    <p className="mb-0 mt-2 text-[11.5px] text-[var(--kb-ink-500)]">
                       {attendanceFeature.method === "qr" ? "QR 체크인" : "수동 체크"} · {attendanceRate}%
                     </p>
                   </SectionCard>
                 ) : null}
-
-                <SectionCard icon={ClipboardList} title="참여">
-                  {participation ? (
-                    <>
-                      <p className="mt-2 text-[13px] leading-5 text-[var(--kb-ink-500)]">
-                        {participation.title}
-                      </p>
-                      {participation.external ? (
-                        <a
-                          href={participation.href}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="mt-3 inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-[var(--kb-radius-sm)] bg-[var(--kb-ink-900)] px-4 text-[14px] font-semibold text-[var(--kb-on-accent)] no-underline transition-colors hover:bg-[var(--kb-navy-900)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--kb-navy-500)]"
-                        >
-                          참여하기
-                          <ExternalLink className="h-4 w-4" aria-hidden />
-                        </a>
-                      ) : (
-                        <Link
-                          to={participation.href}
-                          className="mt-3 inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-[var(--kb-radius-sm)] bg-[var(--kb-ink-900)] px-4 text-[14px] font-semibold text-[var(--kb-on-accent)] no-underline transition-colors hover:bg-[var(--kb-navy-900)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--kb-navy-500)]"
-                        >
-                          참여하기
-                          <ExternalLink className="h-4 w-4" aria-hidden />
-                        </Link>
-                      )}
-                    </>
-                  ) : (
-                    <p className="mb-0 mt-2 text-[13px] leading-5 text-[var(--kb-ink-500)]">
-                      이 행사는 아직 참여 폼이 연결되지 않았습니다.
-                    </p>
-                  )}
-                </SectionCard>
-
-                <div className="rounded-[var(--kb-radius-md)] border border-[var(--kb-border-subtle)] bg-[var(--kb-surface-sunken)] p-5">
-                  <div className="kb-mono text-[10.5px] font-semibold uppercase tracking-[0.14em] text-[var(--kb-ink-500)]">
-                    날짜
-                  </div>
-                  <div className="kb-display mt-2 text-[18px] font-semibold text-[var(--kb-ink-900)]">
-                    {formatDateOnly(event.startsAt)}
-                  </div>
-                  <div className="mt-1 text-[13px] font-medium text-[var(--kb-ink-500)]">
-                    {formatTime(event.startsAt)} - {formatTime(event.endsAt)}
-                  </div>
-                </div>
               </aside>
-            </div>
-          </section>
-        </main>
+            ) : null}
+          </div>
+        ) : null}
       </div>
     </div>
   );

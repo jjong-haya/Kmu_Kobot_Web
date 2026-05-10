@@ -23,12 +23,12 @@ const inputStyle: CSSProperties = {
   width: "100%",
   padding: "12px 16px",
   fontSize: 14.5,
-  border: "1px solid #e8e8e4",
-  borderRadius: 10,
+  border: "1px solid var(--kb-border-subtle)",
+  borderRadius: "var(--kb-radius-md)",
   outline: "none",
   fontFamily: "inherit",
   color: "var(--kb-ink-900)",
-  background: "#fff",
+  background: "var(--kb-surface-raised)",
 };
 
 export default function Profile() {
@@ -110,7 +110,7 @@ export default function Profile() {
               letterSpacing: "-0.02em",
               margin: 0,
               lineHeight: 1.2,
-              color: "#0a0a0a",
+              color: "var(--kb-ink-900)",
             }}
           >
             프로필
@@ -181,10 +181,10 @@ export default function Profile() {
                   alignItems: "center",
                   gap: 6,
                   padding: "10px 16px",
-                  border: "1px solid #ebe8e0",
-                  background: "#fff",
+                  border: "1px solid var(--kb-border-subtle)",
+                  background: "var(--kb-surface-raised)",
                   color: "var(--kb-ink-700)",
-                  borderRadius: 8,
+                  borderRadius: "var(--kb-radius-sm)",
                   fontSize: 13.5,
                   fontWeight: 500,
                   cursor: "pointer",
@@ -274,12 +274,13 @@ export default function Profile() {
 
           {error && (
             <div
+              role="alert"
               style={{
                 fontSize: 13,
-                color: "#dc2626",
-                background: "#fef2f2",
-                border: "1px solid #fecaca",
-                borderRadius: 8,
+                color: "var(--kb-danger-700)",
+                background: "var(--kb-danger-50)",
+                border: "1px solid color-mix(in srgb, var(--kb-danger-500) 30%, transparent)",
+                borderRadius: "var(--kb-radius-sm)",
                 padding: "10px 14px",
                 fontWeight: 500,
               }}
@@ -296,7 +297,7 @@ export default function Profile() {
               justifyContent: "flex-end",
               alignItems: "center",
               gap: 10,
-              borderTop: "1px solid #f1ede4",
+              borderTop: "1px solid var(--kb-border-subtle)",
               paddingTop: 18,
             }}
           >
@@ -304,7 +305,7 @@ export default function Profile() {
               <span
                 style={{
                   fontSize: 13,
-                  color: "#15803d",
+                  color: "var(--kb-success-700)",
                   fontWeight: 600,
                 }}
               >
@@ -320,14 +321,15 @@ export default function Profile() {
                 justifyContent: "center",
                 gap: 6,
                 padding: "11px 22px",
-                background: saving ? "#6a6a6a" : "#0a0a0a",
-                color: "#fff",
+                background: saving ? "var(--kb-ink-500)" : "var(--kb-ink-900)",
+                color: "var(--kb-on-accent)",
                 border: "none",
-                borderRadius: 10,
+                borderRadius: "var(--kb-radius-sm)",
                 fontSize: 14.5,
-                fontWeight: 700,
+                fontWeight: 600,
                 cursor: saving ? "not-allowed" : "pointer",
                 fontFamily: "inherit",
+                transition: "background var(--kb-duration-normal) var(--kb-ease-standard)",
               }}
             >
               <Save style={{ width: 14, height: 14 }} />

@@ -55,12 +55,13 @@ import {
 import { listMemberDirectory, type MemberDirectoryProfile } from "../../api/member-directory";
 import { useAuth } from "../../auth/useAuth";
 import { sanitizeUserError } from "../../utils/sanitize-error";
+import { EmptyState } from "../../components/primitives";
 
 const PAGE_STYLE: CSSProperties = {
   minHeight: "calc(100vh - 4rem)",
   margin: -32,
   padding: 32,
-  background: "#ffffff",
+  background: "var(--kb-surface-page)",
 };
 
 type PanelKey = "answer" | "responses" | "comments" | "tournament";
@@ -527,18 +528,29 @@ function QuestionInput({
 function FormNotFound() {
   return (
     <div className="kb-root" style={PAGE_STYLE}>
-      <div className="mx-auto flex min-h-[420px] max-w-[720px] flex-col items-center justify-center text-center">
-        <ClipboardList className="mb-4 h-12 w-12 text-[#8d877e]" />
-        <h1 className="m-0 text-[28px] font-black tracking-normal text-[#111111]">
-          폼을 찾을 수 없습니다.
-        </h1>
-        <Link
-          to="/member/forms"
-          className="mt-6 inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#e8e6df] bg-white px-4 text-[14px] font-bold text-[#312f2c] no-underline"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          폼 목록
-        </Link>
+      <div className="mx-auto max-w-[720px]">
+        <EmptyState
+          icon={ClipboardList}
+          title="폼을 찾을 수 없어요"
+          description="삭제되었거나 아직 응답을 받지 않는 상태일 수 있어요. 행사 페이지로 돌아가 다시 시도해 주세요."
+          action={
+            <Link
+              to="/member/forms"
+              className="inline-flex h-9 items-center gap-1.5 rounded-[var(--kb-radius-sm)] border border-[var(--kb-border-subtle)] bg-[var(--kb-surface-raised)] px-3 text-[13px] font-semibold text-[var(--kb-ink-700)] no-underline transition-colors hover:border-[var(--kb-navy-500)] hover:text-[var(--kb-navy-700)]"
+            >
+              <ArrowLeft className="h-4 w-4" aria-hidden />
+              폼 목록
+            </Link>
+          }
+          secondaryAction={
+            <Link
+              to="/member/events"
+              className="inline-flex h-9 items-center gap-1.5 rounded-[var(--kb-radius-sm)] border border-[var(--kb-border-subtle)] bg-[var(--kb-surface-raised)] px-3 text-[13px] font-medium text-[var(--kb-ink-500)] no-underline transition-colors hover:text-[var(--kb-navy-700)]"
+            >
+              행사로
+            </Link>
+          }
+        />
       </div>
     </div>
   );
@@ -547,23 +559,21 @@ function FormNotFound() {
 function FormAccessBlocked({ message }: { message: string }) {
   return (
     <div className="kb-root" style={PAGE_STYLE}>
-      <div className="mx-auto flex min-h-[520px] max-w-[720px] flex-col items-center justify-center text-center">
-        <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-[8px] border border-[#fed7aa] bg-[#fff7ed] text-[#b45309]">
-          <ClipboardList className="h-7 w-7" />
-        </div>
-        <h1 className="m-0 text-[28px] font-black tracking-normal text-[#111111]">
-          아직 열 수 없는 폼입니다.
-        </h1>
-        <p className="mt-3 max-w-[520px] text-[15px] font-semibold leading-7 text-[#64748b]">
-          {message}
-        </p>
-        <Link
-          to="/member"
-          className="mt-6 inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#d8deea] bg-white px-4 text-[14px] font-bold text-[#334155] no-underline transition-colors hover:border-[#103078] hover:text-[#103078]"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          돌아가기
-        </Link>
+      <div className="mx-auto max-w-[720px]">
+        <EmptyState
+          icon={ClipboardList}
+          title="아직 열 수 없는 폼입니다"
+          description={message}
+          action={
+            <Link
+              to="/member"
+              className="inline-flex h-9 items-center gap-1.5 rounded-[var(--kb-radius-sm)] border border-[var(--kb-border-subtle)] bg-[var(--kb-surface-raised)] px-3 text-[13px] font-semibold text-[var(--kb-ink-700)] no-underline transition-colors hover:border-[var(--kb-navy-500)] hover:text-[var(--kb-navy-700)]"
+            >
+              <ArrowLeft className="h-4 w-4" aria-hidden />
+              대시보드로
+            </Link>
+          }
+        />
       </div>
     </div>
   );
