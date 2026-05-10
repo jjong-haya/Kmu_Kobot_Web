@@ -1535,18 +1535,18 @@ export default function FormDetail() {
           </section>
         ) : null}
 
-        <div className="grid gap-3 rounded-[10px] border border-[#eeeae2] bg-[#fbfaf7] p-4 text-[13px] font-bold text-[#6f6a62] sm:grid-cols-3">
+        <div className="grid gap-3 rounded-[var(--kb-radius-md)] border border-[var(--kb-border-subtle)] bg-[var(--kb-surface-sunken)] px-4 py-3 text-[12.5px] font-medium text-[var(--kb-ink-500)] sm:grid-cols-3">
           <div className="inline-flex items-center gap-2">
-            <CalendarDays className="h-4 w-4 text-[#103078]" />
+            <CalendarDays className="h-3.5 w-3.5 text-[var(--kb-navy-700)]" aria-hidden />
             생성 {formatDateTime(form.createdAt)}
           </div>
           <div className="inline-flex items-center gap-2">
-            <ClipboardList className="h-4 w-4 text-[#103078]" />
+            <ClipboardList className="h-3.5 w-3.5 text-[var(--kb-navy-700)]" aria-hidden />
             질문 {form.questions.length}개
           </div>
           {canManageForms ? (
             <div className="inline-flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-[#103078]" />
+              <CheckCircle2 className="h-3.5 w-3.5 text-[var(--kb-navy-700)]" aria-hidden />
               {"\uC751\uB2F5 "}{form.responses.length}{"\uAC1C"}
             </div>
           ) : null}
