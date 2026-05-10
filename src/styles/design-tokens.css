@@ -1,6 +1,9 @@
 /* === Kobot Unified Design System — Foundation tokens === */
+/* Body + display: Wanted Sans (Wantedlab, 2024). Modern Korean sans, variable font. */
+@import url('https://cdn.jsdelivr.net/gh/wanteddev/wanted-sans@v1.0.3/packages/wanted-sans/fonts/webfontvariable/variable/WantedSansVariable.min.css');
+/* Fallback Korean: Pretendard. Mono: JetBrains Mono. Serif accent: Instrument Serif. */
 @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
-@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&family=Geist:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&family=Instrument+Serif&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Instrument+Serif&display=swap');
 
 :root {
   /* Brand Navy */
@@ -28,11 +31,121 @@
   --kb-ink-400:  #9a9a98;
   --kb-ink-300:  #b8b8b5;
 
-  /* Type stacks */
-  --kb-font-display: 'Nunito', 'Pretendard', system-ui, sans-serif;
-  --kb-font-body:    'Pretendard', 'Nunito', system-ui, sans-serif;
-  --kb-font-mono:    'JetBrains Mono', 'Pretendard', ui-monospace, monospace;
+  /* Type stacks — body & display unified on Wanted Sans for a modern, even
+     Korean rhythm. Pretendard remains as a fallback so old caches don't FOUT. */
+  --kb-font-display: 'Wanted Sans Variable', 'Wanted Sans', 'Pretendard', system-ui, -apple-system, 'Apple SD Gothic Neo', sans-serif;
+  --kb-font-body:    'Wanted Sans Variable', 'Wanted Sans', 'Pretendard', system-ui, -apple-system, 'Apple SD Gothic Neo', sans-serif;
+  --kb-font-mono:    'JetBrains Mono', 'Wanted Sans Variable', 'Pretendard', ui-monospace, monospace;
   --kb-font-serif:   'Instrument Serif', 'Pretendard', serif;
+
+  /* Status — semantic */
+  --kb-success-50:  #ecfdf5;
+  --kb-success-500: #16a34a;
+  --kb-success-700: #15803d;
+  --kb-warning-50:  #fffbeb;
+  --kb-warning-500: #d97706;
+  --kb-warning-700: #b45309;
+  --kb-danger-50:   #fef2f2;
+  --kb-danger-500:  #dc2626;
+  --kb-danger-700:  #b91c1c;
+  --kb-info-50:     #eff6ff;
+  --kb-info-500:    #2563eb;
+  --kb-info-700:    #1d4ed8;
+
+  /* Radius */
+  --kb-radius-xs:   4px;
+  --kb-radius-sm:   6px;
+  --kb-radius-md:   10px;
+  --kb-radius-lg:   14px;
+  --kb-radius-xl:   20px;
+  --kb-radius-full: 999px;
+
+  /* Shadow — subtle, layered */
+  --kb-shadow-sm:   0 1px 2px rgba(10, 10, 10, 0.04), 0 0 1px rgba(10, 10, 10, 0.06);
+  --kb-shadow-md:   0 2px 8px rgba(10, 10, 10, 0.06), 0 0 1px rgba(10, 10, 10, 0.08);
+  --kb-shadow-lg:   0 8px 24px rgba(10, 10, 10, 0.08), 0 2px 6px rgba(10, 10, 10, 0.04);
+  --kb-shadow-focus: 0 0 0 3px rgba(59, 107, 196, 0.20);
+
+  /* Spacing scale (in addition to Tailwind defaults — use for inline styles) */
+  --kb-space-1: 4px;
+  --kb-space-2: 8px;
+  --kb-space-3: 12px;
+  --kb-space-4: 16px;
+  --kb-space-5: 20px;
+  --kb-space-6: 24px;
+  --kb-space-8: 32px;
+  --kb-space-10: 40px;
+  --kb-space-12: 48px;
+  --kb-space-16: 64px;
+
+  /* Motion */
+  --kb-duration-fast:    120ms;
+  --kb-duration-normal:  200ms;
+  --kb-duration-slow:    320ms;
+  --kb-duration-deliberate: 480ms;
+  --kb-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --kb-ease-emphasis: cubic-bezier(0.16, 1, 0.3, 1);
+  --kb-ease-exit:     cubic-bezier(0.4, 0, 1, 1);
+
+  /* Z-index layers */
+  --kb-z-base:     0;
+  --kb-z-sticky:   100;
+  --kb-z-overlay:  900;
+  --kb-z-dialog:   1000;
+  --kb-z-popover:  1100;
+  --kb-z-toast:    1200;
+  --kb-z-tooltip:  1300;
+
+  /* Breakpoints — reference only (Tailwind handles enforcement; mirror sm/md/lg/xl) */
+  --kb-bp-sm: 640px;
+  --kb-bp-md: 768px;
+  --kb-bp-lg: 1024px;
+  --kb-bp-xl: 1280px;
+  --kb-bp-2xl: 1536px;
+
+  /* Surfaces — semantic aliases for light theme */
+  --kb-surface-page:    var(--kb-paper);
+  --kb-surface-raised:  var(--kb-paper);
+  --kb-surface-sunken:  var(--kb-paper-2);
+  --kb-surface-muted:   var(--kb-paper-3);
+  --kb-border-subtle:   var(--kb-hairline);
+  --kb-border-strong:   var(--kb-hairline-2);
+  --kb-text-primary:    var(--kb-ink-900);
+  --kb-text-secondary:  var(--kb-ink-500);
+  --kb-text-muted:      var(--kb-ink-400);
+  --kb-accent:          var(--kb-navy-500);
+  --kb-accent-strong:   var(--kb-navy-700);
+  --kb-on-accent:       #ffffff;
+}
+
+/* Dark theme overrides — opt-in via [data-theme="dark"] on html or .kb-root.
+   Phase 5 will wire the toggle; tokens are ready now. */
+[data-theme="dark"] {
+  --kb-paper:    #0b0d12;
+  --kb-paper-2:  #11141b;
+  --kb-paper-3:  #161a23;
+  --kb-hairline: #232834;
+  --kb-hairline-2: #2c3140;
+  --kb-rule:     #e7e7e3;
+
+  --kb-ink-900: #f5f5f4;
+  --kb-ink-800: #e7e7e3;
+  --kb-ink-700: #c9c9c4;
+  --kb-ink-500: #9a9a98;
+  --kb-ink-400: #7a7a78;
+  --kb-ink-300: #5a5a58;
+
+  --kb-surface-page:    var(--kb-paper);
+  --kb-surface-raised:  var(--kb-paper-2);
+  --kb-surface-sunken:  #0a0c11;
+  --kb-surface-muted:   var(--kb-paper-3);
+  --kb-border-subtle:   var(--kb-hairline);
+  --kb-border-strong:   var(--kb-hairline-2);
+  --kb-text-primary:    var(--kb-ink-900);
+  --kb-text-secondary:  var(--kb-ink-500);
+  --kb-text-muted:      var(--kb-ink-400);
+  --kb-accent:          #6b8fd9;
+  --kb-accent-strong:   #8aa6e0;
 }
 
 /* Reset block scoped under .kb-root */
@@ -61,7 +174,11 @@ select {
 }
 
 .kb-mono { font-family: var(--kb-font-mono); font-feature-settings: "ss01"; }
-.kb-display { font-family: var(--kb-font-display); letter-spacing: -0.02em; }
+.kb-display {
+  font-family: var(--kb-font-display);
+  letter-spacing: -0.02em;
+  font-feature-settings: "ss10", "calt", "kern";
+}
 .kb-serif { font-family: var(--kb-font-serif); }
 
 @keyframes kb-blink { 50% { opacity: 0; } }

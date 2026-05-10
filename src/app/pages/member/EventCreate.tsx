@@ -38,7 +38,7 @@ const PAGE_STYLE: CSSProperties = {
   minHeight: "calc(100vh - 4rem)",
   margin: -32,
   padding: 32,
-  background: "#ffffff",
+  background: "var(--kb-surface-page)",
 };
 
 const FIELD_BASE =

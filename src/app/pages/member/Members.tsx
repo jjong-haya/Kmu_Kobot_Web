@@ -52,14 +52,14 @@ const PAGE_STYLE: CSSProperties = {
   minHeight: "calc(100vh - 4rem)",
   margin: -32,
   padding: 32,
-  background: "#ffffff",
+  background: "var(--kb-surface-page)",
 };
 
 const CARD_STYLE: CSSProperties = {
-  background: "#ffffff",
-  border: "1px solid #e8e8e4",
-  borderRadius: 16,
-  boxShadow: "0 2px 8px rgba(0, 0, 0, 0.06), 0 0 1px rgba(0, 0, 0, 0.08)",
+  background: "var(--kb-surface-raised)",
+  border: "1px solid var(--kb-border-subtle)",
+  borderRadius: "var(--kb-radius-lg)",
+  boxShadow: "var(--kb-shadow-sm)",
 };
 
 const inputStyle: CSSProperties = {

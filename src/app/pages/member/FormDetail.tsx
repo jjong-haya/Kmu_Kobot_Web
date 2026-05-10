@@ -55,12 +55,13 @@ import {
 import { listMemberDirectory, type MemberDirectoryProfile } from "../../api/member-directory";
 import { useAuth } from "../../auth/useAuth";
 import { sanitizeUserError } from "../../utils/sanitize-error";
+import { EmptyState, StatusPill } from "../../components/primitives";
 
 const PAGE_STYLE: CSSProperties = {
   minHeight: "calc(100vh - 4rem)",
   margin: -32,
   padding: 32,
-  background: "#ffffff",
+  background: "var(--kb-surface-page)",
 };
 
 type PanelKey = "answer" | "responses" | "comments" | "tournament";
@@ -294,14 +295,14 @@ function QuestionInput({
 }) {
   const [memberQuery, setMemberQuery] = useState("");
   const inputClass =
-    "h-11 rounded-[8px] border border-[#e8e6df] px-3 text-[15px] font-semibold outline-none focus:border-[#103078]";
+    "h-11 rounded-[var(--kb-radius-sm)] border border-[var(--kb-border-subtle)] bg-[var(--kb-surface-raised)] px-3 text-[14.5px] text-[var(--kb-ink-900)] outline-none transition-colors focus:border-[var(--kb-navy-500)] focus:ring-2 focus:ring-[var(--kb-navy-500)]";
 
   if (question.type === "long_text") {
     return (
       <textarea
         value={typeof value === "string" ? value : ""}
         onChange={(event) => onChange(event.target.value)}
-        className="min-h-[120px] resize-y rounded-[8px] border border-[#e8e6df] px-3 py-3 text-[15px] leading-7 outline-none focus:border-[#103078]"
+        className="min-h-[120px] resize-y rounded-[var(--kb-radius-sm)] border border-[var(--kb-border-subtle)] bg-[var(--kb-surface-raised)] px-3 py-3 text-[14.5px] leading-7 text-[var(--kb-ink-900)] outline-none transition-colors focus:border-[var(--kb-navy-500)] focus:ring-2 focus:ring-[var(--kb-navy-500)]"
         placeholder="답변"
       />
     );
@@ -310,20 +311,28 @@ function QuestionInput({
   if (question.type === "single_choice") {
     return (
       <div className="grid gap-2">
-        {(question.options ?? []).map((option) => (
-          <label
-            key={option.id}
-            className="flex min-h-10 items-center gap-2 rounded-[8px] border border-[#eeeae2] bg-[#fbfaf7] px-3 text-[14px] font-semibold text-[#312f2c]"
-          >
-            <input
-              type="radio"
-              name={question.id}
-              checked={value === option.label}
-              onChange={() => onChange(option.label)}
-            />
-            {option.label}
-          </label>
-        ))}
+        {(question.options ?? []).map((option) => {
+          const selected = value === option.label;
+          return (
+            <label
+              key={option.id}
+              className={`flex min-h-12 cursor-pointer items-center gap-3 rounded-[var(--kb-radius-sm)] border bg-[var(--kb-surface-raised)] px-3.5 py-2 text-[14px] text-[var(--kb-ink-900)] transition-colors hover:bg-[var(--kb-paper-2)] ${
+                selected
+                  ? "border-[var(--kb-navy-500)] bg-[var(--kb-navy-50)]"
+                  : "border-[var(--kb-border-subtle)]"
+              }`}
+            >
+              <input
+                type="radio"
+                name={question.id}
+                checked={selected}
+                onChange={() => onChange(option.label)}
+                className="h-4 w-4 cursor-pointer accent-[var(--kb-navy-700)]"
+              />
+              <span className={selected ? "font-semibold" : "font-medium"}>{option.label}</span>
+            </label>
+          );
+        })}
       </div>
     );
   }
@@ -334,25 +343,33 @@ function QuestionInput({
       : [];
     return (
       <div className="grid gap-2">
-        {(question.options ?? []).map((option) => (
-          <label
-            key={option.id}
-            className="flex min-h-10 items-center gap-2 rounded-[8px] border border-[#eeeae2] bg-[#fbfaf7] px-3 text-[14px] font-semibold text-[#312f2c]"
-          >
-            <input
-              type="checkbox"
-              checked={current.includes(option.label)}
-              onChange={(event) => {
-                if (event.target.checked) {
-                  onChange([...current, option.label]);
-                } else {
-                  onChange(current.filter((item) => item !== option.label));
-                }
-              }}
-            />
-            {option.label}
-          </label>
-        ))}
+        {(question.options ?? []).map((option) => {
+          const checked = current.includes(option.label);
+          return (
+            <label
+              key={option.id}
+              className={`flex min-h-12 cursor-pointer items-center gap-3 rounded-[var(--kb-radius-sm)] border bg-[var(--kb-surface-raised)] px-3.5 py-2 text-[14px] text-[var(--kb-ink-900)] transition-colors hover:bg-[var(--kb-paper-2)] ${
+                checked
+                  ? "border-[var(--kb-navy-500)] bg-[var(--kb-navy-50)]"
+                  : "border-[var(--kb-border-subtle)]"
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={checked}
+                onChange={(event) => {
+                  if (event.target.checked) {
+                    onChange([...current, option.label]);
+                  } else {
+                    onChange(current.filter((item) => item !== option.label));
+                  }
+                }}
+                className="h-4 w-4 cursor-pointer rounded-[3px] accent-[var(--kb-navy-700)]"
+              />
+              <span className={checked ? "font-semibold" : "font-medium"}>{option.label}</span>
+            </label>
+          );
+        })}
       </div>
     );
   }
@@ -527,18 +544,29 @@ function QuestionInput({
 function FormNotFound() {
   return (
     <div className="kb-root" style={PAGE_STYLE}>
-      <div className="mx-auto flex min-h-[420px] max-w-[720px] flex-col items-center justify-center text-center">
-        <ClipboardList className="mb-4 h-12 w-12 text-[#8d877e]" />
-        <h1 className="m-0 text-[28px] font-black tracking-normal text-[#111111]">
-          폼을 찾을 수 없습니다.
-        </h1>
-        <Link
-          to="/member/forms"
-          className="mt-6 inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#e8e6df] bg-white px-4 text-[14px] font-bold text-[#312f2c] no-underline"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          폼 목록
-        </Link>
+      <div className="mx-auto max-w-[720px]">
+        <EmptyState
+          icon={ClipboardList}
+          title="폼을 찾을 수 없어요"
+          description="삭제되었거나 아직 응답을 받지 않는 상태일 수 있어요. 행사 페이지로 돌아가 다시 시도해 주세요."
+          action={
+            <Link
+              to="/member/forms"
+              className="inline-flex h-9 items-center gap-1.5 rounded-[var(--kb-radius-sm)] border border-[var(--kb-border-subtle)] bg-[var(--kb-surface-raised)] px-3 text-[13px] font-semibold text-[var(--kb-ink-700)] no-underline transition-colors hover:border-[var(--kb-navy-500)] hover:text-[var(--kb-navy-700)]"
+            >
+              <ArrowLeft className="h-4 w-4" aria-hidden />
+              폼 목록
+            </Link>
+          }
+          secondaryAction={
+            <Link
+              to="/member/events"
+              className="inline-flex h-9 items-center gap-1.5 rounded-[var(--kb-radius-sm)] border border-[var(--kb-border-subtle)] bg-[var(--kb-surface-raised)] px-3 text-[13px] font-medium text-[var(--kb-ink-500)] no-underline transition-colors hover:text-[var(--kb-navy-700)]"
+            >
+              행사로
+            </Link>
+          }
+        />
       </div>
     </div>
   );
@@ -547,23 +575,21 @@ function FormNotFound() {
 function FormAccessBlocked({ message }: { message: string }) {
   return (
     <div className="kb-root" style={PAGE_STYLE}>
-      <div className="mx-auto flex min-h-[520px] max-w-[720px] flex-col items-center justify-center text-center">
-        <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-[8px] border border-[#fed7aa] bg-[#fff7ed] text-[#b45309]">
-          <ClipboardList className="h-7 w-7" />
-        </div>
-        <h1 className="m-0 text-[28px] font-black tracking-normal text-[#111111]">
-          아직 열 수 없는 폼입니다.
-        </h1>
-        <p className="mt-3 max-w-[520px] text-[15px] font-semibold leading-7 text-[#64748b]">
-          {message}
-        </p>
-        <Link
-          to="/member"
-          className="mt-6 inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#d8deea] bg-white px-4 text-[14px] font-bold text-[#334155] no-underline transition-colors hover:border-[#103078] hover:text-[#103078]"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          돌아가기
-        </Link>
+      <div className="mx-auto max-w-[720px]">
+        <EmptyState
+          icon={ClipboardList}
+          title="아직 열 수 없는 폼입니다"
+          description={message}
+          action={
+            <Link
+              to="/member"
+              className="inline-flex h-9 items-center gap-1.5 rounded-[var(--kb-radius-sm)] border border-[var(--kb-border-subtle)] bg-[var(--kb-surface-raised)] px-3 text-[13px] font-semibold text-[var(--kb-ink-700)] no-underline transition-colors hover:border-[var(--kb-navy-500)] hover:text-[var(--kb-navy-700)]"
+            >
+              <ArrowLeft className="h-4 w-4" aria-hidden />
+              대시보드로
+            </Link>
+          }
+        />
       </div>
     </div>
   );
@@ -966,175 +992,215 @@ export default function FormDetail() {
       : []),
   ] satisfies { key: PanelKey; label: string; count: number }[];
 
+  const statusTone =
+    form.status === "active" ? "success" : form.status === "draft" ? "warning" : "neutral";
+
   return (
     <div className="kb-root" style={PAGE_STYLE}>
-      <div className="mx-auto flex max-w-[1180px] flex-col gap-5">
+      <div className="kb-fade-up mx-auto flex max-w-[1180px] flex-col gap-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Link
             to={canManageForms ? "/member/forms" : "/member"}
-            className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#e8e6df] bg-white px-3.5 text-[14px] font-bold text-[#312f2c] no-underline transition-colors hover:border-[#cfcac0]"
+            className="inline-flex h-9 items-center gap-1.5 rounded-[var(--kb-radius-sm)] border border-[var(--kb-border-subtle)] bg-[var(--kb-surface-raised)] px-3 text-[13.5px] font-medium text-[var(--kb-ink-700)] no-underline transition-colors hover:border-[var(--kb-navy-500)] hover:text-[var(--kb-navy-700)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--kb-navy-500)]"
           >
-            <ArrowLeft className="h-4 w-4" />
-            폼 목록
+            <ArrowLeft className="h-4 w-4" aria-hidden />
+            {canManageForms ? "폼 목록" : "대시보드"}
           </Link>
           {canManageForms ? (
             <Link
               to="/member/forms/new"
-              className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0a0a0a] px-4 text-[14px] font-bold text-white no-underline transition-colors hover:bg-[#222222]"
+              className="inline-flex h-9 items-center gap-1.5 rounded-[var(--kb-radius-sm)] bg-[var(--kb-ink-900)] px-3.5 text-[13.5px] font-semibold text-[var(--kb-on-accent)] no-underline transition-colors hover:bg-[var(--kb-navy-900)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--kb-navy-500)]"
             >
               새 폼
             </Link>
           ) : null}
         </div>
 
-        <header className="rounded-[10px] border border-[#e8e6df] bg-white p-6">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-full border border-[#d8e2f7] bg-[#f6f9ff] px-2.5 py-1 text-[12px] font-bold text-[#183b80]">
-              {FORM_CATEGORY_LABELS[form.category]}
-            </span>
-            <span className="rounded-full border border-[#e8e2d6] bg-[#fbfaf7] px-2.5 py-1 text-[12px] font-bold text-[#5f574c]">
+        <header className="rounded-[var(--kb-radius-md)] border border-[var(--kb-border-subtle)] bg-[var(--kb-surface-raised)] p-6 shadow-[var(--kb-shadow-sm)] sm:p-7">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <StatusPill tone="accent">{FORM_CATEGORY_LABELS[form.category]}</StatusPill>
+            <StatusPill tone={statusTone} dot>
               {FORM_STATUS_LABELS[form.status]}
-            </span>
-            <span className="rounded-full border border-[#d8e2f7] bg-[#f6f9ff] px-2.5 py-1 text-[12px] font-bold text-[#183b80]">
-              {formatResponseWindow(form)}
-            </span>
+            </StatusPill>
+            <StatusPill tone="neutral">{formatResponseWindow(form)}</StatusPill>
           </div>
-          <h1 className="mb-0 mt-4 text-[34px] font-black leading-tight tracking-normal text-[#0a0a0a]">
+          <h1 className="kb-display mb-0 mt-4 text-[26px] font-semibold leading-tight tracking-tight text-[var(--kb-ink-900)] sm:text-[30px]">
             {form.title}
           </h1>
-          <p className="mb-0 mt-3 max-w-[760px] text-[15px] leading-7 text-[#6f6a62]">
-            {form.description}
-          </p>
+          {form.description ? (
+            <p className="mb-0 mt-3 max-w-[760px] text-[14.5px] leading-7 text-[var(--kb-ink-700)]">
+              {form.description}
+            </p>
+          ) : null}
         </header>
 
         {error ? (
-          <div className="rounded-[8px] border border-red-100 bg-red-50 px-4 py-3 text-[14px] font-semibold text-red-700">
+          <div
+            role="alert"
+            className="rounded-[var(--kb-radius-md)] border border-[color-mix(in_srgb,var(--kb-danger-500)_30%,transparent)] bg-[var(--kb-danger-50)] px-4 py-3 text-[13.5px] font-medium text-[var(--kb-danger-700)]"
+          >
             {error}
           </div>
         ) : null}
         {message ? (
-          <div className="rounded-[8px] border border-emerald-100 bg-emerald-50 px-4 py-3 text-[14px] font-semibold text-emerald-800">
+          <div className="rounded-[var(--kb-radius-md)] border border-[color-mix(in_srgb,var(--kb-success-500)_30%,transparent)] bg-[var(--kb-success-50)] px-4 py-3 text-[13.5px] font-medium text-[var(--kb-success-700)]">
             {message}
           </div>
         ) : null}
 
-        <div className="flex flex-wrap gap-2 rounded-[10px] border border-[#eeeae2] bg-white p-2">
-          {panels.map((panel) => (
-            <button
-              key={panel.key}
-              type="button"
-              onClick={() => setActivePanel(panel.key)}
-              className="h-10 rounded-[8px] px-3 text-[13px] font-bold transition-colors"
-              style={{
-                background: activePanel === panel.key ? "#111111" : "transparent",
-                color: activePanel === panel.key ? "#ffffff" : "#5f574c",
-              }}
-            >
-              {panel.label} {panel.count}
-            </button>
-          ))}
-        </div>
+        {panels.length > 1 ? (
+          <div
+            role="tablist"
+            aria-label="폼 작업 패널"
+            className="flex flex-wrap items-center gap-1 rounded-[var(--kb-radius-md)] border border-[var(--kb-border-subtle)] bg-[var(--kb-surface-raised)] p-1 shadow-[var(--kb-shadow-sm)]"
+          >
+            {panels.map((panel) => {
+              const active = activePanel === panel.key;
+              return (
+                <button
+                  key={panel.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => setActivePanel(panel.key)}
+                  className={`inline-flex h-9 items-center gap-1.5 rounded-[var(--kb-radius-sm)] px-3 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--kb-navy-500)] ${
+                    active
+                      ? "bg-[var(--kb-ink-900)] text-[var(--kb-on-accent)]"
+                      : "text-[var(--kb-ink-500)] hover:bg-[var(--kb-paper-2)] hover:text-[var(--kb-ink-900)]"
+                  }`}
+                >
+                  <span>{panel.label}</span>
+                  <span
+                    className={`rounded-[var(--kb-radius-full)] px-1.5 text-[11px] ${
+                      active
+                        ? "bg-[color-mix(in_srgb,var(--kb-on-accent)_18%,transparent)] text-[var(--kb-on-accent)]"
+                        : "bg-[var(--kb-paper-3)] text-[var(--kb-ink-500)]"
+                    }`}
+                  >
+                    {panel.count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
 
         {activePanel === "answer" ? (
-          <form onSubmit={handleSubmitResponse} className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-            <section className="flex flex-col gap-4">
-              <div className="rounded-[10px] border border-[#cfe8da] border-l-[5px] border-l-[#2f7d58] bg-white p-5">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <div className="text-[12px] font-black text-[#2f7d58]">자동 입력</div>
-                    <h2 className="m-0 mt-1 text-[18px] font-black text-[#111111]">
-                      개인정보 응답 카드
-                    </h2>
+          <form
+            onSubmit={handleSubmitResponse}
+            className="overflow-hidden rounded-[var(--kb-radius-md)] border border-[var(--kb-border-subtle)] bg-[var(--kb-surface-raised)] shadow-[var(--kb-shadow-sm)]"
+          >
+            {/* 신청자 정보 — 한 시트의 첫 섹션 */}
+            <section className="px-6 py-5 sm:px-7">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <div>
+                  <div className="kb-mono text-[10.5px] font-semibold uppercase tracking-[0.14em] text-[var(--kb-ink-500)]">
+                    신청자 정보
                   </div>
-                  <span className="rounded-full bg-[#f0fbf4] px-2.5 py-1 text-[11px] font-black text-[#2f7d58]">
-                    수정 가능
-                  </span>
+                  <p className="m-0 mt-1 text-[13px] leading-6 text-[var(--kb-ink-500)]">
+                    대회 안내·팀 매칭 시 운영진이 연락하기 위해 받아요. 본인 동의 하에서만 공유됩니다.
+                  </p>
                 </div>
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  {FORM_PERSONAL_INFO_FIELDS.map((field) => (
-                    <label key={field.key} className="grid gap-2">
-                      <span className="text-[13px] font-bold text-[#52606f]">{field.label}</span>
-                      <input
-                        value={personalInfo[field.key]}
-                        autoComplete={field.autoComplete}
-                        onChange={(event) =>
-                          setPersonalInfo((current) => ({
-                            ...current,
-                            [field.key]: event.target.value,
-                          }))
-                        }
-                        className="h-11 rounded-[8px] border border-[#d8deea] px-3 text-[14px] font-semibold outline-none focus:border-[#2f7d58]"
-                        placeholder={field.placeholder}
-                      />
-                    </label>
-                  ))}
-                </div>
+                <StatusPill tone="success">자동 입력</StatusPill>
               </div>
-
-              {visibleQuestions.map((question) => (
-                <div key={question.id} className="rounded-[10px] border border-[#eeeae2] bg-white p-5">
-                  <div className="flex flex-wrap items-start gap-2">
-                    <div className="text-[17px] font-black text-[#111111]">{question.title}</div>
-                    {question.visibleWhen ? (
-                      <span className="rounded-full bg-[#f3e8ff] px-2 py-0.5 text-[11px] font-bold text-[#7c3aed]">
-                        연결 질문
-                      </span>
-                    ) : null}
-                    {question.required ? (
-                      <span className="rounded-full bg-[#fee2e2] px-2 py-0.5 text-[11px] font-bold text-[#991b1b]">
-                        필수
-                      </span>
-                    ) : null}
-                    <span className="ml-auto rounded-full bg-[#fbfaf7] px-2 py-0.5 text-[11px] font-bold text-[#8d877e]">
-                      {questionTypeLabel(question.type)}
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                {FORM_PERSONAL_INFO_FIELDS.map((field) => (
+                  <label key={field.key} className="grid gap-1.5">
+                    <span className="kb-mono text-[10.5px] uppercase tracking-[0.12em] text-[var(--kb-ink-500)]">
+                      {field.label}
                     </span>
-                  </div>
-                  {question.description ? (
-                    <p className="mt-2 text-[13px] leading-5 text-[#6f6a62]">{question.description}</p>
-                  ) : null}
-                  <div className="mt-4 grid">
-                    <QuestionInput
-                      memberOptions={memberOptions}
-                      memberOptionsLoading={memberOptionsLoading}
-                      question={question}
-                      value={
-                        answers[question.id] ??
-                        (question.type === "multiple_choice" || question.type === "member_search" ? [] : "")
-                      }
-                      onChange={(value) =>
-                        setAnswers((current) => ({
+                    <input
+                      value={personalInfo[field.key]}
+                      autoComplete={field.autoComplete}
+                      onChange={(event) =>
+                        setPersonalInfo((current) => ({
                           ...current,
-                          [question.id]: value,
+                          [field.key]: event.target.value,
                         }))
                       }
+                      className="h-11 rounded-[var(--kb-radius-sm)] border border-[var(--kb-border-subtle)] bg-[var(--kb-surface-raised)] px-3 text-[14px] text-[var(--kb-ink-900)] outline-none transition-colors placeholder:text-[var(--kb-ink-400)] focus:border-[var(--kb-navy-500)] focus:ring-2 focus:ring-[var(--kb-navy-500)]"
+                      placeholder={field.placeholder}
                     />
-                  </div>
-                </div>
-              ))}
+                  </label>
+                ))}
+              </div>
             </section>
 
-            <aside className="flex flex-col gap-4 lg:sticky lg:top-6">
-              <div className="rounded-[10px] border border-[#eeeae2] bg-white p-5">
-                <h2 className="m-0 inline-flex items-center gap-2 text-[18px] font-black text-[#111111]">
-                  <Send className="h-5 w-5 text-[#103078]" />
-                  제출
-                </h2>
-                <div className="mt-4 rounded-[8px] bg-[#fbfaf7] px-3 py-3 text-[13px] font-bold leading-6 text-[#6f6a62]">
-                  {formatResponseWindow(form)}
-                  {responseDisabledMessage ? (
-                    <div className="mt-2 text-[#b45309]">{responseDisabledMessage}</div>
+            {/* 질문 — 단일 컬럼, hairline divider로만 구분 (좌측 번호 rail 없음) */}
+            {visibleQuestions.map((question) => (
+              <section
+                key={question.id}
+                className="border-t border-[var(--kb-border-subtle)] px-6 py-5 sm:px-7"
+              >
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <h3 className="kb-display m-0 text-[16px] font-semibold leading-tight tracking-tight text-[var(--kb-ink-900)]">
+                    {question.title}
+                    {question.required ? (
+                      <span aria-label="필수" className="ml-1 text-[var(--kb-danger-500)]">
+                        *
+                      </span>
+                    ) : null}
+                  </h3>
+                  {question.visibleWhen ? (
+                    <StatusPill tone="accent">연결 질문</StatusPill>
                   ) : null}
                 </div>
-                <button
-                  type="submit"
-                  disabled={!responseAvailability.open}
-                  className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-[8px] bg-[#0a0a0a] px-4 text-[14px] font-bold text-white transition-colors hover:bg-[#222222] disabled:cursor-not-allowed disabled:opacity-55"
-                >
-                  <CheckCircle2 className="h-4 w-4" />
-                  응답 제출
-                </button>
+                {question.description ? (
+                  <p className="m-0 mt-1.5 text-[13px] leading-6 text-[var(--kb-ink-500)]">
+                    {question.description}
+                  </p>
+                ) : null}
+                <div className="mt-3">
+                  <QuestionInput
+                    memberOptions={memberOptions}
+                    memberOptionsLoading={memberOptionsLoading}
+                    question={question}
+                    value={
+                      answers[question.id] ??
+                      (question.type === "multiple_choice" || question.type === "member_search" ? [] : "")
+                    }
+                    onChange={(value) =>
+                      setAnswers((current) => ({
+                        ...current,
+                        [question.id]: value,
+                      }))
+                    }
+                  />
+                </div>
+              </section>
+            ))}
+
+            {/* 제출 푸터 — 같은 시트 끝, 우측 사이드바 없음 */}
+            <footer className="flex flex-col gap-3 border-t border-[var(--kb-border-subtle)] bg-[var(--kb-surface-sunken)] px-6 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-7">
+              <div className="min-w-0">
+                <div className="kb-mono text-[10.5px] font-semibold uppercase tracking-[0.14em] text-[var(--kb-ink-500)]">
+                  응답 기간
+                </div>
+                <div className="kb-display mt-1 text-[14px] font-semibold text-[var(--kb-ink-900)]">
+                  {formatResponseWindow(form)}
+                </div>
+                {responseDisabledMessage ? (
+                  <div
+                    role="alert"
+                    className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-[var(--kb-radius-full)] border border-[color-mix(in_srgb,var(--kb-warning-500)_30%,transparent)] bg-[var(--kb-warning-50)] px-2.5 py-0.5 text-[11.5px] font-medium text-[var(--kb-warning-700)]"
+                  >
+                    {responseDisabledMessage}
+                  </div>
+                ) : (
+                  <p className="m-0 mt-1 text-[11.5px] leading-5 text-[var(--kb-ink-500)]">
+                    제출 후에도 응답 기간 안에선 다시 작성할 수 있어요.
+                  </p>
+                )}
               </div>
-            </aside>
+              <button
+                type="submit"
+                disabled={!responseAvailability.open}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-[var(--kb-radius-sm)] bg-[var(--kb-ink-900)] px-5 text-[14px] font-semibold text-[var(--kb-on-accent)] transition-colors hover:bg-[var(--kb-navy-900)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--kb-navy-500)] disabled:cursor-not-allowed disabled:opacity-50 sm:min-w-[160px]"
+              >
+                <Send className="h-4 w-4" aria-hidden />
+                응답 제출
+              </button>
+            </footer>
           </form>
         ) : null}
 
@@ -1469,18 +1535,18 @@ export default function FormDetail() {
           </section>
         ) : null}
 
-        <div className="grid gap-3 rounded-[10px] border border-[#eeeae2] bg-[#fbfaf7] p-4 text-[13px] font-bold text-[#6f6a62] sm:grid-cols-3">
+        <div className="grid gap-3 rounded-[var(--kb-radius-md)] border border-[var(--kb-border-subtle)] bg-[var(--kb-surface-sunken)] px-4 py-3 text-[12.5px] font-medium text-[var(--kb-ink-500)] sm:grid-cols-3">
           <div className="inline-flex items-center gap-2">
-            <CalendarDays className="h-4 w-4 text-[#103078]" />
+            <CalendarDays className="h-3.5 w-3.5 text-[var(--kb-navy-700)]" aria-hidden />
             생성 {formatDateTime(form.createdAt)}
           </div>
           <div className="inline-flex items-center gap-2">
-            <ClipboardList className="h-4 w-4 text-[#103078]" />
+            <ClipboardList className="h-3.5 w-3.5 text-[var(--kb-navy-700)]" aria-hidden />
             질문 {form.questions.length}개
           </div>
           {canManageForms ? (
             <div className="inline-flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-[#103078]" />
+              <CheckCircle2 className="h-3.5 w-3.5 text-[var(--kb-navy-700)]" aria-hidden />
               {"\uC751\uB2F5 "}{form.responses.length}{"\uAC1C"}
             </div>
           ) : null}

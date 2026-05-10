@@ -722,59 +722,360 @@ function normalizeStoredForm(form: ClubForm): ClubForm {
   };
 }
 
-function canUseLocalStorage() {
-  return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
-}
+import { getSupabaseBrowserClient } from "../auth/supabase";
 
-function readStoredForms() {
-  if (!canUseLocalStorage()) return null;
+// ---------------------------------------------------------------------------
+// Persistence — three Supabase tables:
+//   public.forms             — form definition + tournament + sheet link
+//   public.form_responses    — applicant PII + answers (RLS: own + manager)
+//   public.form_comments     — comments (RLS: own delete + manager delete)
+// Migrations:
+//   20260510030000_forms_persistence.sql  (forms table baseline)
+//   20260510031000_forms_normalize.sql    (split responses + comments + RLS hardening)
+// ---------------------------------------------------------------------------
 
+type FormsRow = {
+  id: string;
+  title: string;
+  status: ClubFormStatus;
+  category: ClubForm["category"];
+  data: Omit<ClubForm, "responses" | "comments">;
+  created_by?: string | null;
+  created_at?: string;
+  updated_at?: string;
+};
+
+type FormResponseRow = {
+  id: string;
+  form_id: string;
+  respondent_user_id: string | null;
+  respondent_name: string;
+  respondent_info: FormPersonalInfo;
+  answers: Record<string, FormAnswerValue>;
+  submitted_at: string;
+};
+
+type FormCommentRow = {
+  id: string;
+  form_id: string;
+  author_user_id: string;
+  author_name: string;
+  body: string;
+  created_at: string;
+};
+
+function rowToFormShell(row: FormsRow): ClubForm | null {
   try {
-    const raw = window.localStorage.getItem(LOCAL_FORMS_STORAGE_KEY);
-    if (!raw) return null;
-
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return null;
-
-    const validForms = parsed.filter((form): form is ClubForm => {
-      return (
-        form &&
-        typeof form === "object" &&
-        form.id !== LEGACY_GAME_FORM_ID &&
-        typeof form.id === "string" &&
-        typeof form.title === "string" &&
-        Array.isArray(form.questions) &&
-        Array.isArray(form.responses) &&
-        Array.isArray(form.comments)
-      );
-    });
-    const forms = validForms.map(normalizeStoredForm);
-
-    if (forms.length !== parsed.length || JSON.stringify(forms) !== JSON.stringify(validForms)) {
-      persistForms(forms);
-    }
-    return forms;
+    if (!row?.data || typeof row.data !== "object") return null;
+    return normalizeStoredForm({
+      ...row.data,
+      responses: [],
+      comments: [],
+    } as ClubForm);
   } catch {
     return null;
   }
 }
 
-function persistForms(forms: ClubForm[]) {
-  if (!canUseLocalStorage()) return;
-  window.localStorage.setItem(LOCAL_FORMS_STORAGE_KEY, JSON.stringify(forms));
+function rowToResponse(row: FormResponseRow): FormResponse {
+  return {
+    id: row.id,
+    respondentName: row.respondent_name || "익명",
+    respondentInfo: normalizePersonalInfo(row.respondent_info ?? {}),
+    submittedAt: row.submitted_at,
+    answers: row.answers ?? {},
+  };
 }
 
-function readForms() {
-  return readStoredForms() ?? createSeedForms();
+function rowToComment(row: FormCommentRow): FormComment {
+  return {
+    id: row.id,
+    authorName: row.author_name || "익명",
+    body: row.body,
+    createdAt: row.created_at,
+  };
+}
+
+function formToRow(form: ClubForm): Omit<FormsRow, "created_at" | "updated_at" | "created_by"> {
+  // Strip embedded responses/comments — they live in dedicated tables now.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { responses: _responses, comments: _comments, ...rest } = form;
+  return {
+    id: form.id,
+    title: form.title,
+    status: form.status,
+    category: form.category,
+    data: { ...rest, responses: [], comments: [] } as unknown as Omit<
+      ClubForm,
+      "responses" | "comments"
+    >,
+  };
+}
+
+async function getCurrentUserId(): Promise<string | null> {
+  const supabase = getSupabaseBrowserClient();
+  if (!supabase) return null;
+  const { data } = await supabase.auth.getUser();
+  return data.user?.id ?? null;
+}
+
+async function fetchAllForms(): Promise<ClubForm[]> {
+  const supabase = getSupabaseBrowserClient();
+  if (!supabase) return [];
+  const [formsRes, responsesRes, commentsRes] = await Promise.all([
+    supabase
+      .from("forms")
+      .select("id,title,status,category,data,created_by,created_at,updated_at")
+      .order("updated_at", { ascending: false }),
+    supabase
+      .from("form_responses")
+      .select("id,form_id,respondent_user_id,respondent_name,respondent_info,answers,submitted_at")
+      .order("submitted_at", { ascending: false }),
+    supabase
+      .from("form_comments")
+      .select("id,form_id,author_user_id,author_name,body,created_at")
+      .order("created_at", { ascending: true }),
+  ]);
+  if (formsRes.error) throw formsRes.error;
+
+  const responsesByForm = new Map<string, FormResponse[]>();
+  if (!responsesRes.error) {
+    for (const row of (responsesRes.data ?? []) as FormResponseRow[]) {
+      const list = responsesByForm.get(row.form_id) ?? [];
+      list.push(rowToResponse(row));
+      responsesByForm.set(row.form_id, list);
+    }
+  }
+
+  const commentsByForm = new Map<string, FormComment[]>();
+  if (!commentsRes.error) {
+    for (const row of (commentsRes.data ?? []) as FormCommentRow[]) {
+      const list = commentsByForm.get(row.form_id) ?? [];
+      list.push(rowToComment(row));
+      commentsByForm.set(row.form_id, list);
+    }
+  }
+
+  return ((formsRes.data ?? []) as FormsRow[])
+    .map((row) => rowToFormShell(row))
+    .filter((form): form is ClubForm => form !== null && form.id !== LEGACY_GAME_FORM_ID)
+    .map((form) => ({
+      ...form,
+      responses: responsesByForm.get(form.id) ?? [],
+      comments: commentsByForm.get(form.id) ?? [],
+    }));
+}
+
+async function fetchForm(formId: string): Promise<ClubForm | null> {
+  const supabase = getSupabaseBrowserClient();
+  if (!supabase) return null;
+  const [formRes, responsesRes, commentsRes] = await Promise.all([
+    supabase
+      .from("forms")
+      .select("id,title,status,category,data,created_by,created_at,updated_at")
+      .eq("id", formId)
+      .maybeSingle(),
+    supabase
+      .from("form_responses")
+      .select("id,form_id,respondent_user_id,respondent_name,respondent_info,answers,submitted_at")
+      .eq("form_id", formId)
+      .order("submitted_at", { ascending: false }),
+    supabase
+      .from("form_comments")
+      .select("id,form_id,author_user_id,author_name,body,created_at")
+      .eq("form_id", formId)
+      .order("created_at", { ascending: true }),
+  ]);
+  if (formRes.error) {
+    if ((formRes.error as { code?: string }).code === "PGRST116") return null;
+    throw formRes.error;
+  }
+  if (!formRes.data) return null;
+
+  const shell = rowToFormShell(formRes.data as FormsRow);
+  if (!shell) return null;
+
+  return {
+    ...shell,
+    responses: !responsesRes.error
+      ? ((responsesRes.data ?? []) as FormResponseRow[]).map(rowToResponse)
+      : [],
+    comments: !commentsRes.error
+      ? ((commentsRes.data ?? []) as FormCommentRow[]).map(rowToComment)
+      : [],
+  };
+}
+
+async function upsertForm(form: ClubForm): Promise<void> {
+  const supabase = getSupabaseBrowserClient();
+  if (!supabase) throw new Error("Supabase 클라이언트를 사용할 수 없습니다.");
+  const row = formToRow(form);
+  const { error } = await supabase.from("forms").upsert(row, { onConflict: "id" });
+  if (error) throw error;
+}
+
+async function removeForm(formId: string): Promise<void> {
+  const supabase = getSupabaseBrowserClient();
+  if (!supabase) throw new Error("Supabase 클라이언트를 사용할 수 없습니다.");
+  // CASCADE removes responses + comments via FK on the child tables.
+  // Use .select() so we can detect when RLS silently blocks the delete
+  // (Supabase returns 0 rows instead of an error in that case).
+  const { data, error } = await supabase.from("forms").delete().eq("id", formId).select("id");
+  if (error) throw error;
+  if (!data || data.length === 0) {
+    throw new Error("forbidden:forms_delete");
+  }
+}
+
+async function insertResponseRow(
+  formId: string,
+  respondentUserId: string,
+  response: FormResponse,
+): Promise<void> {
+  const supabase = getSupabaseBrowserClient();
+  if (!supabase) throw new Error("Supabase 클라이언트를 사용할 수 없습니다.");
+  const { error } = await supabase.from("form_responses").insert({
+    id: response.id,
+    form_id: formId,
+    respondent_user_id: respondentUserId,
+    respondent_name: response.respondentName,
+    respondent_info: response.respondentInfo,
+    answers: response.answers,
+    submitted_at: response.submittedAt,
+  });
+  if (error) throw error;
+}
+
+async function insertCommentRow(
+  formId: string,
+  authorUserId: string,
+  comment: FormComment,
+): Promise<void> {
+  const supabase = getSupabaseBrowserClient();
+  if (!supabase) throw new Error("Supabase 클라이언트를 사용할 수 없습니다.");
+  const { error } = await supabase.from("form_comments").insert({
+    id: comment.id,
+    form_id: formId,
+    author_user_id: authorUserId,
+    author_name: comment.authorName,
+    body: comment.body,
+    created_at: comment.createdAt,
+  });
+  if (error) throw error;
+}
+
+// Single source of truth: Supabase. We deliberately do NOT fall back to
+// createSeedForms() when the table is empty — that masked real deletes
+// (deleting the last form would resurrect demo seeds and look like the
+// delete had failed). Empty list = empty list.
+async function readForms(): Promise<ClubForm[]> {
+  return await fetchAllForms();
+}
+
+// Bulk upsert helper — only used by migration-style code paths.
+async function persistForms(forms: ClubForm[]): Promise<void> {
+  if (forms.length === 0) return;
+  const supabase = getSupabaseBrowserClient();
+  if (!supabase) throw new Error("Supabase 클라이언트를 사용할 수 없습니다.");
+  const rows = forms.map(formToRow);
+  const { error } = await supabase.from("forms").upsert(rows, { onConflict: "id" });
+  if (error) throw error;
+}
+
+/**
+ * One-shot migration helper for users who created forms BEFORE the Supabase
+ * cutover (when forms still lived in `kobot:forms:local-v1` on each browser).
+ *
+ * Run from the browser DevTools console:
+ *   const m = await import("/src/app/api/forms.ts");
+ *   const result = await m.migrateLocalFormsToSupabase();
+ *   console.log(result);
+ *
+ * - SKIPS forms whose id already exists in Supabase (so re-running is safe).
+ * - Backs up the localStorage payload to `kobot:forms:local-v1.backup-<ts>`
+ *   before doing anything, so nothing is lost if Supabase upsert fails.
+ * - Does NOT delete the original localStorage entry — you can do that
+ *   manually once you've confirmed the import worked end-to-end.
+ */
+export async function migrateLocalFormsToSupabase(): Promise<{
+  found: number;
+  imported: number;
+  skipped: string[];
+  failed: { id: string; error: string }[];
+  backupKey?: string;
+}> {
+  const result = { found: 0, imported: 0, skipped: [] as string[], failed: [] as { id: string; error: string }[] };
+  if (typeof window === "undefined" || typeof window.localStorage === "undefined") {
+    return result;
+  }
+  const raw = window.localStorage.getItem(LOCAL_FORMS_STORAGE_KEY);
+  if (!raw) return result;
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return result;
+  }
+  if (!Array.isArray(parsed)) return result;
+
+  const candidates = parsed
+    .filter((form): form is ClubForm => Boolean(form && typeof form === "object" && typeof (form as ClubForm).id === "string"))
+    .map((form) => normalizeStoredForm(form))
+    .filter((form) => form.id !== LEGACY_GAME_FORM_ID);
+
+  result.found = candidates.length;
+  if (candidates.length === 0) return result;
+
+  // 1) backup once per migration attempt
+  const backupKey = `${LOCAL_FORMS_STORAGE_KEY}.backup-${Date.now()}`;
+  window.localStorage.setItem(backupKey, raw);
+  Object.assign(result, { backupKey });
+
+  // 2) skip ids already in Supabase
+  const existing = await fetchAllForms();
+  const existingIds = new Set(existing.map((form) => form.id));
+
+  // 3) upsert each missing form individually so a single failure doesn't block others
+  for (const form of candidates) {
+    if (existingIds.has(form.id)) {
+      result.skipped.push(form.id);
+      continue;
+    }
+    try {
+      await upsertForm(form);
+      result.imported += 1;
+    } catch (err) {
+      result.failed.push({
+        id: form.id,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  return result;
+}
+
+// Auto-expose migration helper on window so users can simply run
+//   await __kbMigrateForms()
+// in the browser DevTools console without dealing with dynamic imports.
+// DEV-only — never noised into production bundle.
+if (typeof window !== "undefined" && import.meta.env?.DEV) {
+  (window as unknown as { __kbMigrateForms?: typeof migrateLocalFormsToSupabase }).__kbMigrateForms =
+    migrateLocalFormsToSupabase;
 }
 
 export async function listForms() {
-  return readForms().sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+  const forms = await readForms();
+  return forms.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 }
 
 export async function getForm(formId: string) {
   const decoded = decodeURIComponent(formId);
-  return readForms().find((form) => form.id === decoded) ?? null;
+  const direct = await fetchForm(decoded);
+  if (direct) return direct;
+  const forms = await readForms();
+  return forms.find((form) => form.id === decoded) ?? null;
 }
 
 export function redactFormForApplicant(form: ClubForm): ClubForm {
@@ -797,10 +1098,9 @@ export async function getApplicantForm(formId: string) {
 }
 
 export async function saveForm(input: CreateClubFormInput) {
-  const forms = readForms();
   const timestamp = new Date().toISOString();
   const form = createFormRecord(input, timestamp);
-  const existing = forms.find((item) => item.id === form.id);
+  const existing = await fetchForm(form.id);
   const nextForm = existing
     ? {
         ...form,
@@ -810,8 +1110,7 @@ export async function saveForm(input: CreateClubFormInput) {
         responseSheet: form.responseSheet ?? existing.responseSheet,
       }
     : form;
-  const nextForms = [nextForm, ...forms.filter((item) => item.id !== form.id)];
-  persistForms(nextForms);
+  await upsertForm(nextForm);
   return nextForm;
 }
 
@@ -828,8 +1127,7 @@ export function getFormEditPath(formId: string) {
 }
 
 export async function updateFormStatus(formId: string, status: ClubFormStatus) {
-  const forms = readForms();
-  const form = forms.find((item) => item.id === formId);
+  const form = await fetchForm(formId);
   if (!form) throw new Error("form_not_found");
 
   const nextForm: ClubForm = {
@@ -839,16 +1137,15 @@ export async function updateFormStatus(formId: string, status: ClubFormStatus) {
     updatedAt: new Date().toISOString(),
   };
 
-  persistForms([nextForm, ...forms.filter((item) => item.id !== formId)]);
+  await upsertForm(nextForm);
   return nextForm;
 }
 
 export async function deleteForm(formId: string) {
-  const forms = readForms();
-  const form = forms.find((item) => item.id === formId);
+  const form = await fetchForm(formId);
   if (!form) throw new Error("form_not_found");
 
-  persistForms(forms.filter((item) => item.id !== formId));
+  await removeForm(formId);
   return form;
 }
 
@@ -859,8 +1156,7 @@ export async function updateFormResponseSheet(
 ) {
   if (!actorCanManageForms) throw new Error("forbidden");
 
-  const forms = readForms();
-  const form = forms.find((item) => item.id === formId);
+  const form = await fetchForm(formId);
   if (!form) throw new Error("form_not_found");
 
   const nextForm: ClubForm = {
@@ -874,7 +1170,7 @@ export async function updateFormResponseSheet(
     updatedAt: new Date().toISOString(),
   };
 
-  persistForms([nextForm, ...forms.filter((item) => item.id !== formId)]);
+  await upsertForm(nextForm);
   return nextForm;
 }
 
@@ -918,8 +1214,7 @@ export async function submitFormResponse(
   answers: Record<string, FormAnswerValue>,
   personalInfoInput: Partial<FormPersonalInfo> | string = {},
 ) {
-  const forms = readForms();
-  const form = forms.find((item) => item.id === formId);
+  const form = await fetchForm(formId);
   if (!form) throw new Error("form_not_found");
   const availability = getFormResponseAvailability(form);
   if (!availability.open) throw new Error(`form_${availability.reason}`);
@@ -944,12 +1239,9 @@ export async function submitFormResponse(
     answers: visibleAnswers,
   };
 
-  const nextForm: ClubForm = {
-    ...form,
-    responses: [response, ...form.responses],
-    updatedAt: new Date().toISOString(),
-  };
-  persistForms([nextForm, ...forms.filter((item) => item.id !== formId)]);
+  const userId = await getCurrentUserId();
+  if (!userId) throw new Error("forbidden");
+  await insertResponseRow(formId, userId, response);
   return response;
 }
 
@@ -961,8 +1253,7 @@ export async function addFormComment(
 ) {
   if (!actorCanManageForms) throw new Error("forbidden");
 
-  const forms = readForms();
-  const form = forms.find((item) => item.id === formId);
+  const form = await fetchForm(formId);
   if (!form) throw new Error("form_not_found");
   if (!form.commentsEnabled) throw new Error("comments_disabled");
 
@@ -975,12 +1266,9 @@ export async function addFormComment(
 
   if (!comment.body) throw new Error("comment_empty");
 
-  const nextForm: ClubForm = {
-    ...form,
-    comments: [comment, ...form.comments],
-    updatedAt: new Date().toISOString(),
-  };
-  persistForms([nextForm, ...forms.filter((item) => item.id !== formId)]);
+  const userId = await getCurrentUserId();
+  if (!userId) throw new Error("forbidden");
+  await insertCommentRow(formId, userId, comment);
   return comment;
 }
 
@@ -991,8 +1279,7 @@ export async function addTournamentTeam(
 ) {
   if (!actorCanManageForms) throw new Error("forbidden");
 
-  const forms = readForms();
-  const form = forms.find((item) => item.id === formId);
+  const form = await fetchForm(formId);
   if (!form) throw new Error("form_not_found");
   if (!form.tournament.enabled) throw new Error("tournament_disabled");
 
@@ -1018,7 +1305,7 @@ export async function addTournamentTeam(
     tournament,
     updatedAt: new Date().toISOString(),
   };
-  persistForms([nextForm, ...forms.filter((item) => item.id !== formId)]);
+  await upsertForm(nextForm);
   return team;
 }
 
@@ -1031,8 +1318,7 @@ export async function recordTournamentMatchScore(
 ) {
   if (!actorCanManageForms) throw new Error("forbidden");
 
-  const forms = readForms();
-  const form = forms.find((item) => item.id === formId);
+  const form = await fetchForm(formId);
   if (!form) throw new Error("form_not_found");
 
   const matches = form.tournament.matches.map((match) =>
@@ -1054,7 +1340,7 @@ export async function recordTournamentMatchScore(
     },
     updatedAt: new Date().toISOString(),
   };
-  persistForms([nextForm, ...forms.filter((item) => item.id !== formId)]);
+  await upsertForm(nextForm);
   return nextForm;
 }
 

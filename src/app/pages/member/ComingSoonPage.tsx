@@ -1,44 +1,49 @@
-import { Clock3 } from "lucide-react";
+import type { CSSProperties } from "react";
+import { Link } from "react-router";
+import { ArrowLeft, Hammer } from "lucide-react";
 import { getComingSoonPageTitle } from "../../api/member-feature-flags.js";
+import { EmptyState } from "../../components/primitives";
 
+const PAGE_STYLE: CSSProperties = {
+  minHeight: "calc(100vh - 4rem)",
+  margin: -32,
+  padding: 32,
+  background: "var(--kb-surface-page)",
+};
+
+/**
+ * ComingSoonPage — shared placeholder for member features still in build.
+ * Wired up via `member-feature-flags.js` so several routes share this surface
+ * (study-playlist, resources, equipment, etc.). Designed against the
+ * EmptyState primitive so the Coming Soon state matches list/empty surfaces.
+ */
 export default function ComingSoonPage({ pageKey }: { pageKey: string }) {
   const title = getComingSoonPageTitle(pageKey);
 
   return (
-    <div
-      className="kb-root"
-      style={{
-        minHeight: "calc(100vh - 4rem)",
-        margin: -32,
-        padding: 32,
-        background: "#ffffff",
-      }}
-    >
-      <div className="mx-auto flex min-h-[520px] max-w-[900px] items-center justify-center">
+    <div className="kb-root" style={PAGE_STYLE}>
+      <div className="kb-fade-up mx-auto flex min-h-[520px] max-w-[760px] items-center justify-center">
         <section
-          className="w-full rounded-lg border border-[#e8e8e4] bg-white px-8 py-14 text-center shadow-sm"
-          style={{
-            boxShadow: "0 2px 8px rgba(0, 0, 0, 0.05), 0 0 1px rgba(0, 0, 0, 0.08)",
-          }}
+          aria-labelledby={`coming-soon-${pageKey}`}
+          className="w-full rounded-[var(--kb-radius-lg)] border border-[var(--kb-border-subtle)] bg-[var(--kb-surface-raised)] px-6 py-12 shadow-[var(--kb-shadow-sm)]"
         >
-          <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-[#f4f1ea] text-[var(--kb-ink-600)]">
-            <Clock3 className="h-7 w-7" />
+          <EmptyState
+            icon={Hammer}
+            title={title}
+            description="이 기능은 잠시 준비 중입니다. 동아리 운영진이 디자인과 기능을 다듬고 있어요."
+            action={
+              <Link
+                to="/member"
+                className="inline-flex h-9 items-center gap-1.5 rounded-[var(--kb-radius-sm)] border border-[var(--kb-border-subtle)] bg-[var(--kb-surface-raised)] px-3 text-[13px] font-semibold text-[var(--kb-ink-700)] no-underline transition-colors hover:border-[var(--kb-navy-500)] hover:text-[var(--kb-navy-700)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--kb-navy-500)]"
+              >
+                <ArrowLeft className="h-4 w-4" aria-hidden />
+                대시보드로
+              </Link>
+            }
+          />
+          <div className="kb-mono mt-4 text-center text-[10.5px] uppercase tracking-[0.16em] text-[var(--kb-ink-400)]">
+            <span id={`coming-soon-${pageKey}`}>{pageKey}</span>
           </div>
-          <div
-            className="kb-mono mb-2 text-[13px] uppercase text-[var(--kb-ink-500)]"
-            style={{ letterSpacing: "0.14em" }}
-          >
-            Coming soon
-          </div>
-          <h1
-            className="kb-display m-0 text-[30px] font-semibold leading-tight text-[#0a0a0a]"
-            style={{ letterSpacing: 0 }}
-          >
-            {title}
-          </h1>
-          <p className="mx-auto mt-3 max-w-md text-[15px] leading-6 text-[var(--kb-ink-500)]">
-            이 기능은 잠시 준비 중입니다.
-          </p>
         </section>
       </div>
     </div>
