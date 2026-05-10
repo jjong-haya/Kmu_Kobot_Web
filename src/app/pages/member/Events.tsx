@@ -435,9 +435,13 @@ export default function Events() {
         type="button"
         onClick={() => void eventsQuery.refetch()}
         aria-label="새로고침"
-        className="inline-flex h-9 items-center gap-1.5 rounded-[var(--kb-radius-sm)] border border-[var(--kb-border-subtle)] bg-[var(--kb-surface-raised)] px-3 text-[13.5px] font-medium text-[var(--kb-ink-700)] transition-colors hover:border-[var(--kb-navy-500)] hover:text-[var(--kb-navy-700)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--kb-navy-500)]"
+        disabled={eventsQuery.isFetching}
+        className="inline-flex h-9 items-center gap-1.5 rounded-[var(--kb-radius-sm)] border border-[var(--kb-border-subtle)] bg-[var(--kb-surface-raised)] px-3 text-[13.5px] font-medium text-[var(--kb-ink-700)] transition-colors hover:border-[var(--kb-navy-500)] hover:text-[var(--kb-navy-700)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--kb-navy-500)] disabled:opacity-60"
       >
-        <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} aria-hidden />
+        <RefreshCw
+          className={`h-4 w-4 transition-transform ${eventsQuery.isFetching ? "animate-spin" : ""}`}
+          aria-hidden
+        />
         <span className="hidden sm:inline">새로고침</span>
       </button>
     </>
