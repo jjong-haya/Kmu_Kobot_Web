@@ -393,8 +393,15 @@ export default function Forms() {
       await deleteForm(deleteTarget.id);
       setForms((current) => current.filter((form) => form.id !== deleteTarget.id));
       setDeleteTarget(null);
+      // Re-fetch to keep useQuery cache in sync with the DB; otherwise the
+      // next mount/tab focus replays the stale list with the deleted row.
+      void formsQuery.refetch();
     } catch (requestError) {
-      setError(sanitizeUserError(requestError, "폼을 삭제하지 못했습니다."));
+      const raw = requestError instanceof Error ? requestError.message : String(requestError);
+      const friendly = raw.startsWith("forbidden")
+        ? "이 폼을 삭제할 권한이 없습니다. 폼 관리 권한이 필요해요."
+        : sanitizeUserError(requestError, "폼을 삭제하지 못했습니다.");
+      setError(friendly);
     } finally {
       setDeleting(false);
     }

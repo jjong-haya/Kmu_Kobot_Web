@@ -918,8 +918,13 @@ async function removeForm(formId: string): Promise<void> {
   const supabase = getSupabaseBrowserClient();
   if (!supabase) throw new Error("Supabase 클라이언트를 사용할 수 없습니다.");
   // CASCADE removes responses + comments via FK on the child tables.
-  const { error } = await supabase.from("forms").delete().eq("id", formId);
+  // Use .select() so we can detect when RLS silently blocks the delete
+  // (Supabase returns 0 rows instead of an error in that case).
+  const { data, error } = await supabase.from("forms").delete().eq("id", formId).select("id");
   if (error) throw error;
+  if (!data || data.length === 0) {
+    throw new Error("forbidden:forms_delete");
+  }
 }
 
 async function insertResponseRow(
@@ -959,12 +964,12 @@ async function insertCommentRow(
   if (error) throw error;
 }
 
-// Back-compat wrappers (single source: Supabase). createSeedForms is kept for
-// first-time empty workspaces — once the org has 1+ real forms, seeds disappear.
+// Single source of truth: Supabase. We deliberately do NOT fall back to
+// createSeedForms() when the table is empty — that masked real deletes
+// (deleting the last form would resurrect demo seeds and look like the
+// delete had failed). Empty list = empty list.
 async function readForms(): Promise<ClubForm[]> {
-  const forms = await fetchAllForms();
-  if (forms.length === 0) return createSeedForms();
-  return forms;
+  return await fetchAllForms();
 }
 
 // Bulk upsert helper — only used by migration-style code paths.
