@@ -1086,24 +1086,29 @@ export default function FormDetail() {
         ) : null}
 
         {activePanel === "answer" ? (
-          <form onSubmit={handleSubmitResponse} className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+          <form onSubmit={handleSubmitResponse} className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
             <section className="flex flex-col gap-4">
-              <div className="rounded-[10px] border border-[#cfe8da] border-l-[5px] border-l-[#2f7d58] bg-white p-5">
+              <div className="rounded-[var(--kb-radius-md)] border border-[var(--kb-border-subtle)] bg-[var(--kb-surface-raised)] p-5 shadow-[var(--kb-shadow-sm)]">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <div className="text-[12px] font-black text-[#2f7d58]">자동 입력</div>
-                    <h2 className="m-0 mt-1 text-[18px] font-black text-[#111111]">
-                      개인정보 응답 카드
+                    <div className="kb-mono text-[10.5px] font-semibold uppercase tracking-[0.12em] text-[var(--kb-ink-500)]">
+                      신청자 정보
+                    </div>
+                    <h2 className="kb-display m-0 mt-1 text-[16px] font-semibold tracking-tight text-[var(--kb-ink-900)]">
+                      신청자 기본 정보
                     </h2>
+                    <p className="m-0 mt-1 text-[12.5px] text-[var(--kb-ink-500)]">
+                      대회 안내·팀 매칭 시 운영진이 연락하기 위해 받습니다. 본인 동의 하에 사용돼요.
+                    </p>
                   </div>
-                  <span className="rounded-full bg-[#f0fbf4] px-2.5 py-1 text-[11px] font-black text-[#2f7d58]">
-                    수정 가능
-                  </span>
+                  <StatusPill tone="success">자동 입력</StatusPill>
                 </div>
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
                   {FORM_PERSONAL_INFO_FIELDS.map((field) => (
-                    <label key={field.key} className="grid gap-2">
-                      <span className="text-[13px] font-bold text-[#52606f]">{field.label}</span>
+                    <label key={field.key} className="grid gap-1.5">
+                      <span className="kb-mono text-[10.5px] uppercase tracking-[0.12em] text-[var(--kb-ink-500)]">
+                        {field.label}
+                      </span>
                       <input
                         value={personalInfo[field.key]}
                         autoComplete={field.autoComplete}
@@ -1113,7 +1118,7 @@ export default function FormDetail() {
                             [field.key]: event.target.value,
                           }))
                         }
-                        className="h-11 rounded-[8px] border border-[#d8deea] px-3 text-[14px] font-semibold outline-none focus:border-[#2f7d58]"
+                        className="h-11 rounded-[var(--kb-radius-sm)] border border-[var(--kb-border-subtle)] bg-[var(--kb-surface-raised)] px-3 text-[14px] text-[var(--kb-ink-900)] outline-none transition-colors placeholder:text-[var(--kb-ink-400)] focus:border-[var(--kb-navy-500)] focus:ring-2 focus:ring-[var(--kb-navy-500)]"
                         placeholder={field.placeholder}
                       />
                     </label>
@@ -1121,28 +1126,43 @@ export default function FormDetail() {
                 </div>
               </div>
 
-              {visibleQuestions.map((question) => (
-                <div key={question.id} className="rounded-[10px] border border-[#eeeae2] bg-white p-5">
-                  <div className="flex flex-wrap items-start gap-2">
-                    <div className="text-[17px] font-black text-[#111111]">{question.title}</div>
-                    {question.visibleWhen ? (
-                      <span className="rounded-full bg-[#f3e8ff] px-2 py-0.5 text-[11px] font-bold text-[#7c3aed]">
-                        연결 질문
-                      </span>
-                    ) : null}
-                    {question.required ? (
-                      <span className="rounded-full bg-[#fee2e2] px-2 py-0.5 text-[11px] font-bold text-[#991b1b]">
-                        필수
-                      </span>
-                    ) : null}
-                    <span className="ml-auto rounded-full bg-[#fbfaf7] px-2 py-0.5 text-[11px] font-bold text-[#8d877e]">
-                      {questionTypeLabel(question.type)}
+              {visibleQuestions.map((question, index) => (
+                <div
+                  key={question.id}
+                  className="rounded-[var(--kb-radius-md)] border border-[var(--kb-border-subtle)] bg-[var(--kb-surface-raised)] p-5 shadow-[var(--kb-shadow-sm)]"
+                >
+                  <div className="flex items-start gap-3">
+                    <span
+                      aria-hidden
+                      className="kb-mono mt-0.5 inline-flex h-6 min-w-6 items-center justify-center rounded-[var(--kb-radius-sm)] bg-[var(--kb-paper-3)] px-1.5 text-[11px] font-semibold text-[var(--kb-ink-500)]"
+                    >
+                      {String(index + 1).padStart(2, "0")}
                     </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <h3 className="kb-display m-0 text-[15.5px] font-semibold tracking-tight text-[var(--kb-ink-900)]">
+                          {question.title}
+                        </h3>
+                        {question.required ? (
+                          <span aria-label="필수" className="text-[var(--kb-danger-500)]">*</span>
+                        ) : null}
+                        <span className="ml-auto inline-flex items-center gap-1.5">
+                          {question.visibleWhen ? (
+                            <StatusPill tone="accent">연결 질문</StatusPill>
+                          ) : null}
+                          <span className="kb-mono text-[10.5px] uppercase tracking-[0.1em] text-[var(--kb-ink-400)]">
+                            {questionTypeLabel(question.type)}
+                          </span>
+                        </span>
+                      </div>
+                      {question.description ? (
+                        <p className="m-0 mt-1.5 text-[13px] leading-6 text-[var(--kb-ink-500)]">
+                          {question.description}
+                        </p>
+                      ) : null}
+                    </div>
                   </div>
-                  {question.description ? (
-                    <p className="mt-2 text-[13px] leading-5 text-[#6f6a62]">{question.description}</p>
-                  ) : null}
-                  <div className="mt-4 grid">
+                  <div className="mt-4">
                     <QuestionInput
                       memberOptions={memberOptions}
                       memberOptionsLoading={memberOptionsLoading}
@@ -1163,26 +1183,33 @@ export default function FormDetail() {
               ))}
             </section>
 
-            <aside className="flex flex-col gap-4 lg:sticky lg:top-6">
-              <div className="rounded-[10px] border border-[#eeeae2] bg-white p-5">
-                <h2 className="m-0 inline-flex items-center gap-2 text-[18px] font-black text-[#111111]">
-                  <Send className="h-5 w-5 text-[#103078]" />
-                  제출
-                </h2>
-                <div className="mt-4 rounded-[8px] bg-[#fbfaf7] px-3 py-3 text-[13px] font-bold leading-6 text-[#6f6a62]">
-                  {formatResponseWindow(form)}
-                  {responseDisabledMessage ? (
-                    <div className="mt-2 text-[#b45309]">{responseDisabledMessage}</div>
-                  ) : null}
+            <aside className="flex flex-col gap-4 lg:sticky lg:top-6 lg:self-start">
+              <div className="rounded-[var(--kb-radius-md)] border border-[var(--kb-border-subtle)] bg-[var(--kb-surface-raised)] p-5 shadow-[var(--kb-shadow-sm)]">
+                <div className="kb-mono text-[10.5px] font-semibold uppercase tracking-[0.14em] text-[var(--kb-ink-500)]">
+                  응답 기간
                 </div>
+                <div className="kb-display mt-2 text-[14.5px] font-semibold leading-6 text-[var(--kb-ink-900)]">
+                  {formatResponseWindow(form)}
+                </div>
+                {responseDisabledMessage ? (
+                  <div
+                    role="alert"
+                    className="mt-3 rounded-[var(--kb-radius-sm)] border border-[color-mix(in_srgb,var(--kb-warning-500)_30%,transparent)] bg-[var(--kb-warning-50)] px-3 py-2 text-[12.5px] font-medium text-[var(--kb-warning-700)]"
+                  >
+                    {responseDisabledMessage}
+                  </div>
+                ) : null}
                 <button
                   type="submit"
                   disabled={!responseAvailability.open}
-                  className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-[8px] bg-[#0a0a0a] px-4 text-[14px] font-bold text-white transition-colors hover:bg-[#222222] disabled:cursor-not-allowed disabled:opacity-55"
+                  className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-[var(--kb-radius-sm)] bg-[var(--kb-ink-900)] px-4 text-[14px] font-semibold text-[var(--kb-on-accent)] transition-colors hover:bg-[var(--kb-navy-900)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--kb-navy-500)] disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  <CheckCircle2 className="h-4 w-4" />
+                  <Send className="h-4 w-4" aria-hidden />
                   응답 제출
                 </button>
+                <p className="mb-0 mt-3 text-[11.5px] leading-5 text-[var(--kb-ink-500)]">
+                  제출 후에도 응답 기간 안에선 다시 작성할 수 있어요.
+                </p>
               </div>
             </aside>
           </form>
