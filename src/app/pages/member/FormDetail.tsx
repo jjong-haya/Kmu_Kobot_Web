@@ -1086,83 +1086,83 @@ export default function FormDetail() {
         ) : null}
 
         {activePanel === "answer" ? (
-          <form onSubmit={handleSubmitResponse} className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
-            <section className="flex flex-col gap-4">
-              <div className="rounded-[var(--kb-radius-md)] border border-[var(--kb-border-subtle)] bg-[var(--kb-surface-raised)] p-5 shadow-[var(--kb-shadow-sm)]">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <div className="kb-mono text-[10.5px] font-semibold uppercase tracking-[0.12em] text-[var(--kb-ink-500)]">
-                      신청자 정보
-                    </div>
-                    <h2 className="kb-display m-0 mt-1 text-[16px] font-semibold tracking-tight text-[var(--kb-ink-900)]">
-                      신청자 기본 정보
-                    </h2>
-                    <p className="m-0 mt-1 text-[12.5px] text-[var(--kb-ink-500)]">
-                      대회 안내·팀 매칭 시 운영진이 연락하기 위해 받습니다. 본인 동의 하에 사용돼요.
-                    </p>
+          <form
+            onSubmit={handleSubmitResponse}
+            className="overflow-hidden rounded-[var(--kb-radius-md)] border border-[var(--kb-border-subtle)] bg-[var(--kb-surface-raised)] shadow-[var(--kb-shadow-sm)]"
+          >
+            {/* 신청자 정보 — 한 시트의 첫 섹션 */}
+            <section className="px-6 py-5 sm:px-7">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <div>
+                  <div className="kb-mono text-[10.5px] font-semibold uppercase tracking-[0.14em] text-[var(--kb-ink-500)]">
+                    신청자 정보
                   </div>
-                  <StatusPill tone="success">자동 입력</StatusPill>
+                  <p className="m-0 mt-1 text-[13px] leading-6 text-[var(--kb-ink-500)]">
+                    대회 안내·팀 매칭 시 운영진이 연락하기 위해 받아요. 본인 동의 하에서만 공유됩니다.
+                  </p>
                 </div>
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  {FORM_PERSONAL_INFO_FIELDS.map((field) => (
-                    <label key={field.key} className="grid gap-1.5">
-                      <span className="kb-mono text-[10.5px] uppercase tracking-[0.12em] text-[var(--kb-ink-500)]">
-                        {field.label}
-                      </span>
-                      <input
-                        value={personalInfo[field.key]}
-                        autoComplete={field.autoComplete}
-                        onChange={(event) =>
-                          setPersonalInfo((current) => ({
-                            ...current,
-                            [field.key]: event.target.value,
-                          }))
-                        }
-                        className="h-11 rounded-[var(--kb-radius-sm)] border border-[var(--kb-border-subtle)] bg-[var(--kb-surface-raised)] px-3 text-[14px] text-[var(--kb-ink-900)] outline-none transition-colors placeholder:text-[var(--kb-ink-400)] focus:border-[var(--kb-navy-500)] focus:ring-2 focus:ring-[var(--kb-navy-500)]"
-                        placeholder={field.placeholder}
-                      />
-                    </label>
-                  ))}
-                </div>
+                <StatusPill tone="success">자동 입력</StatusPill>
               </div>
-
-              {visibleQuestions.map((question, index) => (
-                <div
-                  key={question.id}
-                  className="rounded-[var(--kb-radius-md)] border border-[var(--kb-border-subtle)] bg-[var(--kb-surface-raised)] p-5 shadow-[var(--kb-shadow-sm)]"
-                >
-                  <div className="flex items-start gap-3">
-                    <span
-                      aria-hidden
-                      className="kb-mono mt-0.5 inline-flex h-6 min-w-6 items-center justify-center rounded-[var(--kb-radius-sm)] bg-[var(--kb-paper-3)] px-1.5 text-[11px] font-semibold text-[var(--kb-ink-500)]"
-                    >
-                      {String(index + 1).padStart(2, "0")}
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                {FORM_PERSONAL_INFO_FIELDS.map((field) => (
+                  <label key={field.key} className="grid gap-1.5">
+                    <span className="kb-mono text-[10.5px] uppercase tracking-[0.12em] text-[var(--kb-ink-500)]">
+                      {field.label}
                     </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <h3 className="kb-display m-0 text-[15.5px] font-semibold tracking-tight text-[var(--kb-ink-900)]">
-                          {question.title}
-                        </h3>
-                        {question.required ? (
-                          <span aria-label="필수" className="text-[var(--kb-danger-500)]">*</span>
-                        ) : null}
-                        <span className="ml-auto inline-flex items-center gap-1.5">
-                          {question.visibleWhen ? (
-                            <StatusPill tone="accent">연결 질문</StatusPill>
-                          ) : null}
-                          <span className="kb-mono text-[10.5px] uppercase tracking-[0.1em] text-[var(--kb-ink-400)]">
-                            {questionTypeLabel(question.type)}
-                          </span>
+                    <input
+                      value={personalInfo[field.key]}
+                      autoComplete={field.autoComplete}
+                      onChange={(event) =>
+                        setPersonalInfo((current) => ({
+                          ...current,
+                          [field.key]: event.target.value,
+                        }))
+                      }
+                      className="h-11 rounded-[var(--kb-radius-sm)] border border-[var(--kb-border-subtle)] bg-[var(--kb-surface-raised)] px-3 text-[14px] text-[var(--kb-ink-900)] outline-none transition-colors placeholder:text-[var(--kb-ink-400)] focus:border-[var(--kb-navy-500)] focus:ring-2 focus:ring-[var(--kb-navy-500)]"
+                      placeholder={field.placeholder}
+                    />
+                  </label>
+                ))}
+              </div>
+            </section>
+
+            {/* 질문 — 한 시트 안에서 hairline divider로만 구분 (카드 나열 X) */}
+            {visibleQuestions.map((question, index) => (
+              <section
+                key={question.id}
+                className="grid gap-3 border-t border-[var(--kb-border-subtle)] px-6 py-5 sm:grid-cols-[80px_minmax(0,1fr)] sm:px-7"
+              >
+                <div className="flex flex-row items-baseline gap-2 sm:flex-col sm:items-start sm:gap-1">
+                  <span
+                    aria-hidden
+                    className="kb-mono text-[12px] font-semibold tracking-[0.04em] text-[var(--kb-navy-700)]"
+                  >
+                    Q{String(index + 1).padStart(2, "0")}
+                  </span>
+                  <span className="kb-mono text-[10.5px] uppercase tracking-[0.1em] text-[var(--kb-ink-400)]">
+                    {questionTypeLabel(question.type)}
+                  </span>
+                </div>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <h3 className="kb-display m-0 text-[16px] font-semibold tracking-tight text-[var(--kb-ink-900)]">
+                      {question.title}
+                      {question.required ? (
+                        <span aria-label="필수" className="ml-1 text-[var(--kb-danger-500)]">
+                          *
                         </span>
-                      </div>
-                      {question.description ? (
-                        <p className="m-0 mt-1.5 text-[13px] leading-6 text-[var(--kb-ink-500)]">
-                          {question.description}
-                        </p>
                       ) : null}
-                    </div>
+                    </h3>
+                    {question.visibleWhen ? (
+                      <StatusPill tone="accent">연결 질문</StatusPill>
+                    ) : null}
                   </div>
-                  <div className="mt-4">
+                  {question.description ? (
+                    <p className="m-0 mt-1.5 text-[13px] leading-6 text-[var(--kb-ink-500)]">
+                      {question.description}
+                    </p>
+                  ) : null}
+                  <div className="mt-3">
                     <QuestionInput
                       memberOptions={memberOptions}
                       memberOptionsLoading={memberOptionsLoading}
@@ -1180,38 +1180,40 @@ export default function FormDetail() {
                     />
                   </div>
                 </div>
-              ))}
-            </section>
+              </section>
+            ))}
 
-            <aside className="flex flex-col gap-4 lg:sticky lg:top-6 lg:self-start">
-              <div className="rounded-[var(--kb-radius-md)] border border-[var(--kb-border-subtle)] bg-[var(--kb-surface-raised)] p-5 shadow-[var(--kb-shadow-sm)]">
+            {/* 제출 푸터 — 같은 시트 끝, 우측 사이드바 없음 */}
+            <footer className="flex flex-col gap-3 border-t border-[var(--kb-border-subtle)] bg-[var(--kb-surface-sunken)] px-6 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-7">
+              <div className="min-w-0">
                 <div className="kb-mono text-[10.5px] font-semibold uppercase tracking-[0.14em] text-[var(--kb-ink-500)]">
                   응답 기간
                 </div>
-                <div className="kb-display mt-2 text-[14.5px] font-semibold leading-6 text-[var(--kb-ink-900)]">
+                <div className="kb-display mt-1 text-[14px] font-semibold text-[var(--kb-ink-900)]">
                   {formatResponseWindow(form)}
                 </div>
                 {responseDisabledMessage ? (
                   <div
                     role="alert"
-                    className="mt-3 rounded-[var(--kb-radius-sm)] border border-[color-mix(in_srgb,var(--kb-warning-500)_30%,transparent)] bg-[var(--kb-warning-50)] px-3 py-2 text-[12.5px] font-medium text-[var(--kb-warning-700)]"
+                    className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-[var(--kb-radius-full)] border border-[color-mix(in_srgb,var(--kb-warning-500)_30%,transparent)] bg-[var(--kb-warning-50)] px-2.5 py-0.5 text-[11.5px] font-medium text-[var(--kb-warning-700)]"
                   >
                     {responseDisabledMessage}
                   </div>
-                ) : null}
-                <button
-                  type="submit"
-                  disabled={!responseAvailability.open}
-                  className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-[var(--kb-radius-sm)] bg-[var(--kb-ink-900)] px-4 text-[14px] font-semibold text-[var(--kb-on-accent)] transition-colors hover:bg-[var(--kb-navy-900)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--kb-navy-500)] disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <Send className="h-4 w-4" aria-hidden />
-                  응답 제출
-                </button>
-                <p className="mb-0 mt-3 text-[11.5px] leading-5 text-[var(--kb-ink-500)]">
-                  제출 후에도 응답 기간 안에선 다시 작성할 수 있어요.
-                </p>
+                ) : (
+                  <p className="m-0 mt-1 text-[11.5px] leading-5 text-[var(--kb-ink-500)]">
+                    제출 후에도 응답 기간 안에선 다시 작성할 수 있어요.
+                  </p>
+                )}
               </div>
-            </aside>
+              <button
+                type="submit"
+                disabled={!responseAvailability.open}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-[var(--kb-radius-sm)] bg-[var(--kb-ink-900)] px-5 text-[14px] font-semibold text-[var(--kb-on-accent)] transition-colors hover:bg-[var(--kb-navy-900)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--kb-navy-500)] disabled:cursor-not-allowed disabled:opacity-50 sm:min-w-[160px]"
+              >
+                <Send className="h-4 w-4" aria-hidden />
+                응답 제출
+              </button>
+            </footer>
           </form>
         ) : null}
 
