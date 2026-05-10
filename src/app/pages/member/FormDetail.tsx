@@ -55,7 +55,7 @@ import {
 import { listMemberDirectory, type MemberDirectoryProfile } from "../../api/member-directory";
 import { useAuth } from "../../auth/useAuth";
 import { sanitizeUserError } from "../../utils/sanitize-error";
-import { EmptyState } from "../../components/primitives";
+import { EmptyState, StatusPill } from "../../components/primitives";
 
 const PAGE_STYLE: CSSProperties = {
   minHeight: "calc(100vh - 4rem)",
@@ -295,14 +295,14 @@ function QuestionInput({
 }) {
   const [memberQuery, setMemberQuery] = useState("");
   const inputClass =
-    "h-11 rounded-[8px] border border-[#e8e6df] px-3 text-[15px] font-semibold outline-none focus:border-[#103078]";
+    "h-11 rounded-[var(--kb-radius-sm)] border border-[var(--kb-border-subtle)] bg-[var(--kb-surface-raised)] px-3 text-[14.5px] text-[var(--kb-ink-900)] outline-none transition-colors focus:border-[var(--kb-navy-500)] focus:ring-2 focus:ring-[var(--kb-navy-500)]";
 
   if (question.type === "long_text") {
     return (
       <textarea
         value={typeof value === "string" ? value : ""}
         onChange={(event) => onChange(event.target.value)}
-        className="min-h-[120px] resize-y rounded-[8px] border border-[#e8e6df] px-3 py-3 text-[15px] leading-7 outline-none focus:border-[#103078]"
+        className="min-h-[120px] resize-y rounded-[var(--kb-radius-sm)] border border-[var(--kb-border-subtle)] bg-[var(--kb-surface-raised)] px-3 py-3 text-[14.5px] leading-7 text-[var(--kb-ink-900)] outline-none transition-colors focus:border-[var(--kb-navy-500)] focus:ring-2 focus:ring-[var(--kb-navy-500)]"
         placeholder="답변"
       />
     );
@@ -311,20 +311,28 @@ function QuestionInput({
   if (question.type === "single_choice") {
     return (
       <div className="grid gap-2">
-        {(question.options ?? []).map((option) => (
-          <label
-            key={option.id}
-            className="flex min-h-10 items-center gap-2 rounded-[8px] border border-[#eeeae2] bg-[#fbfaf7] px-3 text-[14px] font-semibold text-[#312f2c]"
-          >
-            <input
-              type="radio"
-              name={question.id}
-              checked={value === option.label}
-              onChange={() => onChange(option.label)}
-            />
-            {option.label}
-          </label>
-        ))}
+        {(question.options ?? []).map((option) => {
+          const selected = value === option.label;
+          return (
+            <label
+              key={option.id}
+              className={`flex min-h-12 cursor-pointer items-center gap-3 rounded-[var(--kb-radius-sm)] border bg-[var(--kb-surface-raised)] px-3.5 py-2 text-[14px] text-[var(--kb-ink-900)] transition-colors hover:bg-[var(--kb-paper-2)] ${
+                selected
+                  ? "border-[var(--kb-navy-500)] bg-[var(--kb-navy-50)]"
+                  : "border-[var(--kb-border-subtle)]"
+              }`}
+            >
+              <input
+                type="radio"
+                name={question.id}
+                checked={selected}
+                onChange={() => onChange(option.label)}
+                className="h-4 w-4 cursor-pointer accent-[var(--kb-navy-700)]"
+              />
+              <span className={selected ? "font-semibold" : "font-medium"}>{option.label}</span>
+            </label>
+          );
+        })}
       </div>
     );
   }
@@ -335,25 +343,33 @@ function QuestionInput({
       : [];
     return (
       <div className="grid gap-2">
-        {(question.options ?? []).map((option) => (
-          <label
-            key={option.id}
-            className="flex min-h-10 items-center gap-2 rounded-[8px] border border-[#eeeae2] bg-[#fbfaf7] px-3 text-[14px] font-semibold text-[#312f2c]"
-          >
-            <input
-              type="checkbox"
-              checked={current.includes(option.label)}
-              onChange={(event) => {
-                if (event.target.checked) {
-                  onChange([...current, option.label]);
-                } else {
-                  onChange(current.filter((item) => item !== option.label));
-                }
-              }}
-            />
-            {option.label}
-          </label>
-        ))}
+        {(question.options ?? []).map((option) => {
+          const checked = current.includes(option.label);
+          return (
+            <label
+              key={option.id}
+              className={`flex min-h-12 cursor-pointer items-center gap-3 rounded-[var(--kb-radius-sm)] border bg-[var(--kb-surface-raised)] px-3.5 py-2 text-[14px] text-[var(--kb-ink-900)] transition-colors hover:bg-[var(--kb-paper-2)] ${
+                checked
+                  ? "border-[var(--kb-navy-500)] bg-[var(--kb-navy-50)]"
+                  : "border-[var(--kb-border-subtle)]"
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={checked}
+                onChange={(event) => {
+                  if (event.target.checked) {
+                    onChange([...current, option.label]);
+                  } else {
+                    onChange(current.filter((item) => item !== option.label));
+                  }
+                }}
+                className="h-4 w-4 cursor-pointer rounded-[3px] accent-[var(--kb-navy-700)]"
+              />
+              <span className={checked ? "font-semibold" : "font-medium"}>{option.label}</span>
+            </label>
+          );
+        })}
       </div>
     );
   }
@@ -976,74 +992,98 @@ export default function FormDetail() {
       : []),
   ] satisfies { key: PanelKey; label: string; count: number }[];
 
+  const statusTone =
+    form.status === "active" ? "success" : form.status === "draft" ? "warning" : "neutral";
+
   return (
     <div className="kb-root" style={PAGE_STYLE}>
-      <div className="mx-auto flex max-w-[1180px] flex-col gap-5">
+      <div className="kb-fade-up mx-auto flex max-w-[1180px] flex-col gap-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Link
             to={canManageForms ? "/member/forms" : "/member"}
-            className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#e8e6df] bg-white px-3.5 text-[14px] font-bold text-[#312f2c] no-underline transition-colors hover:border-[#cfcac0]"
+            className="inline-flex h-9 items-center gap-1.5 rounded-[var(--kb-radius-sm)] border border-[var(--kb-border-subtle)] bg-[var(--kb-surface-raised)] px-3 text-[13.5px] font-medium text-[var(--kb-ink-700)] no-underline transition-colors hover:border-[var(--kb-navy-500)] hover:text-[var(--kb-navy-700)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--kb-navy-500)]"
           >
-            <ArrowLeft className="h-4 w-4" />
-            폼 목록
+            <ArrowLeft className="h-4 w-4" aria-hidden />
+            {canManageForms ? "폼 목록" : "대시보드"}
           </Link>
           {canManageForms ? (
             <Link
               to="/member/forms/new"
-              className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0a0a0a] px-4 text-[14px] font-bold text-white no-underline transition-colors hover:bg-[#222222]"
+              className="inline-flex h-9 items-center gap-1.5 rounded-[var(--kb-radius-sm)] bg-[var(--kb-ink-900)] px-3.5 text-[13.5px] font-semibold text-[var(--kb-on-accent)] no-underline transition-colors hover:bg-[var(--kb-navy-900)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--kb-navy-500)]"
             >
               새 폼
             </Link>
           ) : null}
         </div>
 
-        <header className="rounded-[10px] border border-[#e8e6df] bg-white p-6">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-full border border-[#d8e2f7] bg-[#f6f9ff] px-2.5 py-1 text-[12px] font-bold text-[#183b80]">
-              {FORM_CATEGORY_LABELS[form.category]}
-            </span>
-            <span className="rounded-full border border-[#e8e2d6] bg-[#fbfaf7] px-2.5 py-1 text-[12px] font-bold text-[#5f574c]">
+        <header className="rounded-[var(--kb-radius-md)] border border-[var(--kb-border-subtle)] bg-[var(--kb-surface-raised)] p-6 shadow-[var(--kb-shadow-sm)] sm:p-7">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <StatusPill tone="accent">{FORM_CATEGORY_LABELS[form.category]}</StatusPill>
+            <StatusPill tone={statusTone} dot>
               {FORM_STATUS_LABELS[form.status]}
-            </span>
-            <span className="rounded-full border border-[#d8e2f7] bg-[#f6f9ff] px-2.5 py-1 text-[12px] font-bold text-[#183b80]">
-              {formatResponseWindow(form)}
-            </span>
+            </StatusPill>
+            <StatusPill tone="neutral">{formatResponseWindow(form)}</StatusPill>
           </div>
-          <h1 className="mb-0 mt-4 text-[34px] font-black leading-tight tracking-normal text-[#0a0a0a]">
+          <h1 className="kb-display mb-0 mt-4 text-[26px] font-semibold leading-tight tracking-tight text-[var(--kb-ink-900)] sm:text-[30px]">
             {form.title}
           </h1>
-          <p className="mb-0 mt-3 max-w-[760px] text-[15px] leading-7 text-[#6f6a62]">
-            {form.description}
-          </p>
+          {form.description ? (
+            <p className="mb-0 mt-3 max-w-[760px] text-[14.5px] leading-7 text-[var(--kb-ink-700)]">
+              {form.description}
+            </p>
+          ) : null}
         </header>
 
         {error ? (
-          <div className="rounded-[8px] border border-red-100 bg-red-50 px-4 py-3 text-[14px] font-semibold text-red-700">
+          <div
+            role="alert"
+            className="rounded-[var(--kb-radius-md)] border border-[color-mix(in_srgb,var(--kb-danger-500)_30%,transparent)] bg-[var(--kb-danger-50)] px-4 py-3 text-[13.5px] font-medium text-[var(--kb-danger-700)]"
+          >
             {error}
           </div>
         ) : null}
         {message ? (
-          <div className="rounded-[8px] border border-emerald-100 bg-emerald-50 px-4 py-3 text-[14px] font-semibold text-emerald-800">
+          <div className="rounded-[var(--kb-radius-md)] border border-[color-mix(in_srgb,var(--kb-success-500)_30%,transparent)] bg-[var(--kb-success-50)] px-4 py-3 text-[13.5px] font-medium text-[var(--kb-success-700)]">
             {message}
           </div>
         ) : null}
 
-        <div className="flex flex-wrap gap-2 rounded-[10px] border border-[#eeeae2] bg-white p-2">
-          {panels.map((panel) => (
-            <button
-              key={panel.key}
-              type="button"
-              onClick={() => setActivePanel(panel.key)}
-              className="h-10 rounded-[8px] px-3 text-[13px] font-bold transition-colors"
-              style={{
-                background: activePanel === panel.key ? "#111111" : "transparent",
-                color: activePanel === panel.key ? "#ffffff" : "#5f574c",
-              }}
-            >
-              {panel.label} {panel.count}
-            </button>
-          ))}
-        </div>
+        {panels.length > 1 ? (
+          <div
+            role="tablist"
+            aria-label="폼 작업 패널"
+            className="flex flex-wrap items-center gap-1 rounded-[var(--kb-radius-md)] border border-[var(--kb-border-subtle)] bg-[var(--kb-surface-raised)] p-1 shadow-[var(--kb-shadow-sm)]"
+          >
+            {panels.map((panel) => {
+              const active = activePanel === panel.key;
+              return (
+                <button
+                  key={panel.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => setActivePanel(panel.key)}
+                  className={`inline-flex h-9 items-center gap-1.5 rounded-[var(--kb-radius-sm)] px-3 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--kb-navy-500)] ${
+                    active
+                      ? "bg-[var(--kb-ink-900)] text-[var(--kb-on-accent)]"
+                      : "text-[var(--kb-ink-500)] hover:bg-[var(--kb-paper-2)] hover:text-[var(--kb-ink-900)]"
+                  }`}
+                >
+                  <span>{panel.label}</span>
+                  <span
+                    className={`rounded-[var(--kb-radius-full)] px-1.5 text-[11px] ${
+                      active
+                        ? "bg-[color-mix(in_srgb,var(--kb-on-accent)_18%,transparent)] text-[var(--kb-on-accent)]"
+                        : "bg-[var(--kb-paper-3)] text-[var(--kb-ink-500)]"
+                    }`}
+                  >
+                    {panel.count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
 
         {activePanel === "answer" ? (
           <form onSubmit={handleSubmitResponse} className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
