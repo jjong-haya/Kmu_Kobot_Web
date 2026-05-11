@@ -37,6 +37,8 @@ as $$
     );
 $$;
 
+drop function if exists public.delete_project_team(uuid);
+
 create or replace function public.delete_project_team(p_project_team_id uuid)
 returns public.project_teams
 language plpgsql
