@@ -33,9 +33,12 @@ import {
   deleteProject,
   getProjectBySlug,
   getCurrentUserGithubReadiness,
+  inviteProjectMember,
+  listProjectInviteCandidates,
   requestProjectJoin,
   type ProjectDetail as ProjectDetailData,
   type GithubIdentityStatus,
+  type ProjectInviteCandidate,
   type ProjectMember,
 } from "../../api/projects";
 import { getProjectRoleLabel, getProjectStatusLabel } from "../../api/project-policy.js";
@@ -571,6 +574,192 @@ function TaskColumn({
   );
 }
 
+function candidateMatches(candidate: ProjectInviteCandidate, keyword: string) {
+  if (!keyword) return true;
+
+  return [
+    candidate.displayName,
+    candidate.loginId,
+    candidate.githubLogin,
+    candidate.roleLabel,
+  ]
+    .filter(Boolean)
+    .some((value) => value!.toLocaleLowerCase("ko-KR").includes(keyword));
+}
+
+function ProjectMemberInviteDialog({
+  project,
+  open,
+  onOpenChange,
+  onInvited,
+}: {
+  project: ProjectDetailData;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onInvited: () => Promise<void>;
+}) {
+  const [candidates, setCandidates] = useState<ProjectInviteCandidate[]>([]);
+  const [keyword, setKeyword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [invitingUserId, setInvitingUserId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const keywordValue = keyword.trim().toLocaleLowerCase("ko-KR");
+  const visibleCandidates = useMemo(
+    () =>
+      candidates
+        .filter((candidate) => candidateMatches(candidate, keywordValue))
+        .slice(0, 20),
+    [candidates, keywordValue],
+  );
+
+  async function refreshCandidates() {
+    setLoading(true);
+    setError(null);
+
+    try {
+      setCandidates(await listProjectInviteCandidates(project.id));
+    } catch (requestError) {
+      setError(sanitizeUserError(requestError, "초대할 멤버를 불러오지 못했습니다."));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!open) return;
+    setKeyword("");
+    void refreshCandidates();
+  }, [open, project.id]);
+
+  async function inviteCandidate(candidate: ProjectInviteCandidate) {
+    if (candidate.isProjectMember || !candidate.hasGithubIdentity) return;
+
+    setInvitingUserId(candidate.userId);
+    setError(null);
+
+    try {
+      await inviteProjectMember(project.id, candidate.userId);
+      setCandidates((current) =>
+        current.map((item) =>
+          item.userId === candidate.userId
+            ? { ...item, isProjectMember: true, role: "member", roleLabel: "참여" }
+            : item,
+        ),
+      );
+      await onInvited();
+    } catch (requestError) {
+      setError(sanitizeUserError(requestError, "프로젝트 멤버를 초대하지 못했습니다."));
+    } finally {
+      setInvitingUserId(null);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[620px]">
+        <DialogHeader>
+          <DialogTitle>프로젝트 멤버 초대</DialogTitle>
+        </DialogHeader>
+
+        <div className="grid gap-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--kb-ink-400)]" />
+            <input
+              value={keyword}
+              onChange={(event) => setKeyword(event.target.value)}
+              placeholder="이름, ID, GitHub 검색"
+              className="w-full rounded-md border border-[#e8e8e4] bg-white py-2.5 pl-9 pr-3 text-[14px] outline-none"
+            />
+          </div>
+
+          {error ? (
+            <div className="rounded-md border border-red-100 bg-red-50 px-3 py-2 text-[13px] font-semibold text-red-700">
+              {error}
+            </div>
+          ) : null}
+
+          <div className="max-h-[380px] overflow-y-auto rounded-md border border-[#ebe8e0]">
+            {loading ? (
+              <div className="flex items-center justify-center gap-2 px-4 py-10 text-[14px] text-[var(--kb-ink-500)]">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                멤버를 불러오는 중입니다.
+              </div>
+            ) : visibleCandidates.length === 0 ? (
+              <div className="px-4 py-10 text-center text-[14px] text-[var(--kb-ink-500)]">
+                초대할 수 있는 멤버가 없습니다.
+              </div>
+            ) : (
+              visibleCandidates.map((candidate) => {
+                const disabled =
+                  candidate.isProjectMember ||
+                  !candidate.hasGithubIdentity ||
+                  invitingUserId !== null;
+
+                return (
+                  <div
+                    key={candidate.userId}
+                    className="flex items-center justify-between gap-3 border-t border-[#f1ede4] px-4 py-3 first:border-t-0"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <strong className="truncate text-[14px] text-[var(--kb-ink-900)]">
+                          {candidate.displayName}
+                        </strong>
+                        {candidate.loginId ? (
+                          <span className="text-[12px] text-[var(--kb-ink-400)]">
+                            @{candidate.loginId}
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className="mt-1 flex flex-wrap items-center gap-2 text-[12.5px] text-[var(--kb-ink-500)]">
+                        <span>{candidate.roleLabel}</span>
+                        {candidate.githubLogin ? (
+                          <span>GitHub @{candidate.githubLogin}</span>
+                        ) : (
+                          <span className="font-semibold text-[#9a5a00]">GitHub URL 필요</span>
+                        )}
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => void inviteCandidate(candidate)}
+                      disabled={disabled}
+                      className="inline-flex min-w-[88px] items-center justify-center gap-1.5 rounded-md border border-[#ebe8e0] bg-white px-3 py-2 text-[13px] font-semibold text-[var(--kb-ink-800)] hover:border-[var(--kb-ink-300)] disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {invitingUserId === candidate.userId ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <UserPlus className="h-3.5 w-3.5" />
+                      )}
+                      {candidate.isProjectMember
+                        ? "멤버"
+                        : candidate.hasGithubIdentity
+                          ? "초대"
+                          : "불가"}
+                    </button>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+
+        <DialogFooter>
+          <button
+            type="button"
+            onClick={() => onOpenChange(false)}
+            className="rounded-md border border-[#ebe8e0] bg-white px-4 py-2 text-[14px] font-semibold text-[var(--kb-ink-700)]"
+          >
+            닫기
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function ProjectWorkspace({
   project,
   userId,
@@ -594,6 +783,7 @@ function ProjectWorkspace({
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState<ProjectTaskPriority>("medium");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
 
   const keywordValue = keyword.trim().toLocaleLowerCase("ko-KR");
   const membersById = useMemo(
@@ -959,11 +1149,23 @@ function ProjectWorkspace({
 
           <aside className="grid h-fit gap-4">
             <section style={{ ...PANEL_STYLE, overflow: "hidden" }}>
-              <div className="flex items-center gap-2 border-b border-[#f1ede4] px-4 py-3">
-                <Users className="h-4 w-4 text-[var(--kb-navy-800)]" />
-                <h2 className="m-0 text-[14px] font-semibold text-[var(--kb-ink-900)]">
-                  멤버
-                </h2>
+              <div className="flex items-center justify-between gap-2 border-b border-[#f1ede4] px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <Users className="h-4 w-4 text-[var(--kb-navy-800)]" />
+                  <h2 className="m-0 text-[14px] font-semibold text-[var(--kb-ink-900)]">
+                    멤버
+                  </h2>
+                </div>
+                {canEditProject ? (
+                  <button
+                    type="button"
+                    onClick={() => setInviteOpen(true)}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-[#ebe8e0] bg-white px-2.5 py-1.5 text-[12px] font-semibold text-[var(--kb-ink-800)] hover:border-[var(--kb-ink-300)]"
+                  >
+                    <UserPlus className="h-3.5 w-3.5" />
+                    초대하기
+                  </button>
+                ) : null}
               </div>
               <div className="grid gap-3 px-4 py-4">
                 {project.members.map((member) => (
@@ -999,6 +1201,15 @@ function ProjectWorkspace({
           </aside>
         </div>
       )}
+
+      {canEditProject ? (
+        <ProjectMemberInviteDialog
+          project={project}
+          open={inviteOpen}
+          onOpenChange={setInviteOpen}
+          onInvited={onUpdated}
+        />
+      ) : null}
     </>
   );
 }

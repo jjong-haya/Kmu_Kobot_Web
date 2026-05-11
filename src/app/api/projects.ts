@@ -63,6 +63,12 @@ export type ProjectLeadCandidate = {
   isProjectMember: boolean;
 };
 
+export type ProjectInviteCandidate = ProjectLeadCandidate & {
+  githubLogin: string | null;
+  githubUrl: string | null;
+  hasGithubIdentity: boolean;
+};
+
 export type ProjectSummary = {
   id: string;
   slug: string;
@@ -230,6 +236,10 @@ type GithubIdentityDbRow = {
 
 type GithubProfileDbRow = {
   github_url: string | null;
+};
+
+type ProjectInviteProfileDbRow = ProfileDbRow & {
+  github_url?: string | null;
 };
 
 const PROJECT_SELECT = [
@@ -942,6 +952,113 @@ export async function listProjectLeadCandidates(projectId: string): Promise<Proj
     });
 }
 
+export async function listProjectInviteCandidates(projectId: string): Promise<ProjectInviteCandidate[]> {
+  const supabase = getSupabaseBrowserClient();
+  const { data: projectData, error: projectError } = await supabase
+    .from("project_teams")
+    .select("organization_id")
+    .eq("id", projectId)
+    .maybeSingle();
+
+  if (projectError) {
+    throw new Error(sanitizeUserError(projectError, "초대할 멤버를 불러오지 못했습니다."));
+  }
+
+  const project = projectData as ProjectOrganizationDbRow | null;
+  if (!project?.organization_id) {
+    throw new Error("프로젝트를 찾을 수 없습니다.");
+  }
+
+  const [{ data: accountData, error: accountError }, projectMembers] = await Promise.all([
+    supabase
+      .from("member_accounts")
+      .select("user_id")
+      .eq("organization_id", project.organization_id)
+      .eq("status", "active"),
+    listProjectMembers(projectId),
+  ]);
+
+  if (accountError) {
+    throw new Error(sanitizeUserError(accountError, "초대할 멤버를 불러오지 못했습니다."));
+  }
+
+  const activeUserIds = ((accountData ?? []) as MemberAccountDbRow[]).map((row) => row.user_id);
+  if (activeUserIds.length === 0) return [];
+
+  const [{ data: profileData, error: profileError }, identityResult] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select(`${PROFILE_SELECT}, github_url`)
+      .in("id", activeUserIds),
+    supabase
+      .from("member_github_identities")
+      .select("user_id, github_login, github_url, connection_status")
+      .in("user_id", activeUserIds),
+  ]);
+
+  if (profileError) {
+    throw new Error(sanitizeUserError(profileError, "초대할 멤버를 불러오지 못했습니다."));
+  }
+
+  if (identityResult.error && !isGithubIntegrationMissing(identityResult.error)) {
+    throw new Error(sanitizeUserError(identityResult.error, "초대할 멤버를 불러오지 못했습니다."));
+  }
+
+  const profilesById = new Map(
+    ((profileData ?? []) as unknown as ProjectInviteProfileDbRow[]).map((profile) => [profile.id, profile]),
+  );
+  const identitiesByUser = new Map(
+    identityResult.error
+      ? []
+      : ((identityResult.data ?? []) as unknown as GithubIdentityDbRow[]).map((identity) => [
+          identity.user_id,
+          identity,
+        ]),
+  );
+  const projectMemberByUser = new Map(projectMembers.map((member) => [member.userId, member]));
+  const roleRank: Record<ProjectMemberRole, number> = {
+    lead: 0,
+    maintainer: 1,
+    delegate: 2,
+    member: 3,
+  };
+
+  return activeUserIds
+    .map((userId) => {
+      const profile = profilesById.get(userId);
+      if (!profile) return null;
+
+      const identity = identitiesByUser.get(userId);
+      const githubUrl = normalizeString(identity?.github_url) ?? normalizeString(profile.github_url);
+      const githubLogin =
+        normalizeString(identity?.github_login) ?? extractGithubLoginFromUrl(githubUrl);
+      const connectionStatus = identity?.connection_status ?? (githubLogin ? "linked" : null);
+      const projectMember = projectMemberByUser.get(userId);
+      const hasGithubIdentity = Boolean(githubLogin && connectionStatus === "linked");
+
+      return {
+        userId,
+        displayName: displayNameFor(profile),
+        loginId: normalizeString(profile.login_id),
+        avatarUrl: normalizeString(profile.avatar_url),
+        role: projectMember?.role ?? null,
+        roleLabel: projectMember?.roleLabel ?? (hasGithubIdentity ? "초대 가능" : "GitHub URL 필요"),
+        isProjectMember: Boolean(projectMember),
+        githubLogin,
+        githubUrl,
+        hasGithubIdentity,
+      } satisfies ProjectInviteCandidate;
+    })
+    .filter((candidate): candidate is ProjectInviteCandidate => candidate !== null)
+    .sort((a, b) => {
+      if (a.isProjectMember !== b.isProjectMember) return a.isProjectMember ? 1 : -1;
+      if (a.hasGithubIdentity !== b.hasGithubIdentity) return a.hasGithubIdentity ? -1 : 1;
+      const aRank = a.role ? roleRank[a.role] : 4;
+      const bRank = b.role ? roleRank[b.role] : 4;
+      return aRank - bRank || a.displayName.localeCompare(b.displayName, "ko");
+    });
+}
+
 export async function setProjectLead(
   projectId: string,
   nextLeadUserId: string,
@@ -962,6 +1079,29 @@ export async function setProjectLead(
 
   triggerGithubSyncInBackground(10);
   return hydrateProjectSummary(project, viewerUserId);
+}
+
+export async function inviteProjectMember(
+  projectId: string,
+  userId: string,
+): Promise<ProjectMember> {
+  const supabase = getSupabaseBrowserClient();
+  const { data, error } = await supabase.rpc("invite_project_team_member", {
+    p_project_team_id: projectId,
+    p_user_id: userId,
+  });
+
+  if (error) throw new Error(sanitizeUserError(error, "프로젝트 멤버를 초대하지 못했습니다."));
+
+  const membership = (Array.isArray(data) ? data[0] : data) as MembershipDbRow | null;
+  if (!membership?.user_id) {
+    throw new Error("프로젝트 멤버 초대 결과를 확인하지 못했습니다.");
+  }
+
+  triggerGithubSyncInBackground(10);
+
+  const profilesById = await listProfiles([membership.user_id]);
+  return mapProjectMember(membership, profilesById);
 }
 
 export async function reviewProjectTeam(
