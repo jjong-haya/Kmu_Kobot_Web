@@ -9,9 +9,11 @@ function readIfExists(path) {
 test("deletes projects only through an authenticated permission-checked RPC and confirmed workspace action", () => {
   const migration = readIfExists("supabase/migrations/20260508006000_delete_project_team.sql");
   const trashMigration = readIfExists("supabase/migrations/20260512020000_project_trash_lifecycle.sql");
+  const purgeRepoMigration = readIfExists("supabase/migrations/20260512040000_delete_github_repo_on_project_purge.sql");
   const api = readIfExists("src/app/api/projects.ts");
   const detail = readIfExists("src/app/pages/member/ProjectDetail.tsx");
   const admin = readIfExists("src/app/pages/member/ProjectAdmin.tsx");
+  const githubSyncFunction = readIfExists("supabase/functions/github-sync/index.ts");
 
   assert.match(migration, /create or replace function public\.delete_project_team\(/);
   assert.match(migration, /security definer/);
@@ -28,12 +30,29 @@ test("deletes projects only through an authenticated permission-checked RPC and 
   assert.match(trashMigration, /create or replace function public\.purge_deleted_project_team/);
   assert.match(trashMigration, /delete from public\.project_teams/);
 
+  assert.match(purgeRepoMigration, /'project_repo_delete'/);
+  assert.match(purgeRepoMigration, /from public\.project_github_links/);
+  assert.match(purgeRepoMigration, /'repoName', v_link\.repo_name/);
+  assert.match(purgeRepoMigration, /public\.enqueue_github_sync_job\(\s*'project_repo_delete',\s*null/s);
+  assert.match(purgeRepoMigration, /current_user_can_delete_project\(\(v_payload->>'projectTeamId'\)::uuid\)/);
+  assert.ok(
+    purgeRepoMigration.indexOf("public.enqueue_github_sync_job(") <
+      purgeRepoMigration.indexOf("delete from public.project_teams"),
+    "GitHub repo delete job must be queued before the project row cascades link data away",
+  );
+
+  assert.match(githubSyncFunction, /"project_repo_delete"/);
+  assert.match(githubSyncFunction, /async function processRepoDeleteJob/);
+  assert.match(githubSyncFunction, /\"DELETE\"[\s\S]*\/repos\/\$\{encodeURIComponent\(org\)\}\/\$\{encodeURIComponent\(repoName\)\}/);
+  assert.match(githubSyncFunction, /case "project_repo_delete"/);
+
   assert.match(api, /export async function deleteProject\(/);
   assert.match(api, /\.rpc\("delete_project_team"/);
   assert.match(api, /export async function restoreDeletedProject\(/);
   assert.match(api, /\.rpc\("restore_deleted_project_team"/);
   assert.match(api, /export async function purgeDeletedProject\(/);
   assert.match(api, /\.rpc\("purge_deleted_project_team"/);
+  assert.match(api, /export async function purgeDeletedProject[\s\S]*triggerGithubSyncInBackground\(10\)/);
   assert.doesNotMatch(api, /\.from\("project_teams"\)\s*\.\s*delete\(/);
 
   assert.match(detail, /deleteProject/);

@@ -806,6 +806,8 @@ export async function purgeDeletedProject(projectId: string): Promise<void> {
   if (error) {
     throw new Error(sanitizeUserError(error, "프로젝트를 완전삭제하지 못했습니다."));
   }
+
+  triggerGithubSyncInBackground(10);
 }
 
 export async function getProjectBySlug(

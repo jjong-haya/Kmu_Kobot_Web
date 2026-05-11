@@ -9,7 +9,8 @@ type GithubSyncJob = {
     | "project_repo_provision"
     | "project_member_invite"
     | "project_member_remove"
-    | "project_repo_freeze";
+    | "project_repo_freeze"
+    | "project_repo_delete";
   status: string;
   payload: Record<string, unknown>;
   attempts: number;
@@ -606,6 +607,16 @@ async function removeFromTeam(token: string, org: string, teamSlug: string, logi
   }
 }
 
+async function deleteRepo(token: string, org: string, repoName: string) {
+  await githubRequest(
+    token,
+    "DELETE",
+    `/repos/${encodeURIComponent(org)}/${encodeURIComponent(repoName)}`,
+    undefined,
+    { allow404: true },
+  );
+}
+
 async function syncMembership(
   token: string,
   job: GithubSyncJob,
@@ -774,6 +785,25 @@ async function processFreezeJob(token: string, job: GithubSyncJob) {
   return { repo: teams.repo.full_name, permission: "pull" };
 }
 
+async function processRepoDeleteJob(token: string, job: GithubSyncJob) {
+  const org = String(job.payload.githubOrg ?? defaultGithubOrg);
+  const repoName =
+    typeof job.payload.repoName === "string" ? job.payload.repoName.trim() : "";
+
+  if (!repoName) {
+    throw new Error("Repository delete job is missing repoName.");
+  }
+
+  await deleteRepo(token, org, repoName);
+
+  await recordEvent(job, "github.repo.deleted", {
+    repo: `${org}/${repoName}`,
+    projectTeamId: job.payload.projectTeamId ?? job.project_team_id,
+  });
+
+  return { repo: `${org}/${repoName}`, deleted: true };
+}
+
 async function processJob(token: string, job: GithubSyncJob) {
   switch (job.job_type) {
     case "project_repo_provision":
@@ -784,6 +814,8 @@ async function processJob(token: string, job: GithubSyncJob) {
       return await processMemberRemoveJob(token, job);
     case "project_repo_freeze":
       return await processFreezeJob(token, job);
+    case "project_repo_delete":
+      return await processRepoDeleteJob(token, job);
     default:
       throw new Error(`Unsupported job type: ${job.job_type}`);
   }
