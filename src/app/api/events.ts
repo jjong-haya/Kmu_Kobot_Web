@@ -2,6 +2,7 @@ import { getSupabaseBrowserClient } from "../auth/supabase";
 import { sanitizeUserError } from "../utils/sanitize-error";
 
 export type EventStatus = "scheduled" | "ongoing" | "closed";
+export type EventStatusFilter = "all" | EventStatus;
 
 export type EventImageTone = "navy" | "amber" | "green" | "slate" | "red";
 
@@ -103,10 +104,11 @@ export const EVENT_STATUS_LABELS: Record<EventStatus, string> = {
 };
 
 export const EVENT_STATUS_FILTERS = [
+  { key: "all", label: "전체" },
   { key: "scheduled", label: EVENT_STATUS_LABELS.scheduled },
   { key: "ongoing", label: EVENT_STATUS_LABELS.ongoing },
   { key: "closed", label: EVENT_STATUS_LABELS.closed },
-] satisfies { key: EventStatus; label: string }[];
+] satisfies { key: EventStatusFilter; label: string }[];
 
 export const EVENT_IMAGE_TONE_OPTIONS = [
   { key: "navy", label: "네이비" },
@@ -245,11 +247,11 @@ export function sortEvents(events: ClubEvent[], now = new Date()) {
   });
 }
 
-export function filterEvents(events: ClubEvent[], status: EventStatus, keyword = "", now = new Date()) {
+export function filterEvents(events: ClubEvent[], status: EventStatusFilter, keyword = "", now = new Date()) {
   const normalizedKeyword = keyword.trim().toLocaleLowerCase("ko-KR");
 
   return sortEvents(events, now).filter((event) => {
-    if (getEventStatus(event, now) !== status) return false;
+    if (status !== "all" && getEventStatus(event, now) !== status) return false;
     if (!normalizedKeyword) return true;
 
     return [event.title, event.description, event.location, event.organizer].some(

@@ -7,7 +7,7 @@ export const PROJECT_FILTERS = [
   { key: "archived", label: "완료" },
 ];
 
-export const DEFAULT_PROJECT_FILTER_KEY = "mine";
+export const DEFAULT_PROJECT_FILTER_KEY = "all";
 
 const PROJECT_FILTER_KEYS = new Set(PROJECT_FILTERS.map((filter) => filter.key));
 

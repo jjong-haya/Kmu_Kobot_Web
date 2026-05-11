@@ -316,6 +316,10 @@ function isLeadRole(role: MembershipRow["role"] | string | null | undefined) {
   return role === "lead" || role === "maintainer";
 }
 
+function sleep(milliseconds: number) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
 async function recordEvent(
   job: GithubSyncJob,
   eventType: string,
@@ -524,12 +528,23 @@ async function ensureTeam(
     throw new Error(`Team ${kind} could not be created or loaded.`);
   }
 
-  await githubRequest(
-    token,
-    "PUT",
-    `/orgs/${encodeURIComponent(org)}/teams/${encodeURIComponent(team.slug)}/repos/${encodeURIComponent(org)}/${encodeURIComponent(repoName)}`,
-    { permission },
-  );
+  const repoPermissionPath =
+    `/orgs/${encodeURIComponent(org)}/teams/${encodeURIComponent(team.slug)}` +
+    `/repos/${encodeURIComponent(org)}/${encodeURIComponent(repoName)}`;
+
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      await githubRequest(token, "PUT", repoPermissionPath, { permission });
+      break;
+    } catch (error) {
+      const shouldRetry = error instanceof GithubApiError && error.status === 404 && attempt < 3;
+      if (!shouldRetry) {
+        throw error;
+      }
+
+      await sleep(750 * attempt);
+    }
+  }
 
   await supabase.from("project_github_teams").upsert(
     {

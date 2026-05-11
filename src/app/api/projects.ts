@@ -5,7 +5,7 @@ import {
   getProjectRoleLabel,
   readProjectProgress,
 } from "./project-policy.js";
-import { triggerGithubSync } from "./github-sync";
+import { triggerGithubSyncInBackground } from "./github-sync";
 
 const FALLBACK = "프로젝트 데이터를 불러오지 못했습니다.";
 
@@ -95,6 +95,9 @@ export type ProjectSummary = {
   lastRestoreReason: string | null;
   lastRestoredAt: string | null;
   githubLink: ProjectGithubLink | null;
+  deletedAt: string | null;
+  deletedBy: string | null;
+  isDeleted: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -157,6 +160,8 @@ type ProjectDbRow = {
   recruitment_note?: string | null;
   created_by: string | null;
   metadata: unknown;
+  deleted_at?: string | null;
+  deleted_by?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -242,6 +247,8 @@ const PROJECT_SELECT = [
   "recruitment_note",
   "created_by",
   "metadata",
+  "deleted_at",
+  "deleted_by",
   "created_at",
   "updated_at",
 ].join(", ");
@@ -539,6 +546,9 @@ function mapProjectSummary(
     lastRestoreReason: readMetadataString(lastRestore, "reason"),
     lastRestoredAt: readMetadataString(lastRestore, "restoredAt", "restored_at"),
     githubLink: githubLinksByProject.get(project.id) ?? null,
+    deletedAt: project.deleted_at ?? null,
+    deletedBy: project.deleted_by ?? null,
+    isDeleted: Boolean(project.deleted_at),
     createdAt: project.created_at,
     updatedAt: project.updated_at,
   };
@@ -617,12 +627,21 @@ async function hydrateProjectSummary(project: ProjectDbRow, viewerUserId: string
   return mapProjectSummary(project, viewerUserId, memberships, profilesById, githubLinksByProject);
 }
 
-export async function listProjects(viewerUserId: string): Promise<ProjectSummary[]> {
+export async function listProjects(
+  viewerUserId: string,
+  options: { includeDeleted?: boolean } = {},
+): Promise<ProjectSummary[]> {
   const supabase = getSupabaseBrowserClient();
-  const { data, error } = await supabase
+  let query = supabase
     .from("project_teams")
     .select(PROJECT_SELECT)
     .order("updated_at", { ascending: false });
+
+  if (!options.includeDeleted) {
+    query = query.is("deleted_at", null);
+  }
+
+  const { data, error } = await query;
 
   if (error) throw new Error(sanitizeUserError(error, FALLBACK));
 
@@ -718,7 +737,7 @@ export async function updateRejectedProjectAndRequestReview(
     throw new Error("프로젝트 재심사 요청 결과를 확인하지 못했습니다.");
   }
 
-  void triggerGithubSync(10);
+  triggerGithubSyncInBackground(10);
   return hydrateProjectSummary(project, viewerUserId);
 }
 
@@ -748,7 +767,7 @@ export async function updateProjectSettings(
     throw new Error("프로젝트 설정 저장 결과를 확인하지 못했습니다.");
   }
 
-  void triggerGithubSync(10);
+  triggerGithubSyncInBackground(10);
   return hydrateProjectSummary(project, viewerUserId);
 }
 
@@ -762,7 +781,31 @@ export async function deleteProject(projectId: string): Promise<void> {
     throw new Error(sanitizeUserError(error, "프로젝트를 삭제하지 못했습니다."));
   }
 
-  void triggerGithubSync(10);
+  triggerGithubSyncInBackground(10);
+}
+
+export async function restoreDeletedProject(projectId: string): Promise<void> {
+  const supabase = getSupabaseBrowserClient();
+  const { error } = await supabase.rpc("restore_deleted_project_team", {
+    p_project_team_id: projectId,
+  });
+
+  if (error) {
+    throw new Error(sanitizeUserError(error, "프로젝트를 복구하지 못했습니다."));
+  }
+
+  triggerGithubSyncInBackground(10);
+}
+
+export async function purgeDeletedProject(projectId: string): Promise<void> {
+  const supabase = getSupabaseBrowserClient();
+  const { error } = await supabase.rpc("purge_deleted_project_team", {
+    p_project_team_id: projectId,
+  });
+
+  if (error) {
+    throw new Error(sanitizeUserError(error, "프로젝트를 완전삭제하지 못했습니다."));
+  }
 }
 
 export async function getProjectBySlug(
@@ -774,6 +817,7 @@ export async function getProjectBySlug(
     .from("project_teams")
     .select(PROJECT_SELECT)
     .eq("slug", slug)
+    .is("deleted_at", null)
     .maybeSingle();
 
   if (error) throw new Error(sanitizeUserError(error, FALLBACK));
@@ -914,7 +958,7 @@ export async function setProjectLead(
     throw new Error("프로젝트 리드 변경 결과를 확인하지 못했습니다.");
   }
 
-  void triggerGithubSync(10);
+  triggerGithubSyncInBackground(10);
   return hydrateProjectSummary(project, viewerUserId);
 }
 
@@ -939,7 +983,7 @@ export async function reviewProjectTeam(
   }
 
   if (decision === "approve") {
-    void triggerGithubSync(10);
+    triggerGithubSyncInBackground(10);
   }
 
   const memberships = await listActiveMemberships([project.id]);
@@ -972,7 +1016,7 @@ export async function restoreRejectedProject(
     throw new Error("반려 프로젝트 복구 결과를 확인하지 못했습니다.");
   }
 
-  void triggerGithubSync(10);
+  triggerGithubSyncInBackground(10);
   return hydrateProjectSummary(project, viewerUserId);
 }
 
@@ -1034,7 +1078,7 @@ export async function reviewProjectJoinRequest(
   }
 
   if (decision === "approve") {
-    void triggerGithubSync(10);
+    triggerGithubSyncInBackground(10);
   }
 
   const profilesById = await listProfiles([row.requester_user_id]);
@@ -1095,7 +1139,7 @@ export async function setProjectRunStatus(
     throw new Error("프로젝트 진행 상태 변경 결과를 확인하지 못했습니다.");
   }
 
-  void triggerGithubSync(10);
+  triggerGithubSyncInBackground(10);
 
   const memberships = await listActiveMemberships([project.id]);
   const profileIds = [

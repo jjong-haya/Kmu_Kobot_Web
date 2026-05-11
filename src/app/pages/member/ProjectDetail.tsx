@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties, FormEvent, ReactNode } from "react";
-import { Link, useNavigate, useParams } from "react-router";
+import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { DndContext, type DragEndEvent, useDraggable, useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import {
@@ -115,6 +115,10 @@ function projectListPath() {
   return "/member/projects";
 }
 
+function githubProfilePath(nextPath: string) {
+  return `/member/profile?focus=github&next=${encodeURIComponent(nextPath)}`;
+}
+
 function studyBoardPath(slug: string) {
   return `/member/study-log/${encodeURIComponent(slug)}`;
 }
@@ -216,7 +220,7 @@ function ProjectDeleteControl({
         }
       >
         <Trash2 className="h-4 w-4" />
-        프로젝트 삭제
+        휴지통으로 이동
       </button>
 
       <Dialog
@@ -231,12 +235,12 @@ function ProjectDeleteControl({
       >
         <DialogContent className="sm:max-w-[540px]">
           <DialogHeader>
-            <DialogTitle>프로젝트 삭제</DialogTitle>
+            <DialogTitle>프로젝트를 휴지통으로 이동</DialogTitle>
           </DialogHeader>
 
           <form id="project-delete-form" onSubmit={handleDeleteProject} className="grid gap-4">
             <div className="rounded-md border border-red-100 bg-red-50 px-4 py-3 text-[13.5px] leading-6 text-red-700">
-              이 프로젝트와 연결된 멤버, 참여 신청, 작업 보드, 스터디 기록이 함께 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
+              프로젝트 목록과 상세 화면에서 숨겨집니다. 휴지통에서 복구할 수 있으며, 완전삭제 전까지 연결된 기록은 보존됩니다.
             </div>
 
             <label className="grid gap-2">
@@ -272,7 +276,7 @@ function ProjectDeleteControl({
               className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-red-700 px-4 text-[14px] font-semibold text-white hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-              삭제
+              휴지통으로 이동
             </button>
           </DialogFooter>
         </DialogContent>
@@ -571,11 +575,13 @@ function ProjectWorkspace({
   project,
   userId,
   canEditProject,
+  canDeleteProject,
   onUpdated,
 }: {
   project: ProjectDetailData;
   userId: string;
   canEditProject: boolean;
+  canDeleteProject: boolean;
   onUpdated: () => Promise<void>;
 }) {
   const [tasks, setTasks] = useState<ProjectTask[]>([]);
@@ -745,7 +751,7 @@ function ProjectWorkspace({
               프로젝트 설정
             </button>
           ) : null}
-          {canEditProject ? (
+          {canDeleteProject ? (
             <ProjectDeleteControl project={project} onError={setError} />
           ) : null}
           <button
@@ -1007,10 +1013,13 @@ function ProjectOverview({
   canDeleteProject?: boolean;
 }) {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [joining, setJoining] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [githubStatus, setGithubStatus] = useState<GithubIdentityStatus | null>(null);
   const joinable = canRequestJoin(project);
+  const currentPath = `${location.pathname}${location.search}`;
 
   useEffect(() => {
     let active = true;
@@ -1043,10 +1052,44 @@ function ProjectOverview({
     };
   }, [joinable, user?.id]);
 
+  function goToGithubProfile() {
+    setMessage("프로젝트 참여 신청 전에 프로필에 GitHub URL을 등록해야 합니다.");
+    navigate(githubProfilePath(currentPath));
+  }
+
+  async function ensureGithubReady() {
+    if (!user?.id) return false;
+
+    let status = githubStatus;
+    if (!status) {
+      try {
+        status = await getCurrentUserGithubReadiness(user.id);
+        setGithubStatus(status);
+      } catch {
+        status = {
+          githubUrl: null,
+          githubLogin: null,
+          connectionStatus: null,
+          hasGithubIdentity: false,
+        };
+        setGithubStatus(status);
+      }
+    }
+
+    if (!status.hasGithubIdentity) {
+      goToGithubProfile();
+      return false;
+    }
+
+    return true;
+  }
+
   async function handleJoin() {
+    setMessage(null);
+    if (!(await ensureGithubReady())) return;
+
     try {
       setJoining(true);
-      setMessage(null);
       await requestProjectJoin(project.id, null);
       setMessage("참여 신청을 보냈습니다.");
       onJoined();
@@ -1107,7 +1150,7 @@ function ProjectOverview({
               className="inline-flex items-center gap-2 rounded-md bg-[#0a0a0a] px-4 py-2.5 text-[14px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
             >
               {joining ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
-              참여 신청
+              {githubStatus && !githubStatus.hasGithubIdentity ? "GitHub URL 입력" : "참여 신청"}
             </button>
           ) : null}
         </div>
@@ -1120,9 +1163,15 @@ function ProjectOverview({
             <div>
               <strong className="font-semibold">GitHub 계정이 아직 없습니다.</strong>
               <span className="ml-1">
-                신청은 가능하지만 승인 후 저장소 초대가 보류됩니다. 멤버 목록의 내 프로필 편집에서
-                GitHub URL을 추가하면 자동 초대가 다시 진행됩니다.
+                프로필에 GitHub URL을 저장한 뒤 참여 신청할 수 있습니다. 승인 후 저장소 초대에 이 주소가
+                사용됩니다.
               </span>
+              <Link
+                to={githubProfilePath(currentPath)}
+                className="ml-2 inline-flex font-semibold text-[#103078] no-underline hover:underline"
+              >
+                프로필에서 입력
+              </Link>
             </div>
           </div>
         </div>
@@ -1252,11 +1301,13 @@ function RejectedProjectNotice({
   userId,
   onUpdated,
   canManageProject = false,
+  canDeleteProject = false,
 }: {
   project: ProjectDetailData;
   userId: string;
   onUpdated: () => Promise<void>;
   canManageProject?: boolean;
+  canDeleteProject?: boolean;
 }) {
   const [editOpen, setEditOpen] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -1315,7 +1366,7 @@ function RejectedProjectNotice({
               수정하기
             </button>
           ) : null}
-          {canEdit ? (
+          {canDeleteProject ? (
             <ProjectDeleteControl project={project} onError={setMessage} />
           ) : null}
           <Link
@@ -1347,10 +1398,22 @@ function RejectedProjectNotice({
 
 export default function ProjectDetail() {
   const { slug = "" } = useParams();
-  const { user, hasPermission } = useAuth();
+  const { user, hasPermission, authData } = useAuth();
   const [project, setProject] = useState<ProjectDetailData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const isPresident =
+    authData.account.isBootstrapAdmin ||
+    authData.orgPositions.some((position) => position.slug === "president");
+  const canDeleteCurrentProject = Boolean(
+    project &&
+      user &&
+      (isPresident || project.myRole === "lead" || project.lead?.id === user.id),
+  );
+  const canManageCurrentProject = Boolean(
+    project &&
+      (project.isLead || hasPermission("admin.access", "members.manage", "projects.manage")),
+  );
 
   async function refresh() {
     if (!user || !slug) {
@@ -1407,26 +1470,22 @@ export default function ProjectDetail() {
             project={project}
             userId={user.id}
             onUpdated={refresh}
-            canManageProject={
-              project.isLead || hasPermission("admin.access", "members.manage", "projects.manage")
-            }
+            canManageProject={canManageCurrentProject}
+            canDeleteProject={canDeleteCurrentProject}
           />
         ) : project.isMember && user && (project.status === "active" || project.status === "recruiting") ? (
           <ProjectWorkspace
             project={project}
             userId={user.id}
-            canEditProject={
-              project.isLead || hasPermission("admin.access", "members.manage", "projects.manage")
-            }
+            canEditProject={canManageCurrentProject}
+            canDeleteProject={canDeleteCurrentProject}
             onUpdated={refresh}
           />
         ) : (
           <ProjectOverview
             project={project}
             onJoined={() => void refresh()}
-            canDeleteProject={
-              project.isLead || hasPermission("admin.access", "members.manage", "projects.manage")
-            }
+            canDeleteProject={canDeleteCurrentProject}
           />
         )}
       </div>

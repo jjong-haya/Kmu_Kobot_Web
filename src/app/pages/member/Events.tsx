@@ -29,6 +29,7 @@ import {
   listEvents,
   type ClubEvent,
   type EventStatus,
+  type EventStatusFilter,
 } from "../../api/events";
 import { EVENT_CREATE_PERMISSIONS } from "../../api/event-policy.js";
 import { useAuth } from "../../auth/useAuth";
@@ -384,7 +385,7 @@ function EventListItem({ event, canEdit }: { event: ClubEvent; canEdit: boolean 
 export default function Events() {
   const { hasPermission, user } = useAuth();
   const [events, setEvents] = useState<ClubEvent[]>([]);
-  const [activeStatus, setActiveStatus] = useState<EventStatus>("scheduled");
+  const [activeStatus, setActiveStatus] = useState<EventStatusFilter>("all");
   const [search, setSearch] = useState("");
   const [viewMode, setViewMode] = useState<EventViewMode>("card");
   const [loading, setLoading] = useState(true);
@@ -447,7 +448,8 @@ export default function Events() {
     </>
   );
 
-  const statusDotClass: Record<EventStatus, string> = {
+  const statusDotClass: Record<EventStatusFilter, string> = {
+    all: "bg-[var(--kb-navy-500)]",
     scheduled: "bg-[var(--kb-info-500)]",
     ongoing: "bg-[var(--kb-success-500)]",
     closed: "bg-[var(--kb-ink-400)]",
@@ -461,6 +463,7 @@ export default function Events() {
     >
       {EVENT_STATUS_FILTERS.map((filter) => {
         const active = activeStatus === filter.key;
+        const count = filter.key === "all" ? events.length : counts[filter.key];
         return (
           <button
             key={filter.key}
@@ -477,7 +480,7 @@ export default function Events() {
             <span aria-hidden className={`h-1.5 w-1.5 rounded-full ${statusDotClass[filter.key]}`} />
             <span>{filter.label}</span>
             <span className="text-[11.5px] font-semibold text-[var(--kb-ink-400)]">
-              {counts[filter.key]}
+              {count}
             </span>
           </button>
         );

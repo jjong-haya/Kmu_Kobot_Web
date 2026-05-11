@@ -42,6 +42,8 @@ export function ProjectFormModal({
   mode = "create",
   userId,
   project,
+  githubIdentityReady,
+  onRequireGithubIdentity,
   onClose,
   onSaved,
   onError,
@@ -49,6 +51,8 @@ export function ProjectFormModal({
   mode?: ProjectFormMode;
   userId: string;
   project?: ProjectSummary;
+  githubIdentityReady?: boolean;
+  onRequireGithubIdentity?: () => void;
   onClose: () => void;
   onSaved: (project: ProjectSummary) => Promise<void> | void;
   onError: (message: string | null) => void;
@@ -98,6 +102,12 @@ export function ProjectFormModal({
 
     if (isSettings && !completed && !running && !recruiting) {
       setLocalError("진행중, 모집중, 종료 중 하나는 선택해 주세요.");
+      return false;
+    }
+
+    if (!isMutation && githubIdentityReady === false) {
+      setLocalError("프로젝트를 만들려면 먼저 프로필에 GitHub URL을 등록해 주세요.");
+      onRequireGithubIdentity?.();
       return false;
     }
 

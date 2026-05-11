@@ -1,7 +1,7 @@
 import { getSupabaseBrowserClient } from "../auth/supabase";
 import { normalizeTagIconName } from "../config/tag-icons";
 import { sanitizeUserError } from "../utils/sanitize-error";
-import { triggerGithubSync } from "./github-sync";
+import { triggerGithubSyncInBackground } from "./github-sync";
 
 const FALLBACK = "멤버 정보를 처리하지 못했습니다.";
 
@@ -680,7 +680,7 @@ export async function updateOwnDirectoryProfile(input: UpdateOwnDirectoryProfile
 
   if (!error) {
     writeSchemaCapability(PROFILE_EXTENSIONS_CACHE_KEY, true);
-    void triggerGithubSync(10);
+    triggerGithubSyncInBackground(10);
     return { profileExtensionsSaved: true };
   }
 
@@ -692,7 +692,7 @@ export async function updateOwnDirectoryProfile(input: UpdateOwnDirectoryProfile
     .eq("id", userData.user.id);
   if (!retryWithoutDisplayClub.error) {
     writeSchemaCapability(PROFILE_EXTENSIONS_CACHE_KEY, true);
-    void triggerGithubSync(10);
+    triggerGithubSyncInBackground(10);
     return { profileExtensionsSaved: true };
   }
   if (!isMissingSchemaError(retryWithoutDisplayClub.error)) {

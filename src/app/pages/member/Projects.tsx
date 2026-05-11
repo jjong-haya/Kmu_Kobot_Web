@@ -15,7 +15,9 @@ import {
   Users,
 } from "lucide-react";
 import {
+  getCurrentUserGithubReadiness,
   listProjects,
+  type GithubIdentityStatus,
   type ProjectStatus,
   type ProjectSummary,
 } from "../../api/projects";
@@ -115,6 +117,10 @@ function matchesSearch(project: ProjectSummary, keyword: string) {
     .some((value) => value!.toLocaleLowerCase("ko-KR").includes(keyword));
 }
 
+function githubProfilePath(nextPath: string) {
+  return `/member/profile?focus=github&next=${encodeURIComponent(nextPath)}`;
+}
+
 function ProjectRow({ project }: { project: ProjectSummary }) {
   const meta = STATUS_META[project.status] ?? STATUS_META.pending;
 
@@ -204,6 +210,8 @@ export default function Projects() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const [checkingGithub, setCheckingGithub] = useState(false);
+  const [createGithubStatus, setCreateGithubStatus] = useState<GithubIdentityStatus | null>(null);
 
   const keyword = search.trim().toLocaleLowerCase("ko-KR");
   const canCreate = hasPermission("projects.create", "projects.manage");
@@ -249,6 +257,30 @@ export default function Projects() {
     }
   }
 
+  async function openCreateDialog() {
+    if (!user) return;
+
+    setCheckingGithub(true);
+    setError(null);
+
+    try {
+      const status = await getCurrentUserGithubReadiness(user.id);
+      setCreateGithubStatus(status);
+
+      if (!status.hasGithubIdentity) {
+        setError("프로젝트를 만들려면 먼저 프로필에 GitHub URL을 등록해야 합니다.");
+        navigate(githubProfilePath("/member/projects"));
+        return;
+      }
+
+      setCreateOpen(true);
+    } catch (requestError) {
+      setError(sanitizeUserError(requestError, "GitHub URL 등록 상태를 확인하지 못했습니다."));
+    } finally {
+      setCheckingGithub(false);
+    }
+  }
+
   useEffect(() => {
     void refresh();
   }, [user?.id]);
@@ -279,11 +311,12 @@ export default function Projects() {
             {canCreate ? (
               <button
                 type="button"
-                onClick={() => setCreateOpen(true)}
-                className="inline-flex items-center gap-2 rounded-md bg-[#0a0a0a] px-4 py-2.5 text-[14px] font-semibold text-white hover:bg-[var(--kb-ink-800)]"
+                onClick={() => void openCreateDialog()}
+                disabled={checkingGithub}
+                className="inline-flex items-center gap-2 rounded-md bg-[#0a0a0a] px-4 py-2.5 text-[14px] font-semibold text-white hover:bg-[var(--kb-ink-800)] disabled:cursor-not-allowed disabled:opacity-60"
               >
-                <Plus className="h-4 w-4" />
-                새 프로젝트
+                {checkingGithub ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                {checkingGithub ? "확인 중" : "새 프로젝트"}
               </button>
             ) : null}
             {hasPermission("projects.manage", "members.manage", "admin.access") ? (
@@ -383,13 +416,19 @@ export default function Projects() {
 
         <div className="flex items-center gap-2 rounded-md bg-[#f8f9fc] px-4 py-3 text-[14px] text-[var(--kb-ink-500)]">
           <ShieldCheck className="h-4 w-4 shrink-0 text-[var(--kb-navy-800)]" />
-              기본 목록은 내 프로젝트를 먼저 보여주고, 모집중 프로젝트는 별도 필터에서 참여 신청할 수 있습니다.
+              기본 목록은 전체 프로젝트를 보여주고, 내 프로젝트와 모집중 프로젝트는 별도 필터에서 확인할 수 있습니다.
         </div>
       </div>
 
       {createOpen && user ? (
         <ProjectFormModal
           userId={user.id}
+          githubIdentityReady={createGithubStatus?.hasGithubIdentity ?? false}
+          onRequireGithubIdentity={() => {
+            setCreateOpen(false);
+            setError("프로젝트를 만들려면 먼저 프로필에 GitHub URL을 등록해야 합니다.");
+            navigate(githubProfilePath("/member/projects"));
+          }}
           onClose={() => setCreateOpen(false)}
           onSaved={async (project) => {
             setCreateOpen(false);

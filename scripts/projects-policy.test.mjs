@@ -53,7 +53,7 @@ test("keeps the selected project list filter in URL state for back navigation", 
   assert.equal(recruitingParams.get("filter"), "recruiting");
   assert.equal(recruitingParams.get("page"), "1");
 
-  const defaultParams = writeProjectFilterSearchParams("?filter=recruiting&page=1", "mine");
+  const defaultParams = writeProjectFilterSearchParams("?filter=recruiting&page=1", "all");
   assert.equal(defaultParams.get("filter"), null);
   assert.equal(defaultParams.get("page"), "1");
 });

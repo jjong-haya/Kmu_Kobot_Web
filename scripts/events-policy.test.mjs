@@ -71,6 +71,11 @@ test("classifies event status from event time boundaries", () => {
 });
 
 test("filters events by scheduled, ongoing, and closed statuses", () => {
+  assert.deepEqual(filterEvents(sampleEvents, "all", "", NOW).map((event) => event.id), [
+    "now",
+    "future",
+    "past",
+  ]);
   assert.deepEqual(filterEvents(sampleEvents, "scheduled", "", NOW).map((event) => event.id), [
     "future",
   ]);
@@ -83,6 +88,9 @@ test("filters events by scheduled, ongoing, and closed statuses", () => {
 });
 
 test("searches event title, description, and location inside a selected status", () => {
+  assert.deepEqual(filterEvents(sampleEvents, "all", "랩실", NOW).map((event) => event.id), [
+    "past",
+  ]);
   assert.deepEqual(filterEvents(sampleEvents, "scheduled", "세미나", NOW).map((event) => event.id), [
     "future",
   ]);
@@ -235,6 +243,12 @@ test("event list supports card and list view modes", () => {
   assert.match(eventsPageSource, /viewMode === "card"/);
   assert.match(eventsPageSource, /<EventCard key=\{event\.id\} event=\{event\} canEdit=\{canEditEvent\(event\)\} \/>/);
   assert.match(eventsPageSource, /<EventListItem key=\{event\.id\} event=\{event\} canEdit=\{canEditEvent\(event\)\} \/>/);
+});
+
+test("event list status filter includes all as the default option", () => {
+  assert.match(eventsApiSource, /\{ key: "all", label: "전체" \}/);
+  assert.match(eventsPageSource, /useState<EventStatusFilter>\("all"\)/);
+  assert.match(eventsPageSource, /filter\.key === "all" \? events\.length : counts\[filter\.key\]/);
 });
 
 test("event cards open detail on card click and expose edit from a top-right action menu", () => {

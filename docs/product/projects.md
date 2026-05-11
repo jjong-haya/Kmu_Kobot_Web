@@ -142,6 +142,9 @@ sequenceDiagram
 13. **종료는 완료 상태로 저장한다.** 설정에서 종료를 선택하면 `status='archived'`, `recruitment_status='closed'`, `archived_at=now()`로 저장하고 화면 label은 `완료`를 쓴다.
 14. **작업 생성/상태/담당자는 프로젝트 멤버 scope에서만 변경한다.** `create_project_task`, `set_project_task_status`, `set_project_task_assignee`가 프로젝트 멤버와 담당자 membership을 검증한다.
 15. **프로젝트 리드는 RPC로만 변경한다.** `project_teams.lead_user_id`와 `project_team_memberships.role='lead'`를 같이 맞춰야 하므로 `set_project_team_lead(...)`가 단일 쓰기 경로다.
+16. **프로젝트 삭제는 휴지통을 먼저 거친다.** `delete_project_team(...)`은 `project_teams.deleted_at`을 채우는 soft delete이며, 상세/일반 목록에서는 숨긴다.
+17. **삭제 권한은 프로젝트 리드 본인 또는 회장이다.** `projects.manage`만으로는 삭제할 수 없다. DB 최종 판정은 `current_user_can_delete_project(...)`가 `user_is_president(auth.uid())` 또는 active `role='lead'` membership/`lead_user_id`를 확인한다.
+18. **완전삭제는 휴지통에서만 한다.** `purge_deleted_project_team(...)`은 `deleted_at is not null` 상태에서만 실제 row를 삭제한다. 복구는 `restore_deleted_project_team(...)`으로 한다.
 
 추가 touchpoint:
 
@@ -151,6 +154,7 @@ sequenceDiagram
 | DB 승인 알림 | `supabase/migrations/20260507002000_project_review_self_notifications.sql` | self-exclusion 제거한 `review_project_team(...)` |
 | DB 설정 수정 | `supabase/migrations/20260507003000_project_settings_update.sql`, `supabase/migrations/20260507004000_project_settings_status_controls.sql` | active/recruiting 프로젝트 설정 수정, 이름/유형 잠금, 진행/모집/종료 상태 체크 |
 | DB 리드 변경 | `supabase/migrations/20260507005000_project_management_lead_transfer.sql` | `set_project_team_lead(...)`, lead_user_id와 lead membership 동기화 |
+| DB 휴지통 | `supabase/migrations/20260512020000_project_trash_lifecycle.sql` | `deleted_at`, 리드/회장 삭제 권한, 휴지통 복구, 완전삭제 |
 | DB 작업 공간 | `supabase/migrations/20260506220000_project_workspace_tasks.sql` | `project_tasks` 테이블, task number, RLS |
 | DB 작업 RPC | `supabase/migrations/20260506230000_project_task_rpcs.sql`, `20260506234000_project_task_assignee_rpc.sql` | 생성/상태/담당자 RPC와 audit |
 | API | `src/app/api/projects.ts`, `src/app/api/project-tasks.ts` | 프로젝트 설정/재심사/복구/리드 변경/작업 RPC 호출 |

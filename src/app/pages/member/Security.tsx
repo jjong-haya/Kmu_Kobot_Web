@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { CSSProperties, FormEvent } from "react";
-import { Eye, EyeOff, KeyRound, ShieldCheck } from "lucide-react";
+import { Eye, EyeOff, IdCard, KeyRound, ShieldCheck } from "lucide-react";
 import {
   AccountTabs,
   AccountResponsiveStyles,
@@ -30,6 +30,8 @@ const inputStyle: CSSProperties = {
   color: "var(--kb-ink-900)",
   background: "#fff",
 };
+
+const LOGIN_ID_PATTERN = /^[a-z0-9]{4,20}$/;
 
 function PasswordInput({
   id,
@@ -85,8 +87,14 @@ function PasswordInput({
 }
 
 export default function Security() {
-  const { authData } = useAuth();
+  const {
+    authData,
+    checkLoginIdAvailability,
+    refreshAuthData,
+    saveProfileSettings,
+  } = useAuth();
   const profile = authData.profile;
+  const hasLoginPassword = authData.account.hasLoginPassword;
 
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
@@ -94,6 +102,81 @@ export default function Security() {
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [loginIdDraft, setLoginIdDraft] = useState(profile.loginId ?? "");
+  const [firstPassword, setFirstPassword] = useState("");
+  const [firstPasswordConfirm, setFirstPasswordConfirm] = useState("");
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [createSaved, setCreateSaved] = useState(false);
+  const [creatingIdLogin, setCreatingIdLogin] = useState(false);
+
+  useEffect(() => {
+    setLoginIdDraft(profile.loginId ?? "");
+  }, [profile.loginId]);
+
+  async function handleCreateIdLogin(e: FormEvent) {
+    e.preventDefault();
+    setCreateError(null);
+    setCreateSaved(false);
+
+    const normalizedLoginId = loginIdDraft.trim().toLowerCase();
+    const missingProfileField = [
+      [profile.fullName, "실명"],
+      [profile.studentId, "학번"],
+      [profile.phone, "전화번호"],
+      [profile.college, "단과대"],
+      [profile.department, "학과"],
+    ].find(([value]) => !String(value ?? "").trim());
+
+    if (!normalizedLoginId) return setCreateError("사용할 로그인 ID를 입력해 주세요.");
+    if (!LOGIN_ID_PATTERN.test(normalizedLoginId)) {
+      return setCreateError("ID는 4~20자의 영어 소문자와 숫자로 입력해 주세요.");
+    }
+    if (profile.loginId && normalizedLoginId !== profile.loginId) {
+      return setCreateError("이미 등록된 ID와 다른 값입니다. 운영진에게 변경을 요청해 주세요.");
+    }
+    if (!firstPassword.trim()) return setCreateError("비밀번호를 입력해 주세요.");
+    if (firstPassword.trim().length < 8) {
+      return setCreateError("비밀번호는 8자 이상이어야 합니다.");
+    }
+    if (firstPassword !== firstPasswordConfirm) {
+      return setCreateError("비밀번호가 일치하지 않습니다.");
+    }
+    if (missingProfileField) {
+      return setCreateError(`${missingProfileField[1]} 정보가 비어 있어 먼저 프로필을 저장해 주세요.`);
+    }
+
+    setCreatingIdLogin(true);
+    try {
+      const available = await checkLoginIdAvailability(normalizedLoginId);
+      if (!available) {
+        setCreateError("이미 사용 중인 ID입니다.");
+        return;
+      }
+
+      await saveProfileSettings({
+        nicknameDisplay: profile.nicknameDisplay ?? profile.displayName ?? normalizedLoginId,
+        fullName: profile.fullName ?? "",
+        studentId: profile.studentId ?? "",
+        phone: profile.phone ?? "",
+        college: profile.college ?? "",
+        department: profile.department ?? "",
+        clubAffiliation: profile.clubAffiliation ?? null,
+        publicCreditNameMode: profile.publicCreditNameMode,
+        loginId: normalizedLoginId,
+        password: firstPassword,
+      });
+      await refreshAuthData();
+
+      setCreateSaved(true);
+      setFirstPassword("");
+      setFirstPasswordConfirm("");
+      setTimeout(() => setCreateSaved(false), 2500);
+    } catch (err) {
+      setCreateError(sanitizeUserError(err, "ID 로그인을 생성하지 못했습니다."));
+    } finally {
+      setCreatingIdLogin(false);
+    }
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -225,17 +308,182 @@ export default function Security() {
             >
               로그인 ID:{" "}
               <span className="kb-mono" style={{ fontWeight: 600 }}>
-                {profile.loginId ?? "—"}
+                {profile.loginId ?? "미설정"}
               </span>
             </div>
             <div style={{ fontSize: 13, color: "var(--kb-ink-500)" }}>
-              연결된 이메일: {profile.email ?? "—"}
+              {hasLoginPassword
+                ? "ID와 비밀번호로도 로그인할 수 있습니다."
+                : "현재는 Google 로그인만 사용할 수 있습니다. 아래에서 ID 로그인을 추가할 수 있습니다."}
+              {" · "}연결된 이메일: {profile.email ?? "—"}
             </div>
           </div>
         </div>
 
+        {!hasLoginPassword ? (
+          <form
+            onSubmit={handleCreateIdLogin}
+            style={{
+              ...ACCOUNT_CARD,
+              padding: 0,
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                padding: "20px 28px 16px",
+                borderBottom: "1px solid #f1ede4",
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
+              <IdCard
+                style={{ width: 16, height: 16, color: "var(--kb-ink-700)" }}
+              />
+              <h2
+                style={{
+                  fontSize: 16,
+                  fontWeight: 700,
+                  margin: 0,
+                  color: "var(--kb-ink-900)",
+                }}
+              >
+                ID 로그인 생성
+              </h2>
+            </div>
+
+            <div
+              style={{
+                padding: "22px 28px",
+                display: "flex",
+                flexDirection: "column",
+                gap: 18,
+              }}
+            >
+              <div
+                style={{
+                  border: "1px solid #d8eadf",
+                  background: "#f4fbf6",
+                  color: "#146136",
+                  borderRadius: 8,
+                  padding: "10px 14px",
+                  fontSize: 13.5,
+                  lineHeight: 1.6,
+                  fontWeight: 600,
+                }}
+              >
+                가입 때 ID 만들기를 넘겼어도 여기서 한 번만 만들 수 있습니다. 생성 후에는 운영진 요청 없이는
+                ID를 직접 바꿀 수 없습니다.
+              </div>
+
+              <div>
+                <label htmlFor="create-login-id" style={labelStyle}>
+                  로그인 ID
+                </label>
+                <input
+                  id="create-login-id"
+                  type="text"
+                  value={loginIdDraft}
+                  disabled={Boolean(profile.loginId) || creatingIdLogin}
+                  onChange={(event) => setLoginIdDraft(event.target.value.toLowerCase())}
+                  placeholder="영어 소문자/숫자 4~20자"
+                  style={{
+                    ...inputStyle,
+                    background: profile.loginId ? "#f5f5f2" : "#fff",
+                    cursor: profile.loginId ? "not-allowed" : undefined,
+                  }}
+                />
+              </div>
+
+              <div>
+                <label htmlFor="create-password" style={labelStyle}>
+                  비밀번호
+                </label>
+                <PasswordInput
+                  id="create-password"
+                  value={firstPassword}
+                  onChange={setFirstPassword}
+                  placeholder="8자 이상"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="create-password-confirm" style={labelStyle}>
+                  비밀번호 확인
+                </label>
+                <PasswordInput
+                  id="create-password-confirm"
+                  value={firstPasswordConfirm}
+                  onChange={setFirstPasswordConfirm}
+                  placeholder="한 번 더 입력"
+                />
+              </div>
+
+              {createError && (
+                <div
+                  style={{
+                    fontSize: 13,
+                    color: "#dc2626",
+                    background: "#fef2f2",
+                    border: "1px solid #fecaca",
+                    borderRadius: 8,
+                    padding: "10px 14px",
+                    fontWeight: 500,
+                  }}
+                >
+                  {createError}
+                </div>
+              )}
+            </div>
+
+            <div
+              className="kb-acct-form-footer"
+              style={{
+                padding: "14px 28px",
+                borderTop: "1px solid #f1ede4",
+                background: "#fafaf9",
+                display: "flex",
+                justifyContent: "flex-end",
+                alignItems: "center",
+                gap: 10,
+              }}
+            >
+              {createSaved && (
+                <span
+                  style={{
+                    fontSize: 13,
+                    color: "#15803d",
+                    fontWeight: 600,
+                  }}
+                >
+                  ✓ ID 로그인이 생성되었습니다
+                </span>
+              )}
+              <button
+                type="submit"
+                disabled={creatingIdLogin}
+                style={{
+                  padding: "10px 22px",
+                  background: creatingIdLogin ? "#6a6a6a" : "#0a0a0a",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 10,
+                  fontSize: 14,
+                  fontWeight: 700,
+                  cursor: creatingIdLogin ? "not-allowed" : "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                {creatingIdLogin ? "생성 중..." : "ID 로그인 생성"}
+              </button>
+            </div>
+          </form>
+        ) : null}
+
         {/* password change form */}
-        <form
+        {hasLoginPassword ? (
+          <form
           onSubmit={handleSubmit}
           style={{
             ...ACCOUNT_CARD,
@@ -369,7 +617,8 @@ export default function Security() {
               {saving ? "변경 중..." : "비밀번호 변경"}
             </button>
           </div>
-        </form>
+          </form>
+        ) : null}
       </div>
     </div>
   );
