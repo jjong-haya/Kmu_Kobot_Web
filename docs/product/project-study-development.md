@@ -719,9 +719,23 @@ RLS helper는 다음처럼 분리한다.
 | 항목 | 상태 |
 | --- | --- |
 | 마일스톤 | 아직 미구현 |
-| 프로젝트 자료/repository 링크 | 아직 미구현. GitHub 연동 설계 필요 |
+| 프로젝트 자료/repository 링크 | 스터디 자료 파일함은 구현됨. repository 링크/일반 프로젝트 자료는 GitHub 연동 설계 필요 |
 | 활동 로그 전용 read model | audit log는 있으나 사용자용 activity feed는 별도 미구현 |
 | 스터디 세션/출석 | 아직 미구현 |
 | 스터디 과제/제출/리뷰 | 아직 미구현 |
-| private file bucket 정책 | `study-images`는 이미지 첨부용. 프로젝트 내부 민감 파일용 정책은 별도 필요 |
+| private file bucket 정책 | `study-materials` private bucket과 프로젝트 멤버 storage policy 구현됨. `study-images`는 계속 공개 이미지 첨부용 |
 | GitHub 조직 자동화 | 미구현. GitHub App + outbox + `project_github_links` 설계 필요 |
+
+## 2026-05-12 implementation update: project study materials
+
+프로젝트 스터디 게시판에 글쓰기와 분리된 자료함을 추가했다. `/member/study-log/:slug` 상단의 `스터디 자료` 영역은 프로젝트별 파일 목록을 보여주고, `자료올리기` 버튼은 PDF, 문서, 발표 자료, 표, HWP, ZIP, TXT/CSV/MD만 받는다.
+
+파일 본문은 private Supabase Storage bucket `study-materials`에 저장하고, 메타데이터는 기존 `study_materials` 테이블에 `material_type='file'`, `visibility='project'`로 저장한다. 다운로드는 `listProjectStudyMaterials()`가 짧은 만료시간의 signed URL을 만들어 주며, DB와 Storage 양쪽 모두 프로젝트 멤버 scope를 다시 확인한다.
+
+추가 touchpoint:
+
+| 영역 | 파일 | 역할 |
+| --- | --- | --- |
+| DB/Storage | `supabase/migrations/20260512060000_project_study_material_uploads.sql` | private bucket, 파일 형식 제한, storage policy, `create_project_study_material(...)` RPC |
+| API | `src/app/api/studies.ts` | 자료 목록 조회, 업로드, signed URL 생성 |
+| UI | `src/app/pages/member/StudyProjectPosts.tsx` | 자료함 목록, 업로드 dialog, 다운로드 버튼 |

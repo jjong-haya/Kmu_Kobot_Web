@@ -3,8 +3,52 @@ import { sanitizeUserError } from "../utils/sanitize-error";
 
 const FALLBACK = "스터디 기록을 불러오지 못했습니다.";
 const STUDY_IMAGE_BUCKET = "study-images";
+const STUDY_MATERIAL_BUCKET = "study-materials";
 const MAX_STUDY_IMAGE_COUNT = 30;
 const MAX_STUDY_IMAGE_SIZE = 20 * 1024 * 1024;
+const MAX_STUDY_MATERIAL_SIZE = 50 * 1024 * 1024;
+export const STUDY_MATERIAL_ACCEPT =
+  ".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.odt,.odp,.ods,.hwp,.hwpx,.zip,.txt,.md,.csv";
+const STUDY_MATERIAL_EXTENSIONS = new Set([
+  "pdf",
+  "doc",
+  "docx",
+  "ppt",
+  "pptx",
+  "xls",
+  "xlsx",
+  "odt",
+  "odp",
+  "ods",
+  "hwp",
+  "hwpx",
+  "zip",
+  "txt",
+  "md",
+  "csv",
+]);
+const STUDY_MATERIAL_MIME_TYPES = new Set([
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.oasis.opendocument.text",
+  "application/vnd.oasis.opendocument.presentation",
+  "application/vnd.oasis.opendocument.spreadsheet",
+  "application/zip",
+  "application/x-zip-compressed",
+  "application/octet-stream",
+  "application/x-hwp",
+  "application/haansofthwp",
+  "application/vnd.hancom.hwp",
+  "application/vnd.hancom.hwpx",
+  "text/plain",
+  "text/markdown",
+  "text/csv",
+]);
 
 export type StudyRecordVisibility = "self" | "project" | "member" | "public";
 export type StudyRecordStatus = "draft" | "submitted" | "reviewed" | "locked";
@@ -87,6 +131,27 @@ export type StudyRecordRevision = {
   newVisibility: StudyRecordVisibility | null;
 };
 
+export type StudyMaterial = {
+  id: string;
+  projectTeamId: string;
+  title: string;
+  description: string | null;
+  fileName: string;
+  mimeType: string | null;
+  fileSize: number | null;
+  storagePath: string;
+  uploadedBy: string | null;
+  downloadUrl: string | null;
+  createdAt: string;
+};
+
+export type UploadProjectStudyMaterialInput = {
+  projectTeamId: string;
+  file: File;
+  title?: string | null;
+  description?: string | null;
+};
+
 type StudyRecordDbRow = {
   id: string;
   study_session_id: string | null;
@@ -138,6 +203,17 @@ type StudyRecordRevisionDbRow = {
   new_visibility: StudyRecordVisibility | null;
 };
 
+type StudyMaterialDbRow = {
+  id: string;
+  project_team_id: string | null;
+  title: string;
+  material_type: string;
+  storage_path: string | null;
+  created_by: string | null;
+  metadata: unknown;
+  created_at: string;
+};
+
 const STUDY_RECORD_SELECT = [
   "id",
   "study_session_id",
@@ -176,6 +252,17 @@ const STUDY_REVISION_SELECT = [
   "new_body",
   "old_visibility",
   "new_visibility",
+].join(", ");
+
+const STUDY_MATERIAL_SELECT = [
+  "id",
+  "project_team_id",
+  "title",
+  "material_type",
+  "storage_path",
+  "created_by",
+  "metadata",
+  "created_at",
 ].join(", ");
 
 function normalizeString(value: unknown) {
@@ -358,6 +445,104 @@ function mapStudyRevision(
   };
 }
 
+function readMetadataFileSize(metadata: Record<string, unknown>) {
+  const value = metadata.fileSize ?? metadata.file_size;
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && /^\d+$/.test(value)) return Number(value);
+  return null;
+}
+
+function mapStudyMaterial(row: StudyMaterialDbRow): StudyMaterial {
+  const metadata = metadataRecord(row.metadata);
+  const storagePath = normalizeString(row.storage_path) ?? "";
+  const fileName =
+    readMetadataString(metadata, "fileName", "file_name", "originalName", "original_name") ??
+    row.title;
+
+  return {
+    id: row.id,
+    projectTeamId: row.project_team_id ?? "",
+    title: row.title,
+    description: readMetadataString(metadata, "description"),
+    fileName,
+    mimeType: readMetadataString(metadata, "mimeType", "mime_type"),
+    fileSize: readMetadataFileSize(metadata),
+    storagePath,
+    uploadedBy: normalizeString(row.created_by) ?? readMetadataString(metadata, "uploadedBy"),
+    downloadUrl: null,
+    createdAt: row.created_at,
+  };
+}
+
+function extensionForFileName(name: string) {
+  return name.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") ?? "";
+}
+
+function fallbackId() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function randomId() {
+  return typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : fallbackId();
+}
+
+function safeStorageFileName(fileName: string) {
+  const cleaned = fileName
+    .normalize("NFKC")
+    .replace(/[\\/:*?"<>|#%{}^~\[\]`]/g, "_")
+    .replace(/\s+/g, " ")
+    .trim();
+  return cleaned || `study-material-${fallbackId()}`;
+}
+
+function titleFromFileName(fileName: string) {
+  return fileName.replace(/\.[^.]+$/, "").trim();
+}
+
+function assertStudyMaterialFile(file: File) {
+  const extension = extensionForFileName(file.name);
+  const mimeType = file.type.trim().toLowerCase();
+
+  if (!STUDY_MATERIAL_EXTENSIONS.has(extension)) {
+    throw new Error("PDF, 문서, 발표 자료, 표, 압축 파일만 올릴 수 있습니다.");
+  }
+
+  if (
+    mimeType &&
+    !STUDY_MATERIAL_MIME_TYPES.has(mimeType) &&
+    !mimeType.startsWith("text/")
+  ) {
+    throw new Error("스터디 자료로 지원하지 않는 파일 형식입니다.");
+  }
+
+  if (file.size <= 0) {
+    throw new Error("빈 파일은 올릴 수 없습니다.");
+  }
+
+  if (file.size > MAX_STUDY_MATERIAL_SIZE) {
+    throw new Error("자료 파일은 50MB 이하로 올려 주세요.");
+  }
+}
+
+async function withDownloadUrl(material: StudyMaterial): Promise<StudyMaterial> {
+  if (!material.storagePath) return material;
+
+  const supabase = getSupabaseBrowserClient();
+  const { data, error } = await supabase.storage
+    .from(STUDY_MATERIAL_BUCKET)
+    .createSignedUrl(material.storagePath, 60 * 10, {
+      download: material.fileName,
+    });
+
+  if (error) {
+    return { ...material, downloadUrl: null };
+  }
+
+  return { ...material, downloadUrl: data?.signedUrl ?? null };
+}
+
 async function hydrateStudyRecords(rows: StudyRecordDbRow[]) {
   const [authorsById, projectsById] = await Promise.all([
     listAuthors(rows.map((row) => row.author_user_id)),
@@ -433,6 +618,74 @@ export async function listStudyRecordRevisions(recordId: string): Promise<StudyR
   return rows.map((row) => mapStudyRevision(row, authorsById));
 }
 
+export async function listProjectStudyMaterials(projectTeamId: string): Promise<StudyMaterial[]> {
+  const supabase = getSupabaseBrowserClient();
+  const { data, error } = await supabase
+    .from("study_materials")
+    .select(STUDY_MATERIAL_SELECT)
+    .eq("project_team_id", projectTeamId)
+    .eq("material_type", "file")
+    .eq("visibility", "project")
+    .not("storage_path", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(80);
+
+  if (error) throw new Error(sanitizeUserError(error, "스터디 자료를 불러오지 못했습니다."));
+
+  const materials = ((data ?? []) as unknown as StudyMaterialDbRow[])
+    .map(mapStudyMaterial)
+    .filter((material) => Boolean(material.storagePath));
+
+  return Promise.all(materials.map(withDownloadUrl));
+}
+
+export async function uploadProjectStudyMaterial(
+  input: UploadProjectStudyMaterialInput,
+): Promise<StudyMaterial> {
+  assertStudyMaterialFile(input.file);
+
+  const supabase = getSupabaseBrowserClient();
+  const fileName = safeStorageFileName(input.file.name);
+  const storagePath = `${input.projectTeamId}/${randomId()}/${fileName}`;
+  const mimeType = input.file.type || "application/octet-stream";
+  const title = input.title?.trim() || titleFromFileName(fileName) || fileName;
+
+  const { error: uploadError } = await supabase.storage
+    .from(STUDY_MATERIAL_BUCKET)
+    .upload(storagePath, input.file, {
+      cacheControl: "3600",
+      contentType: mimeType,
+      upsert: false,
+    });
+
+  if (uploadError) {
+    throw new Error(sanitizeUserError(uploadError, "스터디 자료를 업로드하지 못했습니다."));
+  }
+
+  const { data, error } = await supabase.rpc("create_project_study_material", {
+    p_project_team_id: input.projectTeamId,
+    p_title: title,
+    p_description: input.description?.trim() || null,
+    p_file_name: fileName,
+    p_mime_type: mimeType,
+    p_file_size: input.file.size,
+    p_storage_path: storagePath,
+  });
+
+  if (error) {
+    await supabase.storage.from(STUDY_MATERIAL_BUCKET).remove([storagePath]).catch(() => undefined);
+    throw new Error(sanitizeUserError(error, "스터디 자료 정보를 저장하지 못했습니다."));
+  }
+
+  const row = (Array.isArray(data) ? data[0] : data) as StudyMaterialDbRow | null;
+  if (!row?.id) {
+    await supabase.storage.from(STUDY_MATERIAL_BUCKET).remove([storagePath]).catch(() => undefined);
+    throw new Error("스터디 자료 저장 결과를 확인하지 못했습니다.");
+  }
+
+  return withDownloadUrl(mapStudyMaterial(row));
+}
+
 function extensionForImage(file: File) {
   const fromName = file.name.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "");
   if (fromName) return fromName;
@@ -468,10 +721,7 @@ export async function uploadStudyImages(files: File[], projectTeamId: string): P
   const uploaded: string[] = [];
 
   for (const [index, file] of selected.entries()) {
-    const id =
-      typeof crypto !== "undefined" && "randomUUID" in crypto
-        ? crypto.randomUUID()
-        : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const id = randomId();
     const path = `${projectTeamId}/${Date.now()}-${index}-${id}.${extensionForImage(file)}`;
     const { error } = await supabase.storage.from(STUDY_IMAGE_BUCKET).upload(path, file, {
       cacheControl: "31536000",

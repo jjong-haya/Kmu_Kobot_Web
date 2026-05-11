@@ -1,18 +1,23 @@
 import { useEffect, useMemo, useState } from "react";
-import type { CSSProperties } from "react";
+import type { CSSProperties, ChangeEvent, FormEvent } from "react";
 import { Link, useParams } from "react-router";
 import {
   ArrowLeft,
   BookOpen,
   CalendarDays,
   Clock,
+  Download,
+  FileText,
   Image as ImageIcon,
+  Loader2,
   MessageSquare,
   PenLine,
   RefreshCw,
   Search,
+  UploadCloud,
   UserRound,
   Users,
+  X,
 } from "lucide-react";
 import {
   getProjectBySlug,
@@ -20,7 +25,11 @@ import {
 } from "../../api/projects";
 import { getProjectStatusLabel } from "../../api/project-policy.js";
 import {
+  listProjectStudyMaterials,
   listProjectStudyRecords,
+  STUDY_MATERIAL_ACCEPT,
+  uploadProjectStudyMaterial,
+  type StudyMaterial,
   type StudyRecord,
   type StudyRecordVisibility,
 } from "../../api/studies";
@@ -68,6 +77,33 @@ function formatDate(value: string) {
   });
 }
 
+function formatDateTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "날짜 없음";
+
+  return date.toLocaleDateString("ko-KR", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function formatFileSize(value: number | null) {
+  if (!value || value <= 0) return "크기 없음";
+  if (value < 1024 * 1024) return `${Math.max(1, Math.round(value / 1024))}KB`;
+  return `${(value / 1024 / 1024).toFixed(value >= 10 * 1024 * 1024 ? 0 : 1)}MB`;
+}
+
+function fileTypeLabel(fileName: string) {
+  const extension = fileName.split(".").pop()?.toUpperCase();
+  return extension && extension.length <= 5 ? extension : "FILE";
+}
+
+function defaultMaterialTitle(fileName: string) {
+  return fileName.replace(/\.[^.]+$/, "").trim();
+}
+
 function visibilityLabel(value: StudyRecordVisibility) {
   switch (value) {
     case "self":
@@ -97,6 +133,284 @@ function matchesRecord(record: StudyRecord, keyword: string) {
   return [record.title, record.body, record.author?.displayName]
     .filter(Boolean)
     .some((value) => value!.toLocaleLowerCase("ko-KR").includes(keyword));
+}
+
+function StudyMaterialUploadDialog({
+  project,
+  open,
+  onClose,
+  onUploaded,
+}: {
+  project: ProjectDetailData;
+  open: boolean;
+  onClose: () => void;
+  onUploaded: (material: StudyMaterial) => void;
+}) {
+  const [file, setFile] = useState<File | null>(null);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) {
+      setFile(null);
+      setTitle("");
+      setDescription("");
+      setFormError(null);
+      setUploading(false);
+    }
+  }, [open]);
+
+  if (!open) return null;
+
+  function chooseFile(event: ChangeEvent<HTMLInputElement>) {
+    const selected = event.target.files?.[0] ?? null;
+    setFile(selected);
+    setFormError(null);
+
+    if (selected && !title.trim()) {
+      setTitle(defaultMaterialTitle(selected.name));
+    }
+  }
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+
+    if (!file) {
+      setFormError("올릴 자료 파일을 선택해 주세요.");
+      return;
+    }
+
+    try {
+      setUploading(true);
+      setFormError(null);
+      const uploaded = await uploadProjectStudyMaterial({
+        projectTeamId: project.id,
+        file,
+        title,
+        description,
+      });
+      onUploaded(uploaded);
+      onClose();
+    } catch (requestError) {
+      setFormError(sanitizeUserError(requestError, "스터디 자료를 업로드하지 못했습니다."));
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 px-4 py-6">
+      <form
+        onSubmit={submit}
+        role="dialog"
+        aria-modal="true"
+        aria-label="스터디 자료 업로드"
+        className="w-full max-w-[520px] overflow-hidden rounded-lg border border-[#e8e8e4] bg-white shadow-2xl"
+      >
+        <header className="flex items-center justify-between gap-3 border-b border-[#f1ede4] px-5 py-4">
+          <div className="min-w-0">
+            <div className="truncate text-[12.5px] font-semibold text-[var(--kb-ink-500)]">
+              {project.name}
+            </div>
+            <h2 className="m-0 text-[18px] font-semibold text-[var(--kb-ink-900)]">
+              자료올리기
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={uploading}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-[#e8e8e4] text-[var(--kb-ink-500)] hover:border-[var(--kb-ink-300)] disabled:opacity-50"
+            aria-label="닫기"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </header>
+
+        <div className="flex flex-col gap-4 px-5 py-5">
+          {formError ? (
+            <div className="rounded-md border border-red-100 bg-red-50 px-3 py-2.5 text-[13.5px] font-semibold text-red-700">
+              {formError}
+            </div>
+          ) : null}
+
+          <label className="block">
+            <span className="mb-2 block text-[13px] font-semibold text-[var(--kb-ink-600)]">
+              파일
+            </span>
+            <input
+              type="file"
+              accept={STUDY_MATERIAL_ACCEPT}
+              onChange={chooseFile}
+              disabled={uploading}
+              className="block w-full cursor-pointer rounded-md border border-dashed border-[#d7d2c7] bg-[#fbfbf8] px-3 py-3 text-[13.5px] text-[var(--kb-ink-700)] file:mr-3 file:rounded-md file:border-0 file:bg-[#0a0a0a] file:px-3 file:py-2 file:text-[13px] file:font-semibold file:text-white disabled:cursor-not-allowed disabled:opacity-60"
+            />
+          </label>
+
+          {file ? (
+            <div className="flex items-center gap-3 rounded-md border border-[#f1ede4] bg-[#fffdf7] px-3 py-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-[#efe9dc] text-[11px] font-black text-[var(--kb-ink-700)]">
+                {fileTypeLabel(file.name)}
+              </div>
+              <div className="min-w-0">
+                <div className="truncate text-[14px] font-semibold text-[var(--kb-ink-900)]">
+                  {file.name}
+                </div>
+                <div className="text-[12.5px] text-[var(--kb-ink-500)]">
+                  {formatFileSize(file.size)}
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          <label className="block">
+            <span className="mb-2 block text-[13px] font-semibold text-[var(--kb-ink-600)]">
+              제목
+            </span>
+            <input
+              value={title}
+              onChange={(event) => {
+                setTitle(event.target.value);
+                if (formError) setFormError(null);
+              }}
+              disabled={uploading}
+              placeholder="자료 제목"
+              maxLength={120}
+              className="h-11 w-full rounded-md border border-[#e8e8e4] bg-white px-3 text-[14px] outline-none focus:border-[#111111] disabled:opacity-60"
+            />
+          </label>
+
+          <label className="block">
+            <span className="mb-2 block text-[13px] font-semibold text-[var(--kb-ink-600)]">
+              메모
+            </span>
+            <textarea
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+              disabled={uploading}
+              placeholder="버전, 발표일, 참고 범위"
+              maxLength={1000}
+              rows={3}
+              className="w-full resize-none rounded-md border border-[#e8e8e4] bg-white px-3 py-2.5 text-[14px] outline-none focus:border-[#111111] disabled:opacity-60"
+            />
+          </label>
+
+          <div className="rounded-md bg-[#f7f7f2] px-3 py-2 text-[12.5px] text-[var(--kb-ink-500)]">
+            PDF, PPTX, DOCX, XLSX, HWP, ZIP, TXT/CSV/MD · 50MB 이하
+          </div>
+        </div>
+
+        <footer className="flex justify-end gap-2 border-t border-[#f1ede4] px-5 py-4">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={uploading}
+            className="rounded-md border border-[#e8e8e4] bg-white px-4 py-2.5 text-[14px] font-medium text-[var(--kb-ink-700)] disabled:opacity-50"
+          >
+            취소
+          </button>
+          <button
+            type="submit"
+            disabled={uploading || !file}
+            className="inline-flex items-center gap-2 rounded-md bg-[#0a0a0a] px-4 py-2.5 text-[14px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-45"
+          >
+            {uploading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <UploadCloud className="h-4 w-4" />
+            )}
+            업로드
+          </button>
+        </footer>
+      </form>
+    </div>
+  );
+}
+
+function StudyMaterialsSection({
+  materials,
+}: {
+  materials: StudyMaterial[];
+}) {
+  return (
+    <section style={{ ...PANEL_STYLE, overflow: "hidden" }}>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#f1ede4] px-5 py-4 sm:px-7">
+        <div>
+          <h2 className="m-0 text-[18px] font-semibold text-[var(--kb-ink-900)]">
+            스터디 자료
+          </h2>
+          <p className="m-0 mt-1 text-[13px] text-[var(--kb-ink-500)]">
+            프로젝트 멤버만 볼 수 있는 자료함입니다.
+          </p>
+        </div>
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-[#f1ede4] px-3 py-1.5 text-[12.5px] font-semibold text-[var(--kb-ink-700)]">
+          <FileText className="h-3.5 w-3.5" />
+          {materials.length}개
+        </span>
+      </div>
+
+      {materials.length === 0 ? (
+        <div className="px-5 py-12 text-center text-[14px] text-[var(--kb-ink-500)]">
+          아직 이 프로젝트에 올라온 스터디 자료가 없습니다.
+        </div>
+      ) : (
+        <div className="divide-y divide-[#f1ede4]">
+          {materials.map((material) => (
+            <div
+              key={material.id}
+              className="grid gap-3 px-5 py-4 sm:px-7 md:grid-cols-[44px_1fr_170px_108px] md:items-center"
+            >
+              <div className="flex h-11 w-11 items-center justify-center rounded-md bg-[#efe9dc] text-[11px] font-black text-[var(--kb-ink-700)]">
+                {fileTypeLabel(material.fileName)}
+              </div>
+
+              <div className="min-w-0">
+                <div className="truncate text-[15px] font-semibold text-[var(--kb-ink-900)]">
+                  {material.title}
+                </div>
+                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] text-[var(--kb-ink-500)]">
+                  <span className="truncate">{material.fileName}</span>
+                  <span>{formatFileSize(material.fileSize)}</span>
+                </div>
+                {material.description ? (
+                  <p className="m-0 mt-1 line-clamp-1 text-[13px] text-[var(--kb-ink-500)]">
+                    {material.description}
+                  </p>
+                ) : null}
+              </div>
+
+              <div className="text-[13px] text-[var(--kb-ink-500)]">
+                {formatDateTime(material.createdAt)}
+              </div>
+
+              {material.downloadUrl ? (
+                <a
+                  href={material.downloadUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-[#e8e8e4] bg-white px-3 text-[13.5px] font-semibold text-[var(--kb-ink-700)] no-underline hover:border-[var(--kb-ink-300)]"
+                >
+                  <Download className="h-4 w-4" />
+                  다운로드
+                </a>
+              ) : (
+                <button
+                  type="button"
+                  disabled
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-[#e8e8e4] bg-white px-3 text-[13.5px] font-semibold text-[var(--kb-ink-400)]"
+                >
+                  <Download className="h-4 w-4" />
+                  준비중
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
 }
 
 function BoardRow({
@@ -169,9 +483,11 @@ export default function StudyProjectPosts() {
   const { user } = useAuth();
   const [project, setProject] = useState<ProjectDetailData | null>(null);
   const [records, setRecords] = useState<StudyRecord[]>([]);
+  const [materials, setMaterials] = useState<StudyMaterial[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [keyword, setKeyword] = useState("");
+  const [materialUploadOpen, setMaterialUploadOpen] = useState(false);
 
   const canWrite = canWriteStudy(project);
   const keywordValue = keyword.trim().toLocaleLowerCase("ko-KR");
@@ -193,6 +509,7 @@ export default function StudyProjectPosts() {
     if (!user || !slug) {
       setProject(null);
       setRecords([]);
+      setMaterials([]);
       setLoading(false);
       return;
     }
@@ -203,7 +520,17 @@ export default function StudyProjectPosts() {
     try {
       const projectRow = await getProjectBySlug(slug, user.id);
       setProject(projectRow);
-      setRecords(projectRow ? await listProjectStudyRecords(projectRow.id, 100) : []);
+      if (projectRow) {
+        const [projectRecords, projectMaterials] = await Promise.all([
+          listProjectStudyRecords(projectRow.id, 100),
+          listProjectStudyMaterials(projectRow.id),
+        ]);
+        setRecords(projectRecords);
+        setMaterials(projectMaterials);
+      } else {
+        setRecords([]);
+        setMaterials([]);
+      }
     } catch (requestError) {
       setError(sanitizeUserError(requestError, "프로젝트 게시판을 불러오지 못했습니다."));
     } finally {
@@ -282,6 +609,7 @@ export default function StudyProjectPosts() {
                       {project.memberCount}명
                     </span>
                     <span>게시글 {records.length}건</span>
+                    <span>자료 {materials.length}개</span>
                     {totalMinutes > 0 ? <span>누적 {totalMinutes}분</span> : null}
                   </div>
                 </div>
@@ -297,16 +625,28 @@ export default function StudyProjectPosts() {
                   새로고침
                 </button>
                 {canWrite ? (
-                  <Link
-                    to={writePath(project.slug)}
-                    className="inline-flex items-center gap-2 rounded-md bg-[#0a0a0a] px-4 py-2.5 text-[14px] font-semibold text-white no-underline hover:bg-[var(--kb-ink-800)]"
-                  >
-                    <PenLine className="h-4 w-4" />
-                    글쓰기
-                  </Link>
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setMaterialUploadOpen(true)}
+                      className="inline-flex items-center gap-2 rounded-md border border-[#0a0a0a] bg-white px-4 py-2.5 text-[14px] font-semibold text-[#0a0a0a] hover:bg-[#fafaf6]"
+                    >
+                      <UploadCloud className="h-4 w-4" />
+                      자료올리기
+                    </button>
+                    <Link
+                      to={writePath(project.slug)}
+                      className="inline-flex items-center gap-2 rounded-md bg-[#0a0a0a] px-4 py-2.5 text-[14px] font-semibold text-white no-underline hover:bg-[var(--kb-ink-800)]"
+                    >
+                      <PenLine className="h-4 w-4" />
+                      글쓰기
+                    </Link>
+                  </>
                 ) : null}
               </div>
             </header>
+
+            <StudyMaterialsSection materials={materials} />
 
             <section style={{ ...PANEL_STYLE, overflow: "hidden" }}>
               <div className="flex flex-col gap-3 border-b border-[#f1ede4] px-5 py-4 sm:px-7">
@@ -357,6 +697,13 @@ export default function StudyProjectPosts() {
                 </div>
               )}
             </section>
+
+            <StudyMaterialUploadDialog
+              project={project}
+              open={materialUploadOpen}
+              onClose={() => setMaterialUploadOpen(false)}
+              onUploaded={(material) => setMaterials((current) => [material, ...current])}
+            />
           </>
         )}
       </div>

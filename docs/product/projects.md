@@ -147,6 +147,7 @@ sequenceDiagram
 18. **완전삭제는 휴지통에서만 한다.** `purge_deleted_project_team(...)`은 `deleted_at is not null` 상태에서만 실제 row를 삭제한다. 복구는 `restore_deleted_project_team(...)`으로 한다.
 19. **완전삭제는 GitHub 저장소 삭제를 동반한다.** `purge_deleted_project_team(...)`은 프로젝트 row 삭제 전에 `project_github_links`의 repo 정보를 스냅샷해 `project_repo_delete` job을 먼저 큐에 넣는다. Edge Function은 이 job에서 GitHub repo를 삭제한다.
 20. **프로젝트 멤버 초대는 검색 UI와 RPC를 함께 쓴다.** 프로젝트 리드/관리자는 워크스페이스 멤버 패널의 `초대하기`에서 활성 부원을 검색해 추가한다. `invite_project_team_member(...)`은 같은 조직 활성 부원, 초대 권한, GitHub URL 등록을 모두 확인한 뒤 멤버십을 만들고 GitHub 초대 job을 발생시킨다.
+21. **스터디 자료는 게시글과 별도 자료함에 둔다.** `/member/study-log/:slug`의 `자료올리기`는 PDF/문서/발표자료/표/압축 파일만 private `study-materials` 버킷에 저장하고, `study_materials` 메타데이터와 프로젝트 멤버 RLS를 통해 다운로드를 연다.
 
 추가 touchpoint:
 
@@ -163,3 +164,5 @@ sequenceDiagram
 | 생성·수정 모달 | `src/app/components/member/ProjectFormModal.tsx` | create/edit/settings 모드, active 설정에서 이름 잠금 |
 | 상세 UI | `src/app/pages/member/ProjectDetail.tsx` | 반려 안내, 설정 모달, 작업 보드, 담당자 선택 |
 | 관리 UI | `src/app/pages/member/ProjectAdmin.tsx` | 반려 복구, 재심사 상태, 리드 설정 표시 |
+| 스터디 자료 DB/Storage | `supabase/migrations/20260512060000_project_study_material_uploads.sql` | private 자료 버킷, 파일 형식 제한, 프로젝트 멤버 업로드 RPC |
+| 스터디 자료 API/UI | `src/app/api/studies.ts`, `src/app/pages/member/StudyProjectPosts.tsx` | 프로젝트별 자료 목록, 업로드, signed URL 다운로드 |
