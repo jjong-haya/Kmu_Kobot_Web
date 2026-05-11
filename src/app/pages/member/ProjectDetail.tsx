@@ -1020,6 +1020,8 @@ function ProjectOverview({
   const [githubStatus, setGithubStatus] = useState<GithubIdentityStatus | null>(null);
   const joinable = canRequestJoin(project);
   const currentPath = `${location.pathname}${location.search}`;
+  const githubChecking = joinable && githubStatus === null;
+  const githubMissing = joinable && githubStatus?.hasGithubIdentity === false;
 
   useEffect(() => {
     let active = true;
@@ -1145,26 +1147,42 @@ function ProjectOverview({
           {joinable ? (
             <button
               type="button"
-              onClick={() => void handleJoin()}
-              disabled={joining}
+              onClick={() => {
+                if (githubMissing) {
+                  goToGithubProfile();
+                  return;
+                }
+
+                void handleJoin();
+              }}
+              disabled={joining || githubChecking}
               className="inline-flex items-center gap-2 rounded-md bg-[#0a0a0a] px-4 py-2.5 text-[14px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {joining ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
-              {githubStatus && !githubStatus.hasGithubIdentity ? "GitHub URL 입력" : "참여 신청"}
+              {joining || githubChecking ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : githubMissing ? (
+                <Github className="h-4 w-4" />
+              ) : (
+                <UserPlus className="h-4 w-4" />
+              )}
+              {githubChecking
+                ? "GitHub 확인 중"
+                : githubMissing
+                  ? "프로필에서 GitHub URL 입력"
+                  : "참여 신청"}
             </button>
           ) : null}
         </div>
       </header>
 
-      {joinable && githubStatus && !githubStatus.hasGithubIdentity ? (
+      {githubMissing ? (
         <div className="rounded-md border border-[#f4d7aa] bg-[#fff9ec] px-4 py-3 text-[13.5px] leading-6 text-[#7c4a03]">
           <div className="flex items-start gap-2">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
             <div>
-              <strong className="font-semibold">GitHub 계정이 아직 없습니다.</strong>
+              <strong className="font-semibold">GitHub URL 입력 전에는 참여 신청이 잠겨 있습니다.</strong>
               <span className="ml-1">
-                프로필에 GitHub URL을 저장한 뒤 참여 신청할 수 있습니다. 승인 후 저장소 초대에 이 주소가
-                사용됩니다.
+                프로필에 GitHub URL을 저장해야 신청을 보낼 수 있고, 승인 후 저장소 초대에 이 주소가 사용됩니다.
               </span>
               <Link
                 to={githubProfilePath(currentPath)}

@@ -1025,6 +1025,16 @@ export async function requestProjectJoin(
   reason: string | null,
 ): Promise<ProjectJoinRequest> {
   const supabase = getSupabaseBrowserClient();
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+
+  if (userError) throw new Error(sanitizeUserError(userError, "로그인 상태를 확인하지 못했습니다."));
+  if (!userData.user) throw new Error("로그인이 필요합니다.");
+
+  const githubStatus = await getCurrentUserGithubReadiness(userData.user.id);
+  if (!githubStatus.hasGithubIdentity) {
+    throw new Error("프로젝트 참여 신청 전에 프로필에 GitHub URL을 등록해야 합니다.");
+  }
+
   const { data, error } = await supabase.rpc("request_project_join", {
     p_project_team_id: projectId,
     p_reason: reason,
