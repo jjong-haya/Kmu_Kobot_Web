@@ -709,7 +709,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
     return normalized;
   }
 
-  async function syncFromSession(nextSession: AuthContextValue["session"]) {
+  async function syncFromSession(
+    nextSession: AuthContextValue["session"],
+    options: { refreshOnCallback?: boolean } = {},
+  ) {
     setSession(nextSession);
     setUser(nextSession?.user ?? null);
     currentUserIdRef.current = nextSession?.user?.id ?? null;
@@ -727,11 +730,15 @@ export function AuthProvider({ children }: PropsWithChildren) {
       return null;
     }
 
-    if (isAuthCallbackRoute()) {
+    if (isAuthCallbackRoute() && !options.refreshOnCallback) {
       return null;
     }
 
     return refreshAuthData(nextSession.user.id);
+  }
+
+  async function completeOAuthCallbackSession(nextSession: NonNullable<AuthContextValue["session"]>) {
+    return syncFromSession(nextSession, { refreshOnCallback: true });
   }
 
   useEffect(() => {
@@ -815,7 +822,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [configured, user?.id]);
 
-  async function signInWithGoogle(nextPath?: string) {
+  async function signInWithGoogle(
+    nextPath?: string,
+    options?: { callbackParams?: Record<string, string | null | undefined> },
+  ) {
     if (!configured) {
       throw new Error("서비스 설정을 확인하지 못했습니다. 운영진에게 문의해 주세요.");
     }
@@ -824,7 +834,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: getSupabaseAuthCallbackUrl(nextPath),
+        redirectTo: getSupabaseAuthCallbackUrl(nextPath, options),
         scopes: "openid email profile",
         queryParams: {
           hd: "kookmin.ac.kr",
@@ -1131,6 +1141,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
         return codes.some((code) => effectivePermissions.includes(code));
       },
       refreshAuthData,
+      completeOAuthCallbackSession,
       refreshTags,
       signInWithGoogle,
       signInWithLoginId,
@@ -1150,6 +1161,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       tagAuthorityFailed,
       authError,
       refreshAuthData,
+      completeOAuthCallbackSession,
       refreshTags,
       signInWithGoogle,
       signInWithLoginId,

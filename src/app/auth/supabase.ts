@@ -40,12 +40,24 @@ export function getSupabaseBrowserClient() {
   return browserClient;
 }
 
-export function getSupabaseAuthCallbackUrl(nextPath?: string) {
+export type SupabaseAuthCallbackOptions = {
+  callbackParams?: Record<string, string | null | undefined>;
+};
+
+export function getSupabaseAuthCallbackUrl(
+  nextPath?: string,
+  options: SupabaseAuthCallbackOptions = {},
+) {
   if (typeof window === "undefined") {
     return undefined;
   }
 
   const callbackUrl = new URL("/auth/callback", window.location.origin);
+
+  for (const [key, value] of Object.entries(options.callbackParams ?? {})) {
+    if (!/^[a-zA-Z0-9_-]+$/.test(key) || !value) continue;
+    callbackUrl.searchParams.set(key, value);
+  }
 
   const safeNextPath = getSafeInternalPath(nextPath);
 

@@ -28,6 +28,14 @@ const authCallbackSource = readFileSync(
   resolve(process.cwd(), "src/app/pages/public/AuthCallback.tsx"),
   "utf8",
 );
+const authProviderSource = readFileSync(
+  resolve(process.cwd(), "src/app/auth/AuthProvider.tsx"),
+  "utf8",
+);
+const supabaseAuthSource = readFileSync(
+  resolve(process.cwd(), "src/app/auth/supabase.ts"),
+  "utf8",
+);
 const previewMigrationSource = readFileSync(
   resolve(process.cwd(), "supabase/migrations/20260507014000_course_invite_public_preview.sql"),
   "utf8",
@@ -145,6 +153,18 @@ test("invite link unavailable alerts distinguish expired and disappeared links",
   assert.match(inviteCourseSource, /previewChecked/);
   assert.match(authCallbackSource, /invite-error/);
   assert.match(authCallbackSource, /redeemResult\?\.success === false/);
+});
+
+test("course invite Google login keeps course flag on the callback and commits session before routing", () => {
+  assert.doesNotMatch(inviteCourseSource, /signInWithGoogle\("\/auth\/callback\?course=1"\)/);
+  assert.match(inviteCourseSource, /signInWithGoogle\(undefined, \{ callbackParams: \{ course: "1" \} \}\)/);
+  assert.match(supabaseAuthSource, /callbackParams/);
+  assert.match(supabaseAuthSource, /callbackUrl\.searchParams\.set\(key, value\)/);
+  assert.match(authProviderSource, /completeOAuthCallbackSession/);
+  assert.match(authProviderSource, /refreshOnCallback: true/);
+  assert.match(authCallbackSource, /completeOAuthCallbackSession/);
+  assert.match(authCallbackSource, /exchangeData\.session/);
+  assert.match(authCallbackSource, /completeOAuthCallbackSession\(sessionForProvider\)/);
 });
 
 test("prevents KOSS default invite tag pollution in new invite write paths", () => {

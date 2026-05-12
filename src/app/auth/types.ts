@@ -97,8 +97,12 @@ export interface AuthContextValue {
   authError: string | null;
   hasPermission: (...codes: string[]) => boolean;
   refreshAuthData: () => Promise<AuthorizationContextData | null>;
+  completeOAuthCallbackSession: (session: Session) => Promise<AuthorizationContextData | null>;
   refreshTags: () => Promise<void>;
-  signInWithGoogle: (nextPath?: string) => Promise<void>;
+  signInWithGoogle: (
+    nextPath?: string,
+    options?: { callbackParams?: Record<string, string | null | undefined> },
+  ) => Promise<void>;
   signInWithLoginId: (
     loginId: string,
     password: string,

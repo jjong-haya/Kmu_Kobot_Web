@@ -164,7 +164,7 @@ export default function InviteCourse() {
     setSubmitting(true);
     setError(null);
     try {
-      await signInWithGoogle("/auth/callback?course=1");
+      await signInWithGoogle(undefined, { callbackParams: { course: "1" } });
     } catch (err) {
       setError(sanitizeUserError(err, "Google 로그인을 시작하지 못했습니다."));
       setSubmitting(false);

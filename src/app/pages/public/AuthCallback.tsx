@@ -37,7 +37,7 @@ function wait(ms: number) {
 export default function AuthCallback() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { refreshAuthData } = useAuth();
+  const { completeOAuthCallbackSession } = useAuth();
   const [status, setStatus] = useState<CallbackStatus>("loading");
   const [message, setMessage] = useState("로그인 결과를 확인하고 있습니다.");
   const [loadingStepIndex, setLoadingStepIndex] = useState(0);
@@ -216,17 +216,20 @@ export default function AuthCallback() {
       try {
         const supabase = getSupabaseBrowserClient();
         const {
+          session: callbackSession,
           exchangeError,
           user,
           userError,
         } = await runLoadingStep(0, async () => {
-          const { error: nextExchangeError } = await supabase.auth.exchangeCodeForSession(code);
+          const { data: exchangeData, error: nextExchangeError } =
+            await supabase.auth.exchangeCodeForSession(code);
           const {
             data: { user: nextUser },
             error: nextUserError,
           } = await supabase.auth.getUser();
 
           return {
+            session: exchangeData.session,
             exchangeError: nextExchangeError,
             user: nextUser,
             userError: nextUserError,
@@ -314,7 +317,23 @@ export default function AuthCallback() {
           }
         }
 
-        const authData = await runLoadingStep(2, refreshAuthData);
+        const sessionForProvider =
+          callbackSession ??
+          (await supabase.auth.getSession()).data.session;
+
+        if (!sessionForProvider) {
+          await waitForMinimumLoading();
+
+          if (!disposed) {
+            setStatus("retry");
+            setMessage("로그인 세션을 찾을 수 없습니다. 다시 로그인해 주세요.");
+          }
+          return;
+        }
+
+        const authData = await runLoadingStep(2, () =>
+          completeOAuthCallbackSession(sessionForProvider),
+        );
         await waitForMinimumLoading();
 
         if (disposed) {
