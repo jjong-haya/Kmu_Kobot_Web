@@ -23,11 +23,8 @@ export type PermissionCatalogEntry = {
 
 export const NAV_CATALOG: NavCatalogEntry[] = [
   { href: "/member", label: "대시보드", group: "부원" },
-  { href: "/member/notifications", label: "알림", group: "부원" },
   { href: "/member/announcements", label: "공지", group: "부원" },
-  { href: "/member/contact-requests", label: "연락 요청", group: "부원" },
   { href: "/member/study-log", label: "스터디 기록", group: "부원" },
-  { href: "/member/study-playlist", label: "스터디 플레이리스트", group: "부원" },
   { href: "/member/projects", label: "프로젝트", group: "부원" },
   { href: "/member/events", label: "행사", group: "부원" },
   { href: "/member/members", label: "멤버", group: "부원" },
@@ -36,7 +33,6 @@ export const NAV_CATALOG: NavCatalogEntry[] = [
   { href: "/member/equipment", label: "장비 대여", group: "부원" },
   { href: "/member/votes", label: "투표", group: "부원" },
   { href: "/member/quests", label: "미션 / 퀘스트", group: "부원" },
-  { href: "/member/peer-review", label: "동료 리뷰", group: "공식팀장" },
   { href: "/member/showcase", label: "쇼케이스", group: "공식팀장" },
   { href: "/member/project-admin", label: "프로젝트 관리", group: "공식팀장" },
   { href: "/member/templates", label: "템플릿", group: "공식팀장" },

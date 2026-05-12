@@ -1,5 +1,4 @@
 export const COMING_SOON_MEMBER_PAGE_KEYS = [
-  "study-playlist",
   "resources",
   "equipment",
   "votes",
@@ -7,7 +6,6 @@ export const COMING_SOON_MEMBER_PAGE_KEYS = [
 
 const COMING_SOON_TITLES = {
   "study-log": "스터디 기록",
-  "study-playlist": "스터디 플레이리스트",
   events: "행사",
   resources: "자료실",
   equipment: "장비 대여",

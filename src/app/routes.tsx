@@ -31,8 +31,6 @@ const Announcements = lazy(() => import("./pages/member/Announcements"));
 const AnnouncementDetail = lazy(() => import("./pages/member/AnnouncementDetail"));
 const StudyLog = lazy(() => import("./pages/member/StudyLog"));
 const StudyProjectPosts = lazy(() => import("./pages/member/StudyProjectPosts"));
-const StudyPlaylist = lazy(() => import("./pages/member/StudyPlaylist"));
-const PeerReview = lazy(() => import("./pages/member/PeerReview"));
 const MemberProjects = lazy(() => import("./pages/member/Projects"));
 const ProjectAdmin = lazy(() => import("./pages/member/ProjectAdmin"));
 const ProjectDetail = lazy(() => import("./pages/member/ProjectDetail"));
@@ -212,8 +210,6 @@ export const router = createBrowserRouter([
       { path: "study-log/:slug/posts/:recordId/edit", element: memberElement(StudyPostWrite) },
       { path: "study-log/:slug/posts/:recordId", element: memberElement(StudyPostDetail) },
       { path: "study-log/:slug", element: memberElement(StudyProjectPosts) },
-      { path: "study-playlist", element: memberElement(StudyPlaylist) },
-      { path: "peer-review", element: memberElement(PeerReview) },
       {
         path: "projects",
         element: memberElement(MemberProjects),

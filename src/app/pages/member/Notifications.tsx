@@ -35,6 +35,7 @@ import { sanitizeUserError } from "../../utils/sanitize-error";
 type FilterKey = "all" | "unread" | "member" | "contact" | "vote" | "approval" | "system";
 
 const FILTERS = NOTIFICATION_FILTERS as { key: FilterKey; label: string }[];
+const FILTER_KEYS = new Set<FilterKey>(FILTERS.map((filter) => filter.key));
 
 type DetailRow = {
   label: string;
@@ -215,6 +216,12 @@ function getNotificationStatus(item: NotificationItem) {
   if (item.importance === "important" && !item.readAt) return "중요";
   if (!item.readAt) return "새 알림";
   return "읽음";
+}
+
+function readFilterFromSearch(search: string): FilterKey {
+  const value = new URLSearchParams(search).get("filter");
+
+  return value && FILTER_KEYS.has(value as FilterKey) ? (value as FilterKey) : "all";
 }
 
 function buildDetailRows(item: NotificationItem) {
@@ -554,7 +561,9 @@ export default function Notifications() {
   const location = useLocation();
   const { user } = useAuth();
   const [items, setItems] = useState<NotificationItem[]>([]);
-  const [activeFilter, setActiveFilter] = useState<FilterKey>("all");
+  const [activeFilter, setActiveFilter] = useState<FilterKey>(() =>
+    readFilterFromSearch(location.search),
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [workingId, setWorkingId] = useState<string | null>(null);
@@ -569,6 +578,10 @@ export default function Notifications() {
     () => new URLSearchParams(location.search).get("notification"),
     [location.search],
   );
+
+  useEffect(() => {
+    setActiveFilter(readFilterFromSearch(location.search));
+  }, [location.search]);
 
   async function refreshNotifications() {
     if (!user) {
@@ -685,10 +698,37 @@ export default function Notifications() {
     navigate(item.targetHref);
   }
 
+  function handleFilterChange(filterKey: FilterKey) {
+    setActiveFilter(filterKey);
+
+    const params = new URLSearchParams(location.search);
+    if (filterKey === "all") {
+      params.delete("filter");
+    } else {
+      params.set("filter", filterKey);
+    }
+
+    navigate(
+      {
+        pathname: location.pathname,
+        search: params.toString() ? `?${params.toString()}` : "",
+      },
+      { replace: true },
+    );
+  }
+
   function closeDetailModal() {
     setSelectedItem(null);
     if (deepLinkedNotificationId) {
-      navigate("/member/notifications", { replace: true });
+      const params = new URLSearchParams(location.search);
+      params.delete("notification");
+      navigate(
+        {
+          pathname: "/member/notifications",
+          search: params.toString() ? `?${params.toString()}` : "",
+        },
+        { replace: true },
+      );
     }
   }
 
@@ -753,7 +793,7 @@ export default function Notifications() {
                 <button
                   key={filter.key}
                   type="button"
-                  onClick={() => setActiveFilter(filter.key)}
+                  onClick={() => handleFilterChange(filter.key)}
                   className="inline-flex items-center gap-2 rounded-full border px-4 py-2 text-[14px] font-medium transition-colors"
                   style={{
                     borderColor: active ? "#0a0a0a" : "#ebe8e0",

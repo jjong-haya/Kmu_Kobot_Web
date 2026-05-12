@@ -4,8 +4,22 @@ import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { DndContext, type DragEndEvent, useDraggable, useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ComposedChart,
+  Legend,
+  Line,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import {
+  Activity,
   AlertTriangle,
   ArrowLeft,
+  BarChart3,
   CalendarDays,
   ChevronDown,
   ChevronLeft,
@@ -51,6 +65,7 @@ import {
   type ProjectTaskPriority,
   type ProjectTaskStatus,
 } from "../../api/project-tasks";
+import { listProjectStudyRecords, type StudyRecord } from "../../api/studies";
 import { useAuth } from "../../auth/useAuth";
 import { ProjectFormModal } from "../../components/member/ProjectFormModal";
 import { sanitizeUserError } from "../../utils/sanitize-error";
@@ -114,6 +129,23 @@ const PRIORITY_META: Record<
   },
 };
 
+const ACTIVITY_WINDOW_DAYS = 14;
+
+type ActivityPoint = {
+  dateKey: string;
+  label: string;
+  posts: number;
+  tasksCreated: number;
+  tasksDone: number;
+};
+
+type MemberActivityPoint = {
+  name: string;
+  posts: number;
+  assigned: number;
+  done: number;
+};
+
 function projectListPath() {
   return "/member/projects";
 }
@@ -165,6 +197,103 @@ function formatDateTime(value: string | null) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function dateKeyForDate(date: Date) {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function dateKeyForValue(value: string | null | undefined) {
+  if (!value) return null;
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+
+  return dateKeyForDate(date);
+}
+
+function buildActivitySeries(tasks: ProjectTask[], records: StudyRecord[]): ActivityPoint[] {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const buckets = new Map<string, ActivityPoint>();
+
+  for (let index = ACTIVITY_WINDOW_DAYS - 1; index >= 0; index -= 1) {
+    const date = new Date(today);
+    date.setDate(today.getDate() - index);
+    const dateKey = dateKeyForDate(date);
+    buckets.set(dateKey, {
+      dateKey,
+      label: date.toLocaleDateString("ko-KR", { month: "numeric", day: "numeric" }),
+      posts: 0,
+      tasksCreated: 0,
+      tasksDone: 0,
+    });
+  }
+
+  records.forEach((record) => {
+    const bucket = buckets.get(dateKeyForValue(record.occurredAt) ?? "");
+    if (bucket) bucket.posts += 1;
+  });
+
+  tasks.forEach((task) => {
+    const createdBucket = buckets.get(dateKeyForValue(task.createdAt) ?? "");
+    if (createdBucket) createdBucket.tasksCreated += 1;
+
+    if (task.status === "done") {
+      const doneBucket = buckets.get(dateKeyForValue(task.updatedAt) ?? "");
+      if (doneBucket) doneBucket.tasksDone += 1;
+    }
+  });
+
+  return [...buckets.values()];
+}
+
+function buildMemberActivity(
+  members: ProjectMember[],
+  tasks: ProjectTask[],
+  records: StudyRecord[],
+): MemberActivityPoint[] {
+  const byUserId = new Map(
+    members.map((member) => [
+      member.userId,
+      {
+        name: member.displayName,
+        posts: 0,
+        assigned: 0,
+        done: 0,
+      },
+    ]),
+  );
+
+  records.forEach((record) => {
+    const member = byUserId.get(record.authorUserId);
+    if (member) member.posts += 1;
+  });
+
+  tasks.forEach((task) => {
+    if (!task.assigneeUserId) return;
+
+    const member = byUserId.get(task.assigneeUserId);
+    if (!member) return;
+
+    member.assigned += 1;
+    if (task.status === "done") {
+      member.done += 1;
+    }
+  });
+
+  return [...byUserId.values()]
+    .sort(
+      (a, b) =>
+        b.posts + b.assigned + b.done - (a.posts + a.assigned + a.done) ||
+        a.name.localeCompare(b.name, "ko"),
+    )
+    .slice(0, 8);
 }
 
 function ProjectDeleteControl({
@@ -760,6 +889,151 @@ function ProjectMemberInviteDialog({
   );
 }
 
+function ProjectActivityPanel({
+  series,
+  members,
+  totalPosts,
+  totalTasksCreated,
+  totalTasksDone,
+  loading,
+  error,
+}: {
+  series: ActivityPoint[];
+  members: MemberActivityPoint[];
+  totalPosts: number;
+  totalTasksCreated: number;
+  totalTasksDone: number;
+  loading: boolean;
+  error: string | null;
+}) {
+  const tooltipStyle: CSSProperties = {
+    border: "1px solid #e8e8e4",
+    borderRadius: 8,
+    boxShadow: "0 12px 32px rgba(0,0,0,0.12)",
+    fontSize: 12,
+  };
+
+  return (
+    <section style={{ ...PANEL_STYLE, padding: 20 }}>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <Activity className="h-4 w-4 text-[var(--kb-navy-800)]" />
+          <h2 className="m-0 text-[16px] font-semibold text-[var(--kb-ink-900)]">
+            활동 인사이트
+          </h2>
+        </div>
+        <span className="rounded-full border border-[#ebe8e0] px-3 py-1 text-[12px] font-semibold text-[var(--kb-ink-500)]">
+          최근 {ACTIVITY_WINDOW_DAYS}일
+        </span>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        {[
+          { label: "게시글", value: totalPosts, tone: "#103078" },
+          { label: "작업 생성", value: totalTasksCreated, tone: "#2f855a" },
+          { label: "완료 작업", value: totalTasksDone, tone: "#c47f00" },
+        ].map((item) => (
+          <div key={item.label} className="rounded-md border border-[#f1ede4] bg-[#fbfbf8] px-4 py-3">
+            <div className="text-[12px] font-semibold text-[var(--kb-ink-500)]">
+              {item.label}
+            </div>
+            <div className="mt-1 flex items-end gap-2">
+              <strong className="text-[24px] leading-none text-[var(--kb-ink-900)]">
+                {item.value}
+              </strong>
+              <span className="mb-0.5 h-2 w-2 rounded-full" style={{ background: item.tone }} />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {error ? (
+        <div className="mt-3 rounded-md border border-amber-100 bg-amber-50 px-3 py-2 text-[12.5px] font-semibold text-amber-800">
+          {error}
+        </div>
+      ) : null}
+
+      <div className="mt-5 grid gap-5 xl:grid-cols-[1.25fr_0.75fr]">
+        <div className="min-w-0">
+          <div className="mb-2 flex items-center gap-2 text-[13px] font-semibold text-[var(--kb-ink-700)]">
+            <BarChart3 className="h-4 w-4 text-[var(--kb-navy-800)]" />
+            일자별 활동
+          </div>
+          <div className="h-[280px] min-w-0">
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={series} margin={{ top: 12, right: 12, left: -18, bottom: 0 }}>
+                <CartesianGrid vertical={false} stroke="#eeeae2" />
+                <XAxis
+                  dataKey="label"
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: "var(--kb-ink-500)", fontSize: 12 }}
+                />
+                <YAxis
+                  allowDecimals={false}
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: "var(--kb-ink-500)", fontSize: 12 }}
+                />
+                <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "rgba(16,48,120,0.06)" }} />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Bar dataKey="posts" name="게시글" fill="#103078" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="tasksCreated" name="작업 생성" fill="#2f855a" radius={[4, 4, 0, 0]} />
+                <Line
+                  type="monotone"
+                  dataKey="tasksDone"
+                  name="완료 작업"
+                  stroke="#c47f00"
+                  strokeWidth={2.5}
+                  dot={false}
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className="min-w-0">
+          <div className="mb-2 flex items-center gap-2 text-[13px] font-semibold text-[var(--kb-ink-700)]">
+            <Users className="h-4 w-4 text-[var(--kb-navy-800)]" />
+            멤버별 비교
+          </div>
+          <div className="h-[280px] min-w-0">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={members}
+                layout="vertical"
+                margin={{ top: 12, right: 12, left: 12, bottom: 0 }}
+              >
+                <CartesianGrid horizontal={false} stroke="#eeeae2" />
+                <XAxis type="number" allowDecimals={false} axisLine={false} tickLine={false} />
+                <YAxis
+                  dataKey="name"
+                  type="category"
+                  width={76}
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: "var(--kb-ink-600)", fontSize: 12 }}
+                />
+                <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "rgba(16,48,120,0.06)" }} />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Bar dataKey="posts" name="게시글" stackId="member" fill="#103078" radius={[4, 0, 0, 4]} />
+                <Bar dataKey="assigned" name="담당 작업" stackId="member" fill="#2f855a" />
+                <Bar dataKey="done" name="완료 작업" stackId="member" fill="#c47f00" radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="mt-3 text-[12.5px] font-medium text-[var(--kb-ink-400)]">
+          활동 데이터를 불러오는 중입니다.
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 function ProjectWorkspace({
   project,
   userId,
@@ -774,9 +1048,11 @@ function ProjectWorkspace({
   onUpdated: () => Promise<void>;
 }) {
   const [tasks, setTasks] = useState<ProjectTask[]>([]);
+  const [studyRecords, setStudyRecords] = useState<StudyRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [activityError, setActivityError] = useState<string | null>(null);
   const [keyword, setKeyword] = useState("");
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
   const [title, setTitle] = useState("");
@@ -803,13 +1079,48 @@ function ProjectWorkspace({
   );
   const doneCount = tasks.filter((task) => task.status === "done").length;
   const progress = tasks.length > 0 ? Math.round((doneCount / tasks.length) * 100) : 0;
+  const activitySeries = useMemo(
+    () => buildActivitySeries(tasks, studyRecords),
+    [studyRecords, tasks],
+  );
+  const memberActivity = useMemo(
+    () => buildMemberActivity(project.members, tasks, studyRecords),
+    [project.members, studyRecords, tasks],
+  );
+  const activityTotals = useMemo(
+    () =>
+      activitySeries.reduce(
+        (totals, point) => ({
+          posts: totals.posts + point.posts,
+          tasksCreated: totals.tasksCreated + point.tasksCreated,
+          tasksDone: totals.tasksDone + point.tasksDone,
+        }),
+        { posts: 0, tasksCreated: 0, tasksDone: 0 },
+      ),
+    [activitySeries],
+  );
 
   async function refreshTasks() {
     setLoading(true);
     setError(null);
+    setActivityError(null);
 
     try {
-      setTasks(await listProjectTasks(project.id));
+      let nextActivityError: string | null = null;
+      const [nextTasks, nextStudyRecords] = await Promise.all([
+        listProjectTasks(project.id),
+        listProjectStudyRecords(project.id, 160).catch((requestError) => {
+          nextActivityError = sanitizeUserError(
+            requestError,
+            "스터디 활동을 불러오지 못했습니다.",
+          );
+          return [] as StudyRecord[];
+        }),
+      ]);
+
+      setTasks(nextTasks);
+      setStudyRecords(nextStudyRecords);
+      setActivityError(nextActivityError);
     } catch (requestError) {
       setError(sanitizeUserError(requestError, "프로젝트 작업을 불러오지 못했습니다."));
     } finally {
@@ -1084,6 +1395,16 @@ function ProjectWorkspace({
           </div>
         </div>
       </section>
+
+      <ProjectActivityPanel
+        series={activitySeries}
+        members={memberActivity}
+        totalPosts={activityTotals.posts}
+        totalTasksCreated={activityTotals.tasksCreated}
+        totalTasksDone={activityTotals.tasksDone}
+        loading={loading}
+        error={activityError}
+      />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="relative min-w-[240px] max-w-md flex-1">

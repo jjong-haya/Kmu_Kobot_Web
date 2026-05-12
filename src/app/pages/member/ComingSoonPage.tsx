@@ -14,7 +14,7 @@ const PAGE_STYLE: CSSProperties = {
 /**
  * ComingSoonPage — shared placeholder for member features still in build.
  * Wired up via `member-feature-flags.js` so several routes share this surface
- * (study-playlist, resources, equipment, etc.). Designed against the
+ * (resources, equipment, votes, etc.). Designed against the
  * EmptyState primitive so the Coming Soon state matches list/empty surfaces.
  */
 export default function ComingSoonPage({ pageKey }: { pageKey: string }) {

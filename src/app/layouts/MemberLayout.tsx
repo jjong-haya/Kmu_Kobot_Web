@@ -15,7 +15,6 @@ import {
   IdCard,
   LayoutDashboard,
   Link2,
-  ListChecks,
   LogOut,
   Menu,
   MessageSquare,
@@ -93,28 +92,12 @@ const NAVIGATION: NavigationSection[] = [
         permissions: ["dashboard.read"],
       },
       {
-        name: "알림",
-        href: "/member/notifications",
-        icon: Bell,
-        permissions: ["notifications.read"],
-      },
-      {
         name: "공지",
         href: "/member/announcements",
         icon: Megaphone,
         permissions: ["announcements.read"],
       },
-      {
-        name: "연락 요청",
-        href: "/member/contact-requests",
-        icon: MessageSquare,
-      },
       { name: "스터디 기록", href: "/member/study-log", icon: BookOpen },
-      {
-        name: "스터디 플레이리스트",
-        href: "/member/study-playlist",
-        icon: ListChecks,
-      },
       {
         name: "프로젝트",
         href: "/member/projects",
@@ -153,7 +136,6 @@ const NAVIGATION: NavigationSection[] = [
     name: "공식팀장",
     minimumRole: "teamLead",
     items: [
-      { name: "동료 리뷰", href: "/member/peer-review", icon: MessageSquare },
       {
         name: "쇼케이스",
         href: "/member/showcase",
