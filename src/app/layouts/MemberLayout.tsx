@@ -64,6 +64,7 @@ type NavigationItem = {
   href: string;
   icon: typeof LayoutDashboard;
   permissions?: string[];
+  minimumRole?: NavigationRoleLevel;
 };
 
 type NavigationRoleLevel = "member" | "teamLead" | "vicePresident" | "president";
@@ -83,7 +84,7 @@ const NAVIGATION_ROLE_RANK: Record<NavigationRoleLevel, number> = {
 
 const NAVIGATION: NavigationSection[] = [
   {
-    name: "부원",
+    name: "홈",
     items: [
       {
         name: "대시보드",
@@ -91,23 +92,16 @@ const NAVIGATION: NavigationSection[] = [
         icon: LayoutDashboard,
         permissions: ["dashboard.read"],
       },
+    ],
+  },
+  {
+    name: "소통",
+    items: [
       {
         name: "공지",
         href: "/member/announcements",
         icon: Megaphone,
         permissions: ["announcements.read"],
-      },
-      { name: "스터디 기록", href: "/member/study-log", icon: BookOpen },
-      {
-        name: "프로젝트",
-        href: "/member/projects",
-        icon: FolderKanban,
-      },
-      {
-        name: "행사",
-        href: "/member/events",
-        icon: Calendar,
-        permissions: ["events.read"],
       },
       {
         name: "멤버",
@@ -115,13 +109,82 @@ const NAVIGATION: NavigationSection[] = [
         icon: Users,
         permissions: ["members.read"],
       },
+    ],
+  },
+  {
+    name: "프로젝트·스터디",
+    items: [
+      {
+        name: "프로젝트",
+        href: "/member/projects",
+        icon: FolderKanban,
+      },
+      { name: "스터디 기록", href: "/member/study-log", icon: BookOpen },
+      {
+        name: "프로젝트 관리",
+        href: "/member/project-admin",
+        icon: ClipboardList,
+        permissions: ["projects.manage", "members.manage"],
+        minimumRole: "teamLead",
+      },
+    ],
+  },
+  {
+    name: "활동·예약",
+    items: [
+      {
+        name: "행사",
+        href: "/member/events",
+        icon: Calendar,
+        permissions: ["events.read"],
+      },
+      { name: "공간 예약", href: "/member/space-booking", icon: Clock },
+      { name: "미션", href: "/member/quests", icon: Target },
+    ],
+  },
+  {
+    name: "운영관리",
+    items: [
+      {
+        name: "폼 관리",
+        href: "/member/forms",
+        icon: ClipboardList,
+        permissions: ["forms.manage"],
+        minimumRole: "vicePresident",
+      },
+      {
+        name: "멤버 관리",
+        href: "/member/member-admin",
+        icon: Users,
+        permissions: ["members.manage", "permissions.manage"],
+        minimumRole: "president",
+      },
+      {
+        name: "초대 코드",
+        href: "/member/invite-codes",
+        icon: IdCard,
+        permissions: ["members.manage"],
+        minimumRole: "president",
+      },
+      {
+        name: "태그",
+        href: "/member/tags",
+        icon: Award,
+        permissions: ["permissions.manage"],
+        minimumRole: "president",
+      },
+    ],
+  },
+  {
+    name: "준비중",
+    minimumRole: "teamLead",
+    items: [
       {
         name: "자료실",
         href: "/member/resources",
         icon: FileText,
         permissions: ["resources.read"],
       },
-      { name: "공간 예약", href: "/member/space-booking", icon: Clock },
       {
         name: "장비 대여",
         href: "/member/equipment",
@@ -129,87 +192,51 @@ const NAVIGATION: NavigationSection[] = [
         permissions: ["resources.read"],
       },
       { name: "투표", href: "/member/votes", icon: Vote },
-      { name: "미션", href: "/member/quests", icon: Target },
-    ],
-  },
-  {
-    name: "공식팀장",
-    minimumRole: "teamLead",
-    items: [
       {
         name: "쇼케이스",
         href: "/member/showcase",
         icon: Presentation,
         permissions: ["projects.manage"],
-      },
-      {
-        name: "프로젝트 관리",
-        href: "/member/project-admin",
-        icon: ClipboardList,
-        permissions: ["projects.manage", "members.manage"],
+        minimumRole: "teamLead",
       },
       {
         name: "템플릿",
         href: "/member/templates",
         icon: FolderOpen,
         permissions: ["resources.manage"],
-      },
-    ],
-  },
-  {
-    name: "부회장",
-    minimumRole: "vicePresident",
-    items: [
-      { name: "로드맵", href: "/member/roadmap", icon: Target },
-      { name: "회고", href: "/member/retro", icon: MessageSquare },
-      { name: "변경 기록", href: "/member/changelog", icon: GitBranch },
-      {
-        name: "폼 관리",
-        href: "/member/forms",
-        icon: ClipboardList,
-        permissions: ["forms.manage"],
-      },
-    ],
-  },
-  {
-    name: "회장",
-    minimumRole: "president",
-    items: [
-      {
-        name: "멤버 관리",
-        href: "/member/member-admin",
-        icon: Users,
-        permissions: ["members.manage", "permissions.manage"],
+        minimumRole: "teamLead",
       },
       {
-        name: "초대 코드",
-        href: "/member/invite-codes",
-        icon: IdCard,
-        permissions: ["members.manage"],
+        name: "로드맵",
+        href: "/member/roadmap",
+        icon: Target,
+        minimumRole: "vicePresident",
       },
       {
-        name: "폼 관리",
-        href: "/member/forms",
-        icon: ClipboardList,
-        permissions: ["forms.manage"],
+        name: "회고",
+        href: "/member/retro",
+        icon: MessageSquare,
+        minimumRole: "vicePresident",
+      },
+      {
+        name: "변경 기록",
+        href: "/member/changelog",
+        icon: GitBranch,
+        minimumRole: "vicePresident",
       },
       {
         name: "연동",
         href: "/member/integrations",
         icon: Link2,
         permissions: ["integrations.manage"],
+        minimumRole: "president",
       },
       {
         name: "권한",
         href: "/member/permissions",
         icon: Settings,
         permissions: ["permissions.manage"],
-      },
-      {
-        name: "태그",
-        href: "/member/tags",
-        icon: Award,
-        permissions: ["permissions.manage"],
+        minimumRole: "president",
       },
     ],
   },
@@ -570,32 +597,31 @@ export default function MemberLayout() {
 
   const visibleSectionsBeforeDedup = NAVIGATION.map((section) => {
     if (memberStatus === "course_member") {
-      if (section.minimumRole && section.minimumRole !== "member") {
-        return { ...section, items: [] };
-      }
-
       return {
         ...section,
-        items: section.items.filter(
-          (item) =>
+        items: section.items.filter((item) => {
+          const itemRoleLevel = item.minimumRole ?? section.minimumRole ?? "member";
+          const itemRoleRank = NAVIGATION_ROLE_RANK[itemRoleLevel];
+
+          if (itemRoleRank > NAVIGATION_ROLE_RANK.member) return false;
+
+          return (
             tagNavSet.has(item.href) ||
-            ACCOUNT_PATHS_ALWAYS_VISIBLE.has(item.href),
-        ),
+            ACCOUNT_PATHS_ALWAYS_VISIBLE.has(item.href)
+          );
+        }),
       };
-    }
-
-    const requiredRank = NAVIGATION_ROLE_RANK[section.minimumRole ?? "member"];
-
-    if (requiredRank > viewerRoleRank) {
-      return { ...section, items: [] };
     }
 
     return {
       ...section,
       items: section.items.filter((item) => {
-        // Account pages and items inside higher-tier sections (공식팀장+)
-        // bypass tag-nav checks because they are gated by section permissions
-        // already.
+        const itemRoleLevel = item.minimumRole ?? section.minimumRole ?? "member";
+        const itemRoleRank = NAVIGATION_ROLE_RANK[itemRoleLevel];
+
+        if (itemRoleRank > viewerRoleRank) return false;
+
+        // Account pages bypass tag-nav checks because they are global actions.
         if (ACCOUNT_PATHS_ALWAYS_VISIBLE.has(item.href)) return true;
 
         // Per-item permission check (existing behaviour)
@@ -604,13 +630,9 @@ export default function MemberLayout() {
         }
 
         // Tag-nav check: if the user has any tag nav data, the path must
-        // appear in at least one of their tags' nav set. Higher-tier sections
-        // (공식팀장 / 부회장 / 회장) are excluded because their items aren't
-        // typically seeded into KOBOT tag.
-        if (
-          (section.minimumRole ?? "member") === "member" &&
-          tagNavSet.size > 0
-        ) {
+        // appear in at least one of their tags' nav set. Higher-tier items
+        // are gated by role and permissions instead of tag nav seeds.
+        if (itemRoleLevel === "member" && tagNavSet.size > 0) {
           return tagNavSet.has(item.href);
         }
 
