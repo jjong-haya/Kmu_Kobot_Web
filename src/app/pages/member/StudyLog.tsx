@@ -6,6 +6,7 @@ import {
   ChevronRight,
   RefreshCw,
   Search,
+  ShieldCheck,
   UserRound,
   Users,
 } from "lucide-react";
@@ -133,7 +134,12 @@ function ProjectStudyCard({
               <span className="rounded-full border border-[#e8e8e4] px-2.5 py-1 text-[12px] font-semibold text-[var(--kb-ink-600)]">
                 {project.myRoleLabel}
               </span>
-            ) : null}
+            ) : (
+              <span className="inline-flex items-center gap-1 rounded-full border border-[#ead8a6] bg-[#fff8e1] px-2.5 py-1 text-[12px] font-semibold text-[#805800]">
+                <ShieldCheck className="h-3 w-3" />
+                회장 열람
+              </span>
+            )}
           </div>
           <h2 className="m-0 line-clamp-2 text-[19px] font-semibold leading-tight text-[var(--kb-ink-900)]">
             {project.name}
@@ -179,7 +185,7 @@ function ProjectStudyCard({
 }
 
 export default function StudyLog() {
-  const { user } = useAuth();
+  const { user, authData } = useAuth();
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [records, setRecords] = useState<StudyRecord[]>([]);
   const [keyword, setKeyword] = useState("");
@@ -187,9 +193,12 @@ export default function StudyLog() {
   const [error, setError] = useState<string | null>(null);
 
   const keywordValue = keyword.trim().toLocaleLowerCase("ko-KR");
-  const joinedProjects = useMemo(
-    () => projects.filter((project) => project.isMember),
-    [projects],
+  const isPresident =
+    authData.account.isBootstrapAdmin ||
+    authData.orgPositions.some((position) => position.slug === "president");
+  const readableProjects = useMemo(
+    () => (isPresident ? projects : projects.filter((project) => project.isMember)),
+    [isPresident, projects],
   );
   const recordsByProject = useMemo(() => {
     const map = new Map<string, StudyRecord[]>();
@@ -206,13 +215,13 @@ export default function StudyLog() {
 
   const visibleProjects = useMemo(
     () =>
-      joinedProjects.filter((project) => {
+      readableProjects.filter((project) => {
         if (projectMatches(project, keywordValue)) return true;
         return (recordsByProject.get(project.id) ?? []).some((record) =>
           recordMatches(record, keywordValue),
         );
       }),
-    [keywordValue, joinedProjects, recordsByProject],
+    [keywordValue, readableProjects, recordsByProject],
   );
 
   async function refresh() {

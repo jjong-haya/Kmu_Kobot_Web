@@ -4,8 +4,6 @@ import { Link, useParams } from "react-router";
 import {
   ArrowLeft,
   BookOpen,
-  CalendarDays,
-  Clock,
   Download,
   FileText,
   Image as ImageIcon,
@@ -14,8 +12,8 @@ import {
   PenLine,
   RefreshCw,
   Search,
+  ShieldCheck,
   UploadCloud,
-  UserRound,
   Users,
   X,
 } from "lucide-react";
@@ -342,7 +340,7 @@ function StudyMaterialsSection({
             스터디 자료
           </h2>
           <p className="m-0 mt-1 text-[13px] text-[var(--kb-ink-500)]">
-            프로젝트 멤버만 볼 수 있는 자료함입니다.
+            프로젝트 멤버와 회장이 볼 수 있는 자료함입니다.
           </p>
         </div>
         <span className="inline-flex items-center gap-1.5 rounded-full bg-[#f1ede4] px-3 py-1.5 text-[12.5px] font-semibold text-[var(--kb-ink-700)]">
@@ -480,7 +478,7 @@ function BoardRow({
 
 export default function StudyProjectPosts() {
   const { slug = "" } = useParams();
-  const { user } = useAuth();
+  const { user, authData } = useAuth();
   const [project, setProject] = useState<ProjectDetailData | null>(null);
   const [records, setRecords] = useState<StudyRecord[]>([]);
   const [materials, setMaterials] = useState<StudyMaterial[]>([]);
@@ -489,6 +487,10 @@ export default function StudyProjectPosts() {
   const [keyword, setKeyword] = useState("");
   const [materialUploadOpen, setMaterialUploadOpen] = useState(false);
 
+  const isPresident =
+    authData.account.isBootstrapAdmin ||
+    authData.orgPositions.some((position) => position.slug === "president");
+  const isPresidentReadOnly = Boolean(project && isPresident && !project.isMember);
   const canWrite = canWriteStudy(project);
   const keywordValue = keyword.trim().toLocaleLowerCase("ko-KR");
   const visibleRecords = useMemo(
@@ -604,6 +606,12 @@ export default function StudyProjectPosts() {
                     <span className="font-semibold text-[var(--kb-navy-800)]">
                       {getProjectStatusLabel(project.status)}
                     </span>
+                    {isPresidentReadOnly ? (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-[#ead8a6] bg-[#fff8e1] px-2 py-0.5 text-[12px] font-semibold text-[#805800]">
+                        <ShieldCheck className="h-3 w-3" />
+                        회장 열람
+                      </span>
+                    ) : null}
                     <span className="inline-flex items-center gap-1">
                       <Users className="h-3.5 w-3.5" />
                       {project.memberCount}명
