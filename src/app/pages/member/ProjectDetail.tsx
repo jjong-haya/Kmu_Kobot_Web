@@ -130,6 +130,7 @@ const PRIORITY_META: Record<
 };
 
 const ACTIVITY_WINDOW_DAYS = 14;
+const DEFAULT_GITHUB_ORG = "Kookmin-Kobot";
 
 type ActivityPoint = {
   dateKey: string;
@@ -197,6 +198,46 @@ function formatDateTime(value: string | null) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function expectedGithubRepoName(project: Pick<ProjectDetailData, "id" | "slug">) {
+  return (
+    project.slug
+      .toLowerCase()
+      .replace(/[^a-z0-9._-]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 90) || `project-${project.id.slice(0, 8)}`
+  );
+}
+
+function githubProfileUrl(login: string | null, url: string | null) {
+  return url ?? (login ? `https://github.com/${encodeURIComponent(login)}` : null);
+}
+
+function githubProfileLabel(login: string | null, url: string | null) {
+  if (login) return `@${login}`;
+
+  if (url) {
+    const match = url.match(/^https:\/\/github\.com\/([^/?#]+)(?:[/?#].*)?$/i);
+    return match?.[1] ? `@${match[1]}` : url;
+  }
+
+  return null;
+}
+
+function githubSyncLabel(value: ProjectDetailData["githubLink"]) {
+  if (!value) return "생성 대기";
+  if (value.syncStatus === "synced") return "완료";
+  if (value.syncStatus === "read_only") return "읽기 전용";
+  if (value.syncStatus === "failed") return "확인 필요";
+  return "대기 중";
+}
+
+function githubPermissionLabel(value: ProjectDetailData["githubLink"]) {
+  if (!value) return "승인 후 부여";
+  if (value.permissionState === "read_only") return "읽기 전용";
+  if (value.permissionState === "disabled") return "비활성";
+  return "프로젝트 권한";
 }
 
 function dateKeyForDate(date: Date) {
@@ -427,6 +468,39 @@ function nextStatus(status: ProjectTaskStatus): ProjectTaskStatus | null {
   return index >= 0 && index < TASK_COLUMNS.length - 1 ? TASK_COLUMNS[index + 1].key : null;
 }
 
+function GithubAccountLink({
+  githubLogin,
+  githubUrl,
+}: {
+  githubLogin: string | null;
+  githubUrl: string | null;
+}) {
+  const label = githubProfileLabel(githubLogin, githubUrl);
+  const href = githubProfileUrl(githubLogin, githubUrl);
+
+  if (!label || !href) {
+    return (
+      <span className="inline-flex items-center gap-1 text-[12px] font-medium text-[var(--kb-ink-400)]">
+        <Github className="h-3.5 w-3.5" />
+        GitHub 미등록
+      </span>
+    );
+  }
+
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className="inline-flex min-w-0 items-center gap-1 text-[12px] font-semibold text-[#103078] no-underline hover:underline"
+    >
+      <Github className="h-3.5 w-3.5 shrink-0" />
+      <span className="truncate">{label}</span>
+      <ExternalLink className="h-3 w-3 shrink-0" />
+    </a>
+  );
+}
+
 function MemberAvatar({ member }: { member: ProjectMember }) {
   return (
     <div className="flex items-center gap-3">
@@ -440,6 +514,7 @@ function MemberAvatar({ member }: { member: ProjectMember }) {
         <div className="truncate text-[12px] text-[var(--kb-ink-400)]">
           {member.roleLabel}
         </div>
+        <GithubAccountLink githubLogin={member.githubLogin} githubUrl={member.githubUrl} />
       </div>
     </div>
   );
@@ -886,6 +961,61 @@ function ProjectMemberInviteDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function ProjectGithubPanel({ project }: { project: ProjectDetailData }) {
+  const link = project.githubLink;
+  const org = link?.githubOrg ?? DEFAULT_GITHUB_ORG;
+  const repoName = link?.repoName ?? expectedGithubRepoName(project);
+  const repoLabel = link?.repoFullName ?? `${org}/${repoName}`;
+
+  return (
+    <section style={{ ...PANEL_STYLE, padding: 18 }}>
+      <div className="mb-3 flex items-center gap-2 text-[14px] font-semibold text-[var(--kb-ink-900)]">
+        <Github className="h-4 w-4 text-[var(--kb-navy-800)]" />
+        GitHub
+      </div>
+
+      <div className="grid gap-2 text-[13px] text-[var(--kb-ink-600)]">
+        <div className="flex justify-between gap-3">
+          <span>{link ? "저장소" : "예상 저장소"}</span>
+          {link?.htmlUrl ? (
+            <a
+              href={link.htmlUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex min-w-0 items-center gap-1 text-right font-semibold text-[#103078] no-underline hover:underline"
+            >
+              <span className="truncate">{repoLabel}</span>
+              <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+            </a>
+          ) : (
+            <strong className="min-w-0 truncate text-right text-[var(--kb-ink-900)]">
+              {repoLabel}
+            </strong>
+          )}
+        </div>
+        <div className="flex justify-between gap-3">
+          <span>기본 브랜치</span>
+          <strong className="text-[var(--kb-ink-900)]">{link?.defaultBranch ?? "main"}</strong>
+        </div>
+        <div className="flex justify-between gap-3">
+          <span>권한</span>
+          <strong className="text-[var(--kb-ink-900)]">{githubPermissionLabel(link)}</strong>
+        </div>
+        <div className="flex justify-between gap-3">
+          <span>동기화</span>
+          <strong className="text-[var(--kb-ink-900)]">{githubSyncLabel(link)}</strong>
+        </div>
+      </div>
+
+      {!link ? (
+        <p className="m-0 mt-3 text-[12.5px] leading-5 text-[var(--kb-ink-500)]">
+          프로젝트 승인 후 위 이름으로 {org} 조직에 private 저장소가 자동 생성됩니다.
+        </p>
+      ) : null}
+    </section>
   );
 }
 
@@ -1469,6 +1599,8 @@ function ProjectWorkspace({
           </DndContext>
 
           <aside className="grid h-fit gap-4">
+            <ProjectGithubPanel project={project} />
+
             <section style={{ ...PANEL_STYLE, overflow: "hidden" }}>
               <div className="flex items-center justify-between gap-2 border-b border-[#f1ede4] px-4 py-3">
                 <div className="flex items-center gap-2">
@@ -1507,9 +1639,19 @@ function ProjectWorkspace({
                 </div>
                 <div className="flex justify-between gap-3">
                   <span>리드</span>
-                  <strong className="text-right text-[var(--kb-ink-900)]">
-                    {project.lead?.displayName ?? "없음"}
-                  </strong>
+                  {project.lead ? (
+                    <div className="min-w-0 text-right">
+                      <strong className="block truncate text-[var(--kb-ink-900)]">
+                        {project.lead.displayName}
+                      </strong>
+                      <GithubAccountLink
+                        githubLogin={project.lead.githubLogin}
+                        githubUrl={project.lead.githubUrl}
+                      />
+                    </div>
+                  ) : (
+                    <strong className="text-right text-[var(--kb-ink-900)]">없음</strong>
+                  )}
                 </div>
                 <div className="flex justify-between gap-3">
                   <span>공개</span>
@@ -1762,6 +1904,22 @@ function ProjectOverview({
                 <strong className="text-[var(--kb-ink-900)]">{getProjectStatusLabel(project.status)}</strong>
               </div>
               <div className="flex justify-between gap-3">
+                <span>리드</span>
+                {project.lead ? (
+                  <div className="min-w-0 text-right">
+                    <strong className="block truncate text-[var(--kb-ink-900)]">
+                      {project.lead.displayName}
+                    </strong>
+                    <GithubAccountLink
+                      githubLogin={project.lead.githubLogin}
+                      githubUrl={project.lead.githubUrl}
+                    />
+                  </div>
+                ) : (
+                  <strong className="text-[var(--kb-ink-900)]">없음</strong>
+                )}
+              </div>
+              <div className="flex justify-between gap-3">
                 <span>공개</span>
                 <strong className="text-[var(--kb-ink-900)]">
                   {project.visibility === "public" ? "공개" : "비공개"}
@@ -1776,56 +1934,7 @@ function ProjectOverview({
             </div>
           </section>
 
-          {project.githubLink || project.status === "active" || project.status === "recruiting" ? (
-            <section style={{ ...PANEL_STYLE, padding: 18 }}>
-              <div className="mb-3 flex items-center gap-2 text-[14px] font-semibold text-[var(--kb-ink-900)]">
-                <Github className="h-4 w-4 text-[var(--kb-navy-800)]" />
-                GitHub
-              </div>
-              {project.githubLink ? (
-                <div className="grid gap-2 text-[13px] text-[var(--kb-ink-600)]">
-                  <div className="flex justify-between gap-3">
-                    <span>저장소</span>
-                    {project.githubLink.htmlUrl ? (
-                      <a
-                        href={project.githubLink.htmlUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1 font-semibold text-[#103078] no-underline hover:underline"
-                      >
-                        {project.githubLink.repoName}
-                        <ExternalLink className="h-3.5 w-3.5" />
-                      </a>
-                    ) : (
-                      <strong className="text-[var(--kb-ink-900)]">{project.githubLink.repoName}</strong>
-                    )}
-                  </div>
-                  <div className="flex justify-between gap-3">
-                    <span>권한</span>
-                    <strong className="text-[var(--kb-ink-900)]">
-                      {project.githubLink.permissionState === "read_only" ? "읽기 전용" : "프로젝트 권한"}
-                    </strong>
-                  </div>
-                  <div className="flex justify-between gap-3">
-                    <span>동기화</span>
-                    <strong className="text-[var(--kb-ink-900)]">
-                      {project.githubLink.syncStatus === "synced"
-                        ? "완료"
-                        : project.githubLink.syncStatus === "read_only"
-                          ? "읽기 전용"
-                          : project.githubLink.syncStatus === "failed"
-                            ? "확인 필요"
-                            : "대기 중"}
-                    </strong>
-                  </div>
-                </div>
-              ) : (
-                <p className="m-0 text-[13px] leading-6 text-[var(--kb-ink-500)]">
-                  프로젝트 승인 후 Kookmin-Kobot 조직에 private 저장소가 자동 생성됩니다.
-                </p>
-              )}
-            </section>
-          ) : null}
+          <ProjectGithubPanel project={project} />
 
           <section style={{ ...PANEL_STYLE, overflow: "hidden" }}>
             <div className="flex items-center gap-2 border-b border-[#f1ede4] px-4 py-3">

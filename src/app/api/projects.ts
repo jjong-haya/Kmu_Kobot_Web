@@ -20,6 +20,8 @@ export type ProjectProfile = {
   displayName: string;
   loginId: string | null;
   avatarUrl: string | null;
+  githubLogin: string | null;
+  githubUrl: string | null;
 };
 
 export type ProjectGithubLink = {
@@ -48,6 +50,8 @@ export type ProjectMember = {
   displayName: string;
   loginId: string | null;
   avatarUrl: string | null;
+  githubLogin: string | null;
+  githubUrl: string | null;
   role: ProjectMemberRole;
   roleLabel: string;
   joinedAt: string;
@@ -190,6 +194,7 @@ type ProfileDbRow = {
   login_id?: string | null;
   avatar_url: string | null;
   email: string | null;
+  github_url: string | null;
 };
 
 type ProjectJoinRequestDbRow = {
@@ -271,6 +276,7 @@ const PROFILE_SELECT = [
   "login_id",
   "avatar_url",
   "email",
+  "github_url",
 ].join(", ");
 
 const PROJECT_JOIN_REQUEST_SELECT = [
@@ -386,11 +392,15 @@ function displayNameFor(profile: ProfileDbRow) {
 function profileSummary(profile: ProfileDbRow | null | undefined): ProjectProfile | null {
   if (!profile) return null;
 
+  const githubUrl = normalizeString(profile.github_url);
+
   return {
     id: profile.id,
     displayName: displayNameFor(profile),
     loginId: normalizeString(profile.login_id),
     avatarUrl: normalizeString(profile.avatar_url),
+    githubLogin: extractGithubLoginFromUrl(githubUrl),
+    githubUrl,
   };
 }
 
@@ -579,6 +589,8 @@ function mapProjectMember(
       "이름 없음",
     loginId: profile?.loginId ?? null,
     avatarUrl: profile?.avatarUrl ?? null,
+    githubLogin: profile?.githubLogin ?? null,
+    githubUrl: profile?.githubUrl ?? null,
     role: membership.role,
     roleLabel: getProjectRoleLabel(membership.role),
     joinedAt: membership.joined_at,
@@ -988,7 +1000,7 @@ export async function listProjectInviteCandidates(projectId: string): Promise<Pr
   const [{ data: profileData, error: profileError }, identityResult] = await Promise.all([
     supabase
       .from("profiles")
-      .select(`${PROFILE_SELECT}, github_url`)
+      .select(PROFILE_SELECT)
       .in("id", activeUserIds),
     supabase
       .from("member_github_identities")

@@ -25,7 +25,8 @@ test("project workspace can invite searchable members through a guarded RPC", ()
 
   assert.match(api, /export type ProjectInviteCandidate/);
   assert.match(api, /export async function listProjectInviteCandidates/);
-  assert.match(api, /\.select\(`\$\{PROFILE_SELECT\}, github_url`\)/);
+  assert.match(api, /const PROFILE_SELECT = \[[\s\S]*"github_url"/);
+  assert.match(api, /\.select\(PROFILE_SELECT\)/);
   assert.match(api, /hasGithubIdentity: Boolean\(githubLogin && connectionStatus === "linked"\)/);
   assert.match(api, /export async function inviteProjectMember/);
   assert.match(api, /\.rpc\("invite_project_team_member"/);
