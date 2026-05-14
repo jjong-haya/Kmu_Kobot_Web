@@ -1,6 +1,6 @@
 # GitHub Project Integration
 
-Last updated: 2026-05-12
+Last updated: 2026-05-14
 
 ## Goal
 
@@ -174,6 +174,26 @@ Edge Function:
 - Uses GitHub App installation token to create/load repos, create/load teams,
   grant permissions, and add/remove team members.
 
+Automatic dispatch:
+
+- `.github/workflows/github-sync.yml` invokes `github-sync` every 5 minutes and
+  can be run manually from GitHub Actions.
+- `supabase/migrations/20260514010000_github_sync_auto_dispatch_and_url_fix.sql`
+  also adds a database cron dispatcher. It is disabled until configured with
+  the same `GITHUB_SYNC_SECRET` used by the Edge Function:
+
+```sql
+select public.configure_github_sync_dispatcher(
+  '<same value as the Edge Function GITHUB_SYNC_SECRET>',
+  'https://tqidhnjmjbvrzdeiqlqo.supabase.co/functions/v1/github-sync',
+  true,
+  '<Supabase anon key for Edge Function JWT verification>'
+);
+```
+
+Either dispatcher is enough to drain pending jobs. Keeping both gives a backup
+path if GitHub Actions is paused or the database scheduler is disabled.
+
 ## Required Supabase Secrets
 
 Already set:
@@ -233,6 +253,9 @@ provisioned repository as fully connected.
 - The profile page highlights and focuses the GitHub URL field when
   `focus=github` is present. Saving a valid URL updates `profiles.github_url`
   and triggers a background GitHub sync.
+- GitHub profile URLs must be the canonical profile form
+  `https://github.com/{login}`. Paths such as `https://github.com/users/{login}`
+  are rejected so `users` is not mistaken for the GitHub login.
 - Existing approved users without GitHub identity remain in KOBOT but their
   GitHub invite job stays blocked until they add a GitHub URL.
 - Project detail/admin screens show GitHub linked, pending, or read-only state.

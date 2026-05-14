@@ -1,0 +1,32 @@
+name: GitHub Sync Dispatcher
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+jobs:
+  dispatch:
+    name: Invoke Supabase github-sync
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+
+    steps:
+      - name: Invoke github-sync
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || secrets.VITE_SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY || secrets.VITE_SUPABASE_ANON_KEY }}
+          GITHUB_SYNC_SECRET: ${{ secrets.GITHUB_SYNC_SECRET }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ] || [ -z "$GITHUB_SYNC_SECRET" ]; then
+            echo "SUPABASE_URL, SUPABASE_ANON_KEY, and GITHUB_SYNC_SECRET repository secrets are required."
+            exit 1
+          fi
+
+          curl --fail-with-body --silent --show-error \
+            --request POST \
+            --url "$SUPABASE_URL/functions/v1/github-sync" \
+            --header "content-type: application/json" \
+            --header "authorization: Bearer $SUPABASE_ANON_KEY" \
+            --header "x-github-sync-secret: $GITHUB_SYNC_SECRET" \
+            --data '{"limit":10}'

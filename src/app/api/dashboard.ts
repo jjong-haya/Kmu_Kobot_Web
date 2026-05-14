@@ -1,38 +1,14 @@
 import { getSupabaseBrowserClient } from "../auth/supabase";
 import { sanitizeUserError } from "../utils/sanitize-error";
-import { getNotificationTargetHref } from "./notification-policy.js";
 import { listBookingsInRange } from "./space-bookings";
 
 const FALLBACK = "대시보드 데이터를 불러오지 못했습니다.";
-
-export type DashboardNotification = {
-  id: string;
-  type: string;
-  title: string;
-  body: string | null;
-  importance: "normal" | "important";
-  href: string | null;
-  readAt: string | null;
-  createdAt: string;
-};
 
 export type DashboardNotice = {
   id: string;
   title: string;
   status: string;
   createdAt: string;
-};
-
-export type DashboardProject = {
-  id: string;
-  slug: string;
-  name: string;
-  summary: string | null;
-  role: string;
-  status: string;
-  members: number;
-  progress: number | null;
-  updatedAt: string;
 };
 
 export type DashboardBooking = {
@@ -60,9 +36,7 @@ export type DashboardContactRequest = {
 
 export type DashboardData = {
   unreadNotificationCount: number;
-  notifications: DashboardNotification[];
   notices: DashboardNotice[];
-  projects: DashboardProject[];
   bookings: DashboardBooking[];
   contactRequests: DashboardContactRequest[];
   failedSections: DashboardSection[];
@@ -71,46 +45,14 @@ export type DashboardData = {
 export type DashboardSection =
   | "notifications"
   | "notices"
-  | "projects"
   | "bookings"
   | "contactRequests";
-
-type NotificationRow = {
-  id: string;
-  type: string;
-  title: string;
-  body: string | null;
-  importance: "normal" | "important";
-  href: string | null;
-  related_entity_table: string | null;
-  read_at: string | null;
-  created_at: string;
-};
 
 type NoticeRow = {
   id: string;
   title: string;
   status: string;
   created_at: string;
-};
-
-type ProjectMembershipRow = {
-  project_team_id: string;
-  role: string;
-};
-
-type ProjectTeamRow = {
-  id: string;
-  slug: string;
-  name: string;
-  summary: string | null;
-  status: string;
-  metadata: unknown;
-  updated_at: string;
-};
-
-type ProjectMemberCountRow = {
-  project_team_id: string;
 };
 
 type ContactRequestRow = {
@@ -144,78 +86,20 @@ function addDays(date: Date, days: number) {
   return next;
 }
 
-function readProgress(metadata: unknown): number | null {
-  if (!metadata || typeof metadata !== "object") return null;
-
-  const bag = metadata as Record<string, unknown>;
-  const raw =
-    bag.progress ??
-    bag.progressPercent ??
-    bag.progress_percent ??
-    bag.completion ??
-    bag.completionPercent;
-
-  const value =
-    typeof raw === "number"
-      ? raw
-      : typeof raw === "string"
-        ? Number.parseFloat(raw)
-        : Number.NaN;
-
-  if (!Number.isFinite(value)) return null;
-  return Math.max(0, Math.min(100, Math.round(value)));
-}
-
-function mapProjectRole(role: string) {
-  switch (role) {
-    case "lead":
-      return "리드";
-    case "maintainer":
-      return "관리";
-    case "delegate":
-      return "위임";
-    default:
-      return "참여";
-  }
-}
-
 async function listDashboardNotifications(userId: string) {
   const supabase = getSupabaseBrowserClient();
 
-  const [{ data, error }, { count, error: countError }] = await Promise.all([
-    supabase
-      .from("notifications")
-      .select("id, type, title, body, importance, href, related_entity_table, read_at, created_at")
-      .eq("recipient_user_id", userId)
-      .is("deleted_at", null)
-      .order("created_at", { ascending: false })
-      .limit(8),
-    supabase
-      .from("notifications")
-      .select("id", { count: "exact", head: true })
-      .eq("recipient_user_id", userId)
-      .is("deleted_at", null)
-      .is("read_at", null),
-  ]);
+  const { count, error } = await supabase
+    .from("notifications")
+    .select("id", { count: "exact", head: true })
+    .eq("recipient_user_id", userId)
+    .is("deleted_at", null)
+    .is("read_at", null);
 
   if (error) throw new Error(sanitizeUserError(error, FALLBACK));
-  if (countError) throw new Error(sanitizeUserError(countError, FALLBACK));
 
   return {
     unreadNotificationCount: count ?? 0,
-    notifications: ((data ?? []) as NotificationRow[]).map((row) => ({
-      id: row.id,
-      type: row.type,
-      title: row.title,
-      body: row.body,
-      importance: row.importance,
-      href: getNotificationTargetHref(row.href, {
-        type: row.type,
-        relatedEntityTable: row.related_entity_table,
-      }),
-      readAt: row.read_at,
-      createdAt: row.created_at,
-    })),
   };
 }
 
@@ -235,64 +119,6 @@ async function listDashboardNotices() {
     title: row.title,
     status: row.status,
     createdAt: row.created_at,
-  }));
-}
-
-async function listDashboardProjects(userId: string) {
-  const supabase = getSupabaseBrowserClient();
-  const { data: membershipRows, error: membershipError } = await supabase
-    .from("project_team_memberships")
-    .select("project_team_id, role")
-    .eq("user_id", userId)
-    .eq("status", "active")
-    .limit(20);
-
-  if (membershipError) throw new Error(sanitizeUserError(membershipError, FALLBACK));
-
-  const memberships = (membershipRows ?? []) as ProjectMembershipRow[];
-  const projectIds = [...new Set(memberships.map((row) => row.project_team_id))];
-
-  if (projectIds.length === 0) return [];
-
-  const [{ data: projectRows, error: projectError }, { data: memberRows, error: membersError }] =
-    await Promise.all([
-      supabase
-        .from("project_teams")
-        .select("id, slug, name, summary, status, metadata, updated_at")
-        .in("id", projectIds)
-        .order("updated_at", { ascending: false }),
-      supabase
-        .from("project_team_memberships")
-        .select("project_team_id")
-        .in("project_team_id", projectIds)
-        .eq("status", "active"),
-    ]);
-
-  if (projectError) throw new Error(sanitizeUserError(projectError, FALLBACK));
-  if (membersError) throw new Error(sanitizeUserError(membersError, FALLBACK));
-
-  const roleByProject = new Map(
-    memberships.map((row) => [row.project_team_id, mapProjectRole(row.role)]),
-  );
-  const membersByProject = new Map<string, number>();
-
-  for (const row of (memberRows ?? []) as ProjectMemberCountRow[]) {
-    membersByProject.set(
-      row.project_team_id,
-      (membersByProject.get(row.project_team_id) ?? 0) + 1,
-    );
-  }
-
-  return ((projectRows ?? []) as ProjectTeamRow[]).map((row) => ({
-    id: row.id,
-    slug: row.slug,
-    name: row.name,
-    summary: row.summary,
-    role: roleByProject.get(row.id) ?? "참여",
-    status: row.status,
-    members: membersByProject.get(row.id) ?? 1,
-    progress: readProgress(row.metadata),
-    updatedAt: row.updated_at,
   }));
 }
 
@@ -394,15 +220,14 @@ async function withFallback<T>(
 }
 
 export async function loadDashboardData(userId: string): Promise<DashboardData> {
-  const [notificationResult, noticesResult, projectsResult, bookingsResult, contactResult] =
+  const [notificationResult, noticesResult, bookingsResult, contactResult] =
     await Promise.all([
       withFallback(
         "notifications",
         listDashboardNotifications(userId),
-        { unreadNotificationCount: 0, notifications: [] },
+        { unreadNotificationCount: 0 },
       ),
       withFallback("notices", listDashboardNotices(), []),
-      withFallback("projects", listDashboardProjects(userId), []),
       withFallback("bookings", listDashboardBookings(userId), []),
       withFallback("contactRequests", listDashboardContactRequests(userId), []),
     ]);
@@ -410,7 +235,6 @@ export async function loadDashboardData(userId: string): Promise<DashboardData> 
   const failedSections = [
     notificationResult,
     noticesResult,
-    projectsResult,
     bookingsResult,
     contactResult,
   ]
@@ -419,9 +243,7 @@ export async function loadDashboardData(userId: string): Promise<DashboardData> 
 
   return {
     unreadNotificationCount: notificationResult.data.unreadNotificationCount,
-    notifications: notificationResult.data.notifications,
     notices: noticesResult.data,
-    projects: projectsResult.data,
     bookings: bookingsResult.data,
     contactRequests: contactResult.data,
     failedSections,

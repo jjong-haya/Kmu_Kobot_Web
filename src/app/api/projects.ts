@@ -6,6 +6,8 @@ import {
   readProjectProgress,
 } from "./project-policy.js";
 import { triggerGithubSyncInBackground } from "./github-sync";
+import { normalizeProjectGithubRepoName } from "./project-github-names";
+import { extractGithubLoginFromUrl } from "../utils/github";
 
 const FALLBACK = "프로젝트 데이터를 불러오지 못했습니다.";
 
@@ -98,6 +100,7 @@ export type ProjectSummary = {
   guide: string | null;
   idRule: string | null;
   branchRule: string | null;
+  githubRepoName: string | null;
   lastReviewDecision: string | null;
   lastReviewReason: string | null;
   lastReviewedAt: string | null;
@@ -123,6 +126,7 @@ export type CreateProjectInput = {
   projectType?: ProjectType;
   visibility?: ProjectVisibility;
   metadata?: Record<string, unknown>;
+  githubRepoName?: string | null;
 };
 
 export type UpdateProjectInput = CreateProjectInput;
@@ -308,50 +312,6 @@ const PROJECT_GITHUB_LINK_SELECT = [
 
 function normalizeString(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
-}
-
-export function extractGithubLoginFromUrl(value: string | null | undefined) {
-  const normalized = normalizeString(value);
-  if (!normalized) return null;
-
-  const match = normalized.match(/^https:\/\/github\.com\/([^/?#]+)(?:[/?#].*)?$/i);
-  if (!match?.[1]) return null;
-
-  const login = match[1].toLowerCase();
-  if (!/^[a-z0-9]([a-z0-9-]{0,37}[a-z0-9])?$/.test(login)) {
-    return null;
-  }
-
-  if (
-    [
-      "about",
-      "apps",
-      "blog",
-      "collections",
-      "contact",
-      "enterprise",
-      "events",
-      "explore",
-      "features",
-      "github",
-      "login",
-      "marketplace",
-      "new",
-      "notifications",
-      "orgs",
-      "organizations",
-      "pricing",
-      "pulls",
-      "search",
-      "settings",
-      "sponsors",
-      "topics",
-    ].includes(login)
-  ) {
-    return null;
-  }
-
-  return login;
 }
 
 function metadataRecord(value: unknown): Record<string, unknown> {
@@ -559,6 +519,9 @@ function mapProjectSummary(
     guide: readMetadataString(metadata, "guide", "collaborationGuide", "collaboration_guide"),
     idRule: readMetadataString(metadata, "idRule", "id_rule", "taskIdRule"),
     branchRule: readMetadataString(metadata, "branchRule", "branch_rule"),
+    githubRepoName: normalizeProjectGithubRepoName(
+      readMetadataString(metadata, "githubRepoName", "github_repo_name", "repoName", "repo_name"),
+    ),
     lastReviewDecision: readMetadataString(lastReview, "decision"),
     lastReviewReason: readMetadataString(lastReview, "reason"),
     lastReviewedAt: readMetadataString(lastReview, "reviewedAt", "reviewed_at"),
@@ -711,7 +674,10 @@ export async function createProject(
     input_description: input.description ?? null,
     input_project_type: input.projectType ?? "autonomous",
     input_visibility: input.visibility ?? "private",
-    input_metadata: input.metadata ?? {},
+    input_metadata: {
+      ...(input.metadata ?? {}),
+      githubRepoName: normalizeProjectGithubRepoName(input.githubRepoName) ?? undefined,
+    },
   });
 
   if (error) throw new Error(sanitizeUserError(error, "프로젝트를 생성하지 못했습니다."));
@@ -747,7 +713,10 @@ export async function updateRejectedProjectAndRequestReview(
     p_description: input.description ?? null,
     p_project_type: input.projectType ?? "autonomous",
     p_visibility: input.visibility ?? "private",
-    p_metadata: input.metadata ?? {},
+    p_metadata: {
+      ...(input.metadata ?? {}),
+      githubRepoName: normalizeProjectGithubRepoName(input.githubRepoName) ?? undefined,
+    },
   });
 
   if (error) {

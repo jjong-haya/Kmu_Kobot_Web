@@ -11,6 +11,7 @@ import {
   type NoticeRow,
   type NoticeStatus,
 } from "../../api/notices";
+import { inferNoticeTopicTags, type NoticeTopicTag } from "../../api/notice-tags";
 import { listTags, type MemberTag } from "../../api/tags";
 import { getNoticeDetailPath } from "../../api/announcement-policy.js";
 import { useAuth } from "../../auth/useAuth";
@@ -44,6 +45,46 @@ function visibilityText(row: NoticeRow) {
   if (row.audienceTags.length === 0) return "태그 한정";
   if (row.audienceTags.length <= 2) return row.audienceTags.map((tag) => tag.label).join(", ");
   return `${row.audienceTags[0]?.label ?? "태그"} 외 ${row.audienceTags.length - 1}`;
+}
+
+const TOPIC_TAG_TONE: Record<NoticeTopicTag["tone"], { bg: string; fg: string; border: string }> = {
+  blue: { bg: "#eef4ff", fg: "#1d3f8f", border: "#c9d9ff" },
+  green: { bg: "#eaf7f0", fg: "#16633f", border: "#bde8ce" },
+  amber: { bg: "#fff7e6", fg: "#8a5a0a", border: "#f2d28a" },
+  slate: { bg: "#f3f4f6", fg: "#374151", border: "#d8dde6" },
+};
+
+function NoticeTopicTags({ title, body }: { title: string; body: string }) {
+  const tags = inferNoticeTopicTags(title, body);
+  if (tags.length === 0) return null;
+
+  return (
+    <div className="mt-3 flex flex-wrap gap-1.5">
+      {tags.map((tag) => {
+        const tone = TOPIC_TAG_TONE[tag.tone];
+        return (
+          <span
+            key={tag.label}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              minHeight: 22,
+              borderRadius: 6,
+              border: `1px solid ${tone.border}`,
+              background: tone.bg,
+              color: tone.fg,
+              padding: "2px 7px",
+              fontSize: 11.5,
+              fontWeight: 750,
+              lineHeight: 1.3,
+            }}
+          >
+            #{tag.label}
+          </span>
+        );
+      })}
+    </div>
+  );
 }
 
 export default function Announcements() {
@@ -267,6 +308,7 @@ export default function Announcements() {
                   <p style={{ margin: "7px 0 0", fontSize: 14, lineHeight: 1.55, color: "var(--kb-ink-500)" }}>
                     {noticePreview(row.body)}
                   </p>
+                  <NoticeTopicTags title={row.title} body={row.body} />
                 </div>
 
                 {canManage ? (

@@ -57,6 +57,10 @@ import {
 } from "../../api/projects";
 import { getProjectRoleLabel, getProjectStatusLabel } from "../../api/project-policy.js";
 import {
+  DEFAULT_PROJECT_GITHUB_ORG,
+  projectGithubRepoNameFromSlug,
+} from "../../api/project-github-names";
+import {
   createProjectTask,
   listProjectTasks,
   updateProjectTaskAssignee,
@@ -130,7 +134,6 @@ const PRIORITY_META: Record<
 };
 
 const ACTIVITY_WINDOW_DAYS = 14;
-const DEFAULT_GITHUB_ORG = "Kookmin-Kobot";
 
 type ActivityPoint = {
   dateKey: string;
@@ -198,16 +201,6 @@ function formatDateTime(value: string | null) {
     hour: "2-digit",
     minute: "2-digit",
   });
-}
-
-function expectedGithubRepoName(project: Pick<ProjectDetailData, "id" | "slug">) {
-  return (
-    project.slug
-      .toLowerCase()
-      .replace(/[^a-z0-9._-]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 90) || `project-${project.id.slice(0, 8)}`
-  );
 }
 
 function githubProfileUrl(login: string | null, url: string | null) {
@@ -966,8 +959,8 @@ function ProjectMemberInviteDialog({
 
 function ProjectGithubPanel({ project }: { project: ProjectDetailData }) {
   const link = project.githubLink;
-  const org = link?.githubOrg ?? DEFAULT_GITHUB_ORG;
-  const repoName = link?.repoName ?? expectedGithubRepoName(project);
+  const org = link?.githubOrg ?? DEFAULT_PROJECT_GITHUB_ORG;
+  const repoName = link?.repoName ?? projectGithubRepoNameFromSlug(project);
   const repoLabel = link?.repoFullName ?? `${org}/${repoName}`;
 
   return (

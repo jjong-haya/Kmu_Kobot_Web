@@ -10,6 +10,7 @@ import {
   type NoticeCommentRow,
   type NoticeRow,
 } from "../../api/notices";
+import { inferNoticeTopicTags, type NoticeTopicTag } from "../../api/notice-tags";
 import { useAuth } from "../../auth/useAuth";
 import { sanitizeUserError } from "../../utils/sanitize-error";
 import { ConfirmActionDialog } from "../../components/ConfirmActionDialog";
@@ -35,6 +36,31 @@ function formatDateTime(iso: string) {
 function initialsFor(name: string | null | undefined) {
   const source = name?.trim() || "K";
   return source.slice(0, 2).toLocaleUpperCase("ko-KR");
+}
+
+const TOPIC_TAG_TONE: Record<NoticeTopicTag["tone"], string> = {
+  blue: "border-[#c9d9ff] bg-[#eef4ff] text-[#1d3f8f]",
+  green: "border-[#bde8ce] bg-[#eaf7f0] text-[#16633f]",
+  amber: "border-[#f2d28a] bg-[#fff7e6] text-[#8a5a0a]",
+  slate: "border-[#d8dde6] bg-[#f3f4f6] text-[#374151]",
+};
+
+function NoticeTopicTags({ title, body }: { title: string; body: string }) {
+  const tags = inferNoticeTopicTags(title, body);
+  if (tags.length === 0) return null;
+
+  return (
+    <div className="mt-4 flex flex-wrap gap-1.5">
+      {tags.map((tag) => (
+        <span
+          key={tag.label}
+          className={`inline-flex min-h-[22px] items-center rounded-md border px-2 py-0.5 text-[11.5px] font-bold leading-tight ${TOPIC_TAG_TONE[tag.tone]}`}
+        >
+          #{tag.label}
+        </span>
+      ))}
+    </div>
+  );
 }
 
 export default function AnnouncementDetail() {
@@ -186,6 +212,8 @@ export default function AnnouncementDetail() {
             <h1 className="kb-display mt-3 text-[26px] font-semibold leading-tight tracking-tight text-[var(--kb-ink-900)] sm:text-[32px]">
               {notice.title}
             </h1>
+
+            <NoticeTopicTags title={notice.title} body={notice.body} />
 
             <div className="mt-6 whitespace-pre-wrap text-[15px] leading-[1.85] text-[var(--kb-ink-700)]">
               {notice.body}

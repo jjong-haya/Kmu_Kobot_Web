@@ -1,5 +1,6 @@
 import { getSupabaseBrowserClient } from "../auth/supabase";
 import { sanitizeUserError } from "../utils/sanitize-error";
+import { extractGithubLoginFromUrl } from "../utils/github";
 import { triggerGithubSyncInBackground } from "./github-sync";
 
 const FALLBACK = "프로필 연락처 정보를 처리하지 못했습니다.";
@@ -27,47 +28,7 @@ function normalizeNullableString(value: string) {
 }
 
 export function extractGithubLoginFromProfileUrl(value: string | null | undefined) {
-  const normalized = normalizeString(value);
-  if (!normalized) return null;
-
-  const match = normalized.match(/^https:\/\/github\.com\/([^/?#]+)(?:[/?#].*)?$/i);
-  if (!match?.[1]) return null;
-
-  const login = match[1].toLowerCase();
-  if (!/^[a-z0-9]([a-z0-9-]{0,37}[a-z0-9])?$/.test(login)) {
-    return null;
-  }
-
-  if (
-    [
-      "about",
-      "apps",
-      "blog",
-      "collections",
-      "contact",
-      "enterprise",
-      "events",
-      "explore",
-      "features",
-      "github",
-      "login",
-      "marketplace",
-      "new",
-      "notifications",
-      "orgs",
-      "organizations",
-      "pricing",
-      "pulls",
-      "search",
-      "settings",
-      "sponsors",
-      "topics",
-    ].includes(login)
-  ) {
-    return null;
-  }
-
-  return login;
+  return extractGithubLoginFromUrl(value);
 }
 
 export async function getOwnProfileContactFields(): Promise<OwnProfileContactFields> {

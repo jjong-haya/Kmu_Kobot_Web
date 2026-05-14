@@ -9,6 +9,11 @@ import {
   type ProjectType,
   type ProjectVisibility,
 } from "../../api/projects";
+import {
+  getProjectGithubRepoNameError,
+  projectGithubRepoNameFromTitle,
+  normalizeProjectGithubRepoName,
+} from "../../api/project-github-names";
 import { sanitizeUserError } from "../../utils/sanitize-error";
 
 const PROJECT_TYPE_OPTIONS: Array<{ value: ProjectType; label: string }> = [
@@ -61,6 +66,10 @@ export function ProjectFormModal({
   const isSettings = mode === "settings";
   const isMutation = isEdit || isSettings;
   const [name, setName] = useState(project?.name ?? "");
+  const [githubRepoName, setGithubRepoName] = useState(
+    project?.githubRepoName ?? projectGithubRepoNameFromTitle(project?.name ?? ""),
+  );
+  const [repoNameTouched, setRepoNameTouched] = useState(Boolean(project?.githubRepoName));
   const [summary, setSummary] = useState(project?.summary ?? "");
   const [description, setDescription] = useState(project?.description ?? "");
   const [projectType, setProjectType] = useState<ProjectType>(project?.projectType ?? "autonomous");
@@ -89,6 +98,11 @@ export function ProjectFormModal({
     };
   }, [onClose]);
 
+  useEffect(() => {
+    if (isMutation || repoNameTouched) return;
+    setGithubRepoName(projectGithubRepoNameFromTitle(name));
+  }, [isMutation, name, repoNameTouched]);
+
   function validate() {
     if (!isSettings && !name.trim()) {
       setLocalError("프로젝트 이름을 입력해 주세요.");
@@ -109,6 +123,14 @@ export function ProjectFormModal({
       setLocalError("프로젝트를 만들려면 먼저 프로필에 GitHub URL을 등록해 주세요.");
       onRequireGithubIdentity?.();
       return false;
+    }
+
+    if (!isSettings) {
+      const repoNameError = getProjectGithubRepoNameError(githubRepoName);
+      if (repoNameError) {
+        setLocalError(repoNameError);
+        return false;
+      }
     }
 
     setLocalError(null);
@@ -134,6 +156,7 @@ export function ProjectFormModal({
 
       const payload = {
         name: name.trim(),
+        githubRepoName: normalizeProjectGithubRepoName(githubRepoName),
         summary: summary.trim() || null,
         description: description.trim() || null,
         projectType,
@@ -238,6 +261,28 @@ export function ProjectFormModal({
               }}
             />
           </Field>
+
+          {!isSettings ? (
+            <Field label="GitHub 저장소 이름">
+              <input
+                value={githubRepoName}
+                onChange={(event) => {
+                  setRepoNameTouched(true);
+                  setGithubRepoName(event.target.value.trim().toLowerCase());
+                }}
+                onBlur={() => {
+                  const normalized = normalizeProjectGithubRepoName(githubRepoName);
+                  if (normalized) setGithubRepoName(normalized);
+                }}
+                placeholder="robot-arm-control"
+                maxLength={90}
+                style={FORM_INPUT_STYLE}
+              />
+              <span className="text-[12.5px] leading-5 text-[var(--kb-ink-500)]">
+                승인 후 {githubRepoName || "repo-name"} 이름으로 GitHub private 저장소가 생성됩니다.
+              </span>
+            </Field>
+          ) : null}
 
           <Field label="요약">
             <input

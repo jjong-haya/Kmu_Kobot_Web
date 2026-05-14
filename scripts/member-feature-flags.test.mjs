@@ -10,7 +10,7 @@ import {
 test("temporarily disables the requested member feature pages", () => {
   assert.deepEqual(
     COMING_SOON_MEMBER_PAGE_KEYS,
-    ["study-playlist", "resources", "equipment", "votes"],
+    ["resources", "equipment", "votes"],
   );
 
   assert.equal(isMemberFeatureComingSoon("study-log"), false);

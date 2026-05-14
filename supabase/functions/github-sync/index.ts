@@ -25,6 +25,7 @@ type ProjectRow = {
   summary: string | null;
   description: string | null;
   status: string;
+  metadata: Record<string, unknown> | null;
 };
 
 type MembershipRow = {
@@ -301,12 +302,27 @@ async function authorizeRequest(request: Request) {
   }
 }
 
-function repoNameFor(project: ProjectRow) {
-  return project.slug
+function normalizeRepoName(value: unknown) {
+  if (typeof value !== "string") return null;
+
+  const normalized = value
     .toLowerCase()
     .replace(/[^a-z0-9._-]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 90) || `project-${project.id.slice(0, 8)}`;
+    .replace(/^[._-]+|[._-]+$/g, "")
+    .replace(/-{2,}/g, "-")
+    .slice(0, 90)
+    .replace(/[._-]+$/g, "");
+
+  return normalized || null;
+}
+
+function repoNameFor(project: ProjectRow) {
+  return (
+    normalizeRepoName(project.metadata?.githubRepoName) ??
+    normalizeRepoName(project.metadata?.github_repo_name) ??
+    normalizeRepoName(project.slug) ??
+    `project-${project.id.slice(0, 8)}`
+  );
 }
 
 function teamBaseFor(repoName: string) {
@@ -340,7 +356,7 @@ async function recordEvent(
 async function loadProject(projectTeamId: string) {
   const { data, error } = await supabase
     .from("project_teams")
-    .select("id, organization_id, slug, name, summary, description, status")
+    .select("id, organization_id, slug, name, summary, description, status, metadata")
     .eq("id", projectTeamId)
     .single();
 

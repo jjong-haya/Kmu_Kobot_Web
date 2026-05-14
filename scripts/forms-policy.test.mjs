@@ -321,13 +321,12 @@ test("member-search questions store canonical member answers and support tag-lim
 });
 
 test("form management navigation stays aligned with role tags and labels", () => {
-  assert.match(memberLayoutSource, /name:\s*"부회장"[\s\S]*name:\s*"폼 관리"[\s\S]*href:\s*"\/member\/forms"/);
-  assert.match(memberLayoutSource, /name:\s*"회장"[\s\S]*name:\s*"폼 관리"[\s\S]*href:\s*"\/member\/forms"/);
+  assert.match(memberLayoutSource, /name:\s*"운영관리"[\s\S]*name:\s*"폼 관리"[\s\S]*href:\s*"\/member\/forms"/);
+  assert.match(memberLayoutSource, /minimumRole:\s*"vicePresident"/);
   assert.doesNotMatch(memberLayoutSource, /신청\/폼/);
   assert.match(memberLayoutSource, /visibleSectionsBeforeDedup/);
   assert.match(memberLayoutSource, /visibleNavigationHrefs/);
-  assert.match(navCatalogSource, /href:\s*"\/member\/forms",\s*label:\s*"폼 관리",\s*group:\s*"부회장"/);
-  assert.match(navCatalogSource, /href:\s*"\/member\/forms",\s*label:\s*"폼 관리",\s*group:\s*"회장"/);
+  assert.match(navCatalogSource, /href:\s*"\/member\/forms",\s*label:\s*"폼 관리",\s*group:\s*"운영관리"/);
   assert.match(navCatalogSource, /permission:\s*"forms\.manage",\s*label:\s*"폼 관리"/);
   assert.match(formsManagementMigrationSource, /vice_president/);
   assert.match(formsManagementMigrationSource, /forms\.manage/);

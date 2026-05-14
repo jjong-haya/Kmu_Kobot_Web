@@ -4,29 +4,18 @@ import type { CSSProperties, ReactNode } from "react";
 import {
   AlertCircle,
   ArrowRight,
-  CalendarClock,
   Inbox,
   Loader2,
   RefreshCcw,
 } from "lucide-react";
 import {
   loadDashboardData,
-  type DashboardContactRequest,
   type DashboardData,
-  type DashboardNotification,
   type DashboardSection,
 } from "../../api/dashboard";
+import { getNoticeDetailPath } from "../../api/announcement-policy.js";
 import { useAuth } from "../../auth/useAuth";
 import { sanitizeUserError } from "../../utils/sanitize-error";
-
-type TodayItem = {
-  id: string;
-  time: string;
-  title: string;
-  meta: string;
-  tone: "urgent" | "normal" | "muted";
-  to: string;
-};
 
 type EventKind = "booking" | "deadline";
 type CalendarEvent = {
@@ -59,13 +48,6 @@ const KIND_CHIP: Record<EventKind, { bg: string; fg: string; dot: string }> = {
   deadline: { bg: "#fde8e6", fg: "#9b1c1c", dot: "#dc2626" },
 };
 
-const PROJECT_STATUS_META: Record<string, { label: string; bg: string; fg: string }> = {
-  active: { label: "진행중", bg: "#e3ecfb", fg: "#163b86" },
-  pending: { label: "승인 대기", bg: "#fef3c7", fg: "#92400e" },
-  archived: { label: "종료", bg: "#f3f3f1", fg: "#6a6a6a" },
-  rejected: { label: "반려", bg: "#fde8e6", fg: "#9b1c1c" },
-};
-
 const TAG_BAR: Record<string, string> = {
   공지: "#2a52a3",
   알림: "#15803d",
@@ -74,7 +56,6 @@ const TAG_BAR: Record<string, string> = {
 const SECTION_LABEL: Record<DashboardSection, string> = {
   notifications: "알림",
   notices: "공지",
-  projects: "프로젝트",
   bookings: "공간 예약",
   contactRequests: "연락 요청",
 };
@@ -245,22 +226,6 @@ function formatDateTime(iso: string) {
   ).padStart(2, "0")}`;
 }
 
-function formatRelativeTime(iso: string) {
-  const date = new Date(iso);
-  const diff = Date.now() - date.getTime();
-  if (!Number.isFinite(diff)) return "";
-
-  const minute = 60 * 1000;
-  const hour = 60 * minute;
-  const day = 24 * hour;
-
-  if (diff < minute) return "방금";
-  if (diff < hour) return `${Math.floor(diff / minute)}분 전`;
-  if (diff < day) return `${Math.floor(diff / hour)}시간 전`;
-  if (diff < day * 7) return `${Math.floor(diff / day)}일 전`;
-  return formatDateTime(iso);
-}
-
 function bookingTypeLabel(type: string) {
   switch (type) {
     case "meeting":
@@ -272,23 +237,6 @@ function bookingTypeLabel(type: string) {
     default:
       return "예약";
   }
-}
-
-function projectStatusMeta(status: string) {
-  return PROJECT_STATUS_META[status] ?? {
-    label: status,
-    bg: "#f3f3f1",
-    fg: "#6a6a6a",
-  };
-}
-
-function contactRequestTitle(request: DashboardContactRequest, userId: string) {
-  return request.recipientUserId === userId ? "연락 요청 응답 마감" : "보낸 연락 요청 응답 대기";
-}
-
-function notificationMeta(notification: DashboardNotification) {
-  const unread = notification.readAt ? "읽음" : "읽지 않음";
-  return `${unread} · ${formatRelativeTime(notification.createdAt)}`;
 }
 
 function buildCalendarEvents(data: DashboardData, options: { onlyMine?: boolean } = {}): CalendarEvent[] {
@@ -313,50 +261,6 @@ function buildCalendarEvents(data: DashboardData, options: { onlyMine?: boolean 
   return [...bookingEvents, ...contactEvents].sort((a, b) =>
     a.date === b.date ? a.title.localeCompare(b.title, "ko") : a.date.localeCompare(b.date),
   );
-}
-
-function buildTodayItems(data: DashboardData, userId: string, todayKey: string): TodayItem[] {
-  const today = parseDateKey(todayKey);
-  const soon = addDays(today, 3).getTime();
-
-  const contacts = data.contactRequests
-    .filter((request) => {
-      const due = new Date(request.expiresAt).getTime();
-      return Number.isFinite(due) && due <= soon;
-    })
-    .map((request) => ({
-      id: `contact-${request.id}`,
-      time: "마감",
-      title: contactRequestTitle(request, userId),
-      meta: formatDateTime(request.expiresAt),
-      tone: "urgent" as const,
-      to: "/member/contact-requests",
-    }));
-
-  const bookings = data.bookings
-    .filter((booking) => booking.date === todayKey && booking.isMine)
-    .map((booking) => ({
-      id: `booking-${booking.id}`,
-      time: booking.start,
-      title: booking.title,
-      meta: `${booking.end}까지 · ${booking.organizer}`,
-      tone: "normal" as const,
-      to: "/member/space-booking",
-    }));
-
-  const notifications = data.notifications
-    .filter((notification) => !notification.readAt || notification.importance === "important")
-    .slice(0, 3)
-    .map((notification) => ({
-      id: `notification-${notification.id}`,
-      time: notification.importance === "important" ? "중요" : "알림",
-      title: notification.title,
-      meta: notificationMeta(notification),
-      tone: notification.importance === "important" ? ("urgent" as const) : ("muted" as const),
-      to: `/member/notifications?notification=${encodeURIComponent(notification.id)}`,
-    }));
-
-  return [...contacts, ...bookings, ...notifications].slice(0, 6);
 }
 
 const navBtn: CSSProperties = {
@@ -741,6 +645,96 @@ function CalendarPanel({
   );
 }
 
+function DashboardNoticePanel({
+  loading,
+  data,
+}: {
+  loading: boolean;
+  data: DashboardData | null;
+}) {
+  return (
+    <Card style={{ overflow: "hidden" }}>
+      <CardHeader eyebrow="Notices" action={<MoreLink to="/member/announcements" />} />
+      {loading && !data ? (
+        <LoadingBlock />
+      ) : !data || data.notices.length === 0 ? (
+        <EmptyBlock
+          icon={
+            <Inbox
+              style={{
+                width: 26,
+                height: 26,
+                margin: "0 auto 10px",
+                color: "var(--kb-ink-300)",
+              }}
+            />
+          }
+        >
+          게시된 공지가 없습니다.
+        </EmptyBlock>
+      ) : (
+        <div>
+          {data.notices.map((notice) => (
+            <Link
+              key={notice.id}
+              to={getNoticeDetailPath(notice.id)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 18,
+                padding: "16px 28px",
+                borderTop: "1px solid #f1ede4",
+                textDecoration: "none",
+                color: "var(--kb-ink-900)",
+              }}
+              className="hover:bg-[#fafaf6]"
+            >
+              <span
+                style={{
+                  width: 3,
+                  alignSelf: "stretch",
+                  borderRadius: 2,
+                  background: TAG_BAR["공지"],
+                  flexShrink: 0,
+                }}
+              />
+              <span
+                style={{
+                  fontFamily: "'Nunito', sans-serif",
+                  fontSize: 15.5,
+                  fontWeight: 800,
+                  color: "#0a0a0a",
+                  minWidth: 40,
+                  flexShrink: 0,
+                }}
+              >
+                공지
+              </span>
+              <span
+                style={{
+                  fontSize: 16.5,
+                  fontWeight: 500,
+                  color: "var(--kb-ink-900)",
+                  flex: 1,
+                  minWidth: 0,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {notice.title}
+              </span>
+              <span style={{ fontSize: 14, color: "var(--kb-ink-500)", flexShrink: 0 }}>
+                {formatDateTime(notice.createdAt).split(" ")[0]}
+              </span>
+            </Link>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
 function ErrorBanner({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (
     <div
@@ -804,15 +798,6 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [calendarMyOnly, setCalendarMyOnly] = useState(readDashboardCalendarMyOnlyPreference);
 
-  const today = useMemo(() => {
-    const date = new Date();
-    const days = ["일", "월", "화", "수", "목", "금", "토"];
-    return {
-      label: `${date.getMonth() + 1}월 ${date.getDate()}일 (${days[date.getDay()]})`,
-      key: toDateKey(date),
-    };
-  }, []);
-
   async function load() {
     if (!userId) return;
 
@@ -844,19 +829,12 @@ export default function Dashboard() {
     writeDashboardCalendarMyOnlyPreference(next);
   }
 
-  const todayItems = useMemo(
-    () => (data ? buildTodayItems(data, userId, today.key) : []),
-    [data, today.key, userId],
-  );
   const calendarEvents = useMemo(
     () => (data ? buildCalendarEvents(data, { onlyMine: calendarMyOnly }) : []),
     [calendarMyOnly, data],
   );
-  const todayBookingCount =
-    data?.bookings.filter((booking) => booking.date === today.key && booking.isMine).length ?? 0;
-  const activeProjectCount = data?.projects.filter((project) => project.status === "active").length ?? 0;
   const summary = data
-    ? `읽지 않은 알림 ${data.unreadNotificationCount}건 · 오늘 일정 ${todayBookingCount}건 · 진행 프로젝트 ${activeProjectCount}개`
+    ? `읽지 않은 알림 ${data.unreadNotificationCount}건`
     : "실제 데이터를 불러오는 중";
 
   return (
@@ -891,7 +869,7 @@ export default function Dashboard() {
                 marginBottom: 8,
               }}
             >
-              {today.label} · Dashboard
+              Member Home
             </div>
             <h1
               className="kb-display"
@@ -937,300 +915,14 @@ export default function Dashboard() {
 
         {error && <ErrorBanner message={error} onRetry={() => void load()} />}
 
+        <DashboardNoticePanel loading={loading} data={data} />
+
         <style>{`
           @media (min-width: 1100px) {
-            .kb-dash-grid { grid-template-columns: 1fr minmax(380px, 0.75fr) !important; }
+            .kb-dash-grid { grid-template-columns: minmax(0, 1fr) !important; }
           }
         `}</style>
         <div className="kb-dash-grid grid gap-4 items-stretch" style={{ gridTemplateColumns: "1fr" }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 16, minWidth: 0, minHeight: 0 }}>
-            <Card>
-              <CardHeader eyebrow="Today" action={<MoreLink to="/member/notifications" />} />
-              {loading && !data ? (
-                <LoadingBlock />
-              ) : todayItems.length === 0 ? (
-                <EmptyBlock
-                  icon={
-                    <Inbox
-                      style={{
-                        width: 26,
-                        height: 26,
-                        margin: "0 auto 10px",
-                        color: "var(--kb-ink-300)",
-                      }}
-                    />
-                  }
-                >
-                  오늘 표시할 항목이 없습니다.
-                </EmptyBlock>
-              ) : (
-                <div>
-                  {todayItems.map((item) => (
-                    <Link
-                      key={item.id}
-                      to={item.to}
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "72px 1fr auto",
-                        alignItems: "center",
-                        gap: 18,
-                        padding: "16px 28px",
-                        borderTop: "1px solid #f1ede4",
-                        textDecoration: "none",
-                        color: "inherit",
-                      }}
-                      className="hover:bg-[#fafaf6]"
-                    >
-                      <span
-                        style={{
-                          fontSize: 14,
-                          fontWeight: 700,
-                          color:
-                            item.tone === "urgent"
-                              ? "#b45309"
-                              : item.tone === "normal"
-                                ? "var(--kb-navy-800)"
-                                : "var(--kb-ink-500)",
-                        }}
-                      >
-                        {item.time}
-                      </span>
-                      <span
-                        style={{
-                          fontSize: 16.5,
-                          fontWeight: 500,
-                          color: "var(--kb-ink-900)",
-                          minWidth: 0,
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {item.title}
-                      </span>
-                      <span style={{ fontSize: 14.5, color: "var(--kb-ink-500)", whiteSpace: "nowrap" }}>
-                        {item.meta}
-                      </span>
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </Card>
-
-            <Card>
-              <CardHeader eyebrow="Projects" action={<MoreLink to="/member/projects" />} />
-              {loading && !data ? (
-                <LoadingBlock />
-              ) : !data || data.projects.length === 0 ? (
-                <EmptyBlock
-                  icon={
-                    <CalendarClock
-                      style={{
-                        width: 26,
-                        height: 26,
-                        margin: "0 auto 10px",
-                        color: "var(--kb-ink-300)",
-                      }}
-                    />
-                  }
-                >
-                  참여 중인 프로젝트가 없습니다.
-                </EmptyBlock>
-              ) : (
-                <div>
-                  {data.projects.slice(0, 4).map((project) => {
-                    const meta = projectStatusMeta(project.status);
-                    return (
-                      <Link
-                        key={project.id}
-                        to={`/member/projects/${project.slug}`}
-                        style={{
-                          display: "block",
-                          padding: "18px 28px",
-                          borderTop: "1px solid #f1ede4",
-                          textDecoration: "none",
-                          color: "var(--kb-ink-900)",
-                        }}
-                        className="hover:bg-[#fafaf6]"
-                      >
-                        <div
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                            gap: 12,
-                            marginBottom: 10,
-                          }}
-                        >
-                          <span
-                            style={{
-                              fontSize: 17,
-                              fontWeight: 600,
-                              minWidth: 0,
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            {project.name}
-                          </span>
-                          <span style={{ fontSize: 14, color: "var(--kb-ink-500)", whiteSpace: "nowrap" }}>
-                            {project.role} · {project.members}명
-                          </span>
-                        </div>
-                        {project.summary && (
-                          <div
-                            style={{
-                              fontSize: 14,
-                              color: "var(--kb-ink-500)",
-                              marginBottom: 10,
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            {project.summary}
-                          </div>
-                        )}
-                        {project.progress === null ? (
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                            <span
-                              style={{
-                                fontSize: 12.5,
-                                fontWeight: 700,
-                                padding: "3px 10px",
-                                borderRadius: 4,
-                                background: meta.bg,
-                                color: meta.fg,
-                              }}
-                            >
-                              {meta.label}
-                            </span>
-                            <span style={{ fontSize: 13, color: "var(--kb-ink-500)" }}>
-                              {formatRelativeTime(project.updatedAt)}
-                            </span>
-                          </div>
-                        ) : (
-                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                            <div
-                              style={{
-                                flex: 1,
-                                height: 6,
-                                background: "#f1ede4",
-                                borderRadius: 3,
-                                overflow: "hidden",
-                              }}
-                            >
-                              <div
-                                style={{
-                                  height: "100%",
-                                  width: `${project.progress}%`,
-                                  background: "var(--kb-navy-800)",
-                                }}
-                              />
-                            </div>
-                            <span
-                              className="kb-mono"
-                              style={{
-                                fontSize: 14.5,
-                                color: "var(--kb-navy-800)",
-                                fontWeight: 600,
-                                minWidth: 40,
-                                textAlign: "right",
-                              }}
-                            >
-                              {project.progress}%
-                            </span>
-                          </div>
-                        )}
-                      </Link>
-                    );
-                  })}
-                </div>
-              )}
-            </Card>
-
-            <Card>
-              <CardHeader eyebrow="Notices" action={<MoreLink to="/member/announcements" />} />
-              {loading && !data ? (
-                <LoadingBlock />
-              ) : !data || data.notices.length === 0 ? (
-                <EmptyBlock
-                  icon={
-                    <Inbox
-                      style={{
-                        width: 26,
-                        height: 26,
-                        margin: "0 auto 10px",
-                        color: "var(--kb-ink-300)",
-                      }}
-                    />
-                  }
-                >
-                  게시된 공지가 없습니다.
-                </EmptyBlock>
-              ) : (
-                <div>
-                  {data.notices.map((notice) => (
-                    <Link
-                      key={notice.id}
-                      to="/member/announcements"
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 18,
-                        padding: "16px 28px",
-                        borderTop: "1px solid #f1ede4",
-                        textDecoration: "none",
-                        color: "var(--kb-ink-900)",
-                      }}
-                      className="hover:bg-[#fafaf6]"
-                    >
-                      <span
-                        style={{
-                          width: 3,
-                          alignSelf: "stretch",
-                          borderRadius: 2,
-                          background: TAG_BAR["공지"],
-                          flexShrink: 0,
-                        }}
-                      />
-                      <span
-                        style={{
-                          fontFamily: "'Nunito', sans-serif",
-                          fontSize: 15.5,
-                          fontWeight: 800,
-                          color: "#0a0a0a",
-                          minWidth: 40,
-                          flexShrink: 0,
-                        }}
-                      >
-                        공지
-                      </span>
-                      <span
-                        style={{
-                          fontSize: 16.5,
-                          fontWeight: 500,
-                          color: "var(--kb-ink-900)",
-                          flex: 1,
-                          minWidth: 0,
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {notice.title}
-                      </span>
-                      <span style={{ fontSize: 14, color: "var(--kb-ink-500)", flexShrink: 0 }}>
-                        {formatDateTime(notice.createdAt).split(" ")[0]}
-                      </span>
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </Card>
-          </div>
-
           <CalendarPanel
             events={calendarEvents}
             myOnly={calendarMyOnly}

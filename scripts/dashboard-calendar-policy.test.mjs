@@ -45,12 +45,15 @@ test("dashboard calendar has a persisted my-schedule-only checkbox", () => {
   assert.match(dashboardPageSource, /\.filter\(\(booking\) => !options\.onlyMine \|\| booking\.isMine\)/);
 });
 
-test("dashboard Today card shows only today's bookings related to the viewer", () => {
-  assert.match(
+test("dashboard uses the former Today slot for notices", () => {
+  assert.match(dashboardPageSource, /function DashboardNoticePanel/);
+  assert.match(dashboardPageSource, /<DashboardNoticePanel loading=\{loading\} data=\{data\} \/>/);
+  assert.match(dashboardPageSource, /to=\{getNoticeDetailPath\(notice\.id\)\}/);
+  assert.doesNotMatch(
     dashboardPageSource,
     /\.filter\(\(booking\) => booking\.date === todayKey && booking\.isMine\)/,
   );
-  assert.match(
+  assert.doesNotMatch(
     dashboardPageSource,
     /data\?\.bookings\.filter\(\(booking\) => booking\.date === today\.key && booking\.isMine\)\.length/,
   );
