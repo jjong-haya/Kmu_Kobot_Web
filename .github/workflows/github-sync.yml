@@ -16,10 +16,10 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL || secrets.VITE_SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY || secrets.VITE_SUPABASE_ANON_KEY }}
-          GITHUB_SYNC_SECRET: ${{ secrets.GITHUB_SYNC_SECRET }}
+          KOBOT_GITHUB_SYNC_SECRET: ${{ secrets.KOBOT_GITHUB_SYNC_SECRET }}
         run: |
-          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ] || [ -z "$GITHUB_SYNC_SECRET" ]; then
-            echo "SUPABASE_URL, SUPABASE_ANON_KEY, and GITHUB_SYNC_SECRET repository secrets are required."
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ] || [ -z "$KOBOT_GITHUB_SYNC_SECRET" ]; then
+            echo "SUPABASE_URL, SUPABASE_ANON_KEY, and KOBOT_GITHUB_SYNC_SECRET repository secrets are required."
             exit 1
           fi
 
@@ -28,5 +28,5 @@ jobs:
             --url "$SUPABASE_URL/functions/v1/github-sync" \
             --header "content-type: application/json" \
             --header "authorization: Bearer $SUPABASE_ANON_KEY" \
-            --header "x-github-sync-secret: $GITHUB_SYNC_SECRET" \
+            --header "x-github-sync-secret: $KOBOT_GITHUB_SYNC_SECRET" \
             --data '{"limit":10}'
