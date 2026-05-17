@@ -9,7 +9,6 @@ import { BlockNoteView } from "@blocknote/mantine";
 import { useCreateBlockNote } from "@blocknote/react";
 import { Link, useParams } from "react-router";
 import {
-  ArrowLeft,
   BookOpen,
   CalendarDays,
   Clock,
@@ -30,6 +29,7 @@ import {
   type StudyRecordVisibility,
 } from "../../api/studies";
 import { useAuth } from "../../auth/useAuth";
+import { StudyBreadcrumb } from "../../components/member/StudyBreadcrumb";
 import { sanitizeUserError } from "../../utils/sanitize-error";
 
 const PAGE_STYLE: CSSProperties = {
@@ -218,13 +218,13 @@ export default function StudyPostDetail() {
   return (
     <div className="kb-root" style={PAGE_STYLE}>
       <div className="mx-auto flex max-w-[980px] flex-col gap-5">
-        <Link
-          to={slug ? boardPath(slug) : "/member/study-log"}
-          className="inline-flex w-fit items-center gap-1.5 text-[13.5px] text-[var(--kb-ink-500)] no-underline hover:text-[var(--kb-ink-900)]"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          게시판으로
-        </Link>
+        <StudyBreadcrumb
+          items={[
+            { label: "스터디 기록", to: "/member/study-log" },
+            { label: project?.name ?? slug, to: slug ? boardPath(slug) : undefined },
+            { label: record?.title ?? "게시글" },
+          ]}
+        />
 
         {loading ? (
           <div className="flex items-center justify-center gap-2 px-5 py-20 text-[15px] text-[var(--kb-ink-500)]">

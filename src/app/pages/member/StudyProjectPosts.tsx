@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties, ChangeEvent, FormEvent } from "react";
 import { Link, useParams } from "react-router";
 import {
-  ArrowLeft,
   BookOpen,
   Download,
   FileText,
@@ -13,6 +12,7 @@ import {
   RefreshCw,
   Search,
   ShieldCheck,
+  Trash2,
   UploadCloud,
   Users,
   X,
@@ -23,6 +23,7 @@ import {
 } from "../../api/projects";
 import { getProjectStatusLabel } from "../../api/project-policy.js";
 import {
+  deleteProjectStudyMaterial,
   listProjectStudyMaterials,
   listProjectStudyRecords,
   STUDY_MATERIAL_ACCEPT,
@@ -32,6 +33,8 @@ import {
   type StudyRecordVisibility,
 } from "../../api/studies";
 import { useAuth } from "../../auth/useAuth";
+import { ConfirmActionDialog } from "../../components/ConfirmActionDialog";
+import { StudyBreadcrumb } from "../../components/member/StudyBreadcrumb";
 import { sanitizeUserError } from "../../utils/sanitize-error";
 
 const PAGE_STYLE: CSSProperties = {
@@ -329,8 +332,14 @@ function StudyMaterialUploadDialog({
 
 function StudyMaterialsSection({
   materials,
+  canDelete,
+  deletingMaterialId,
+  onDeleteRequest,
 }: {
   materials: StudyMaterial[];
+  canDelete: boolean;
+  deletingMaterialId: string | null;
+  onDeleteRequest: (material: StudyMaterial) => void;
 }) {
   return (
     <section style={{ ...PANEL_STYLE, overflow: "hidden" }}>
@@ -358,7 +367,7 @@ function StudyMaterialsSection({
           {materials.map((material) => (
             <div
               key={material.id}
-              className="grid gap-3 px-5 py-4 sm:px-7 md:grid-cols-[44px_1fr_170px_108px] md:items-center"
+              className="grid gap-3 px-5 py-4 sm:px-7 md:grid-cols-[44px_1fr_150px_220px] md:items-center"
             >
               <div className="flex h-11 w-11 items-center justify-center rounded-md bg-[#efe9dc] text-[11px] font-black text-[var(--kb-ink-700)]">
                 {fileTypeLabel(material.fileName)}
@@ -383,26 +392,44 @@ function StudyMaterialsSection({
                 {formatDateTime(material.createdAt)}
               </div>
 
-              {material.downloadUrl ? (
-                <a
-                  href={material.downloadUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-[#e8e8e4] bg-white px-3 text-[13.5px] font-semibold text-[var(--kb-ink-700)] no-underline hover:border-[var(--kb-ink-300)]"
-                >
-                  <Download className="h-4 w-4" />
-                  다운로드
-                </a>
-              ) : (
-                <button
-                  type="button"
-                  disabled
-                  className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-[#e8e8e4] bg-white px-3 text-[13.5px] font-semibold text-[var(--kb-ink-400)]"
-                >
-                  <Download className="h-4 w-4" />
-                  준비중
-                </button>
-              )}
+              <div className="flex flex-wrap items-center gap-2 md:justify-end">
+                {material.downloadUrl ? (
+                  <a
+                    href={material.downloadUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-[#e8e8e4] bg-white px-3 text-[13.5px] font-semibold text-[var(--kb-ink-700)] no-underline hover:border-[var(--kb-ink-300)]"
+                  >
+                    <Download className="h-4 w-4" />
+                    다운로드
+                  </a>
+                ) : (
+                  <button
+                    type="button"
+                    disabled
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-[#e8e8e4] bg-white px-3 text-[13.5px] font-semibold text-[var(--kb-ink-400)]"
+                  >
+                    <Download className="h-4 w-4" />
+                    준비중
+                  </button>
+                )}
+
+                {canDelete ? (
+                  <button
+                    type="button"
+                    disabled={deletingMaterialId === material.id}
+                    onClick={() => onDeleteRequest(material)}
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-red-200 bg-white px-3 text-[13.5px] font-semibold text-red-600 hover:border-red-300 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {deletingMaterialId === material.id ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-4 w-4" />
+                    )}
+                    삭제
+                  </button>
+                ) : null}
+              </div>
             </div>
           ))}
         </div>
@@ -486,6 +513,8 @@ export default function StudyProjectPosts() {
   const [error, setError] = useState<string | null>(null);
   const [keyword, setKeyword] = useState("");
   const [materialUploadOpen, setMaterialUploadOpen] = useState(false);
+  const [materialToDelete, setMaterialToDelete] = useState<StudyMaterial | null>(null);
+  const [deletingMaterialId, setDeletingMaterialId] = useState<string | null>(null);
 
   const isPresident =
     authData.account.isBootstrapAdmin ||
@@ -544,16 +573,34 @@ export default function StudyProjectPosts() {
     void refresh();
   }, [slug, user?.id]);
 
+  async function handleDeleteMaterial() {
+    if (!materialToDelete) return;
+
+    try {
+      setDeletingMaterialId(materialToDelete.id);
+      setError(null);
+      await deleteProjectStudyMaterial({
+        materialId: materialToDelete.id,
+        storagePath: materialToDelete.storagePath,
+      });
+      setMaterials((current) => current.filter((material) => material.id !== materialToDelete.id));
+      setMaterialToDelete(null);
+    } catch (requestError) {
+      setError(sanitizeUserError(requestError, "스터디 자료를 삭제하지 못했습니다."));
+    } finally {
+      setDeletingMaterialId(null);
+    }
+  }
+
   return (
     <div className="kb-root" style={PAGE_STYLE}>
       <div className="mx-auto flex max-w-[1120px] flex-col gap-5">
-        <Link
-          to="/member/study-log"
-          className="inline-flex w-fit items-center gap-1.5 text-[13.5px] text-[var(--kb-ink-500)] no-underline hover:text-[var(--kb-ink-900)]"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          스터디 기록
-        </Link>
+        <StudyBreadcrumb
+          items={[
+            { label: "스터디 기록", to: "/member/study-log" },
+            { label: project?.name ?? slug },
+          ]}
+        />
 
         {loading ? (
           <div className="flex items-center justify-center gap-2 px-5 py-20 text-[15px] text-[var(--kb-ink-500)]">
@@ -654,7 +701,12 @@ export default function StudyProjectPosts() {
               </div>
             </header>
 
-            <StudyMaterialsSection materials={materials} />
+            <StudyMaterialsSection
+              materials={materials}
+              canDelete={canWrite}
+              deletingMaterialId={deletingMaterialId}
+              onDeleteRequest={setMaterialToDelete}
+            />
 
             <section style={{ ...PANEL_STYLE, overflow: "hidden" }}>
               <div className="flex flex-col gap-3 border-b border-[#f1ede4] px-5 py-4 sm:px-7">
@@ -711,6 +763,22 @@ export default function StudyProjectPosts() {
               open={materialUploadOpen}
               onClose={() => setMaterialUploadOpen(false)}
               onUploaded={(material) => setMaterials((current) => [material, ...current])}
+            />
+            <ConfirmActionDialog
+              open={Boolean(materialToDelete)}
+              title="스터디 자료 삭제"
+              description={
+                materialToDelete
+                  ? `"${materialToDelete.title}" 자료를 삭제합니다. 삭제한 자료는 다시 다운로드할 수 없습니다.`
+                  : "스터디 자료를 삭제합니다."
+              }
+              confirmLabel="삭제"
+              destructive
+              busy={Boolean(deletingMaterialId)}
+              onOpenChange={(open) => {
+                if (!open && !deletingMaterialId) setMaterialToDelete(null);
+              }}
+              onConfirm={handleDeleteMaterial}
             />
           </>
         )}

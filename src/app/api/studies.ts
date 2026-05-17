@@ -152,6 +152,11 @@ export type UploadProjectStudyMaterialInput = {
   description?: string | null;
 };
 
+export type DeleteProjectStudyMaterialInput = {
+  materialId: string;
+  storagePath?: string | null;
+};
+
 type StudyRecordDbRow = {
   id: string;
   study_session_id: string | null;
@@ -684,6 +689,36 @@ export async function uploadProjectStudyMaterial(
   }
 
   return withDownloadUrl(mapStudyMaterial(row));
+}
+
+export async function deleteProjectStudyMaterial(
+  input: DeleteProjectStudyMaterialInput,
+): Promise<StudyMaterial> {
+  const supabase = getSupabaseBrowserClient();
+  const { data, error } = await supabase.rpc("delete_project_study_material", {
+    p_material_id: input.materialId,
+  });
+
+  if (error) {
+    throw new Error(sanitizeUserError(error, "스터디 자료를 삭제하지 못했습니다."));
+  }
+
+  const row = (Array.isArray(data) ? data[0] : data) as StudyMaterialDbRow | null;
+  if (!row?.id) {
+    throw new Error("삭제한 스터디 자료 정보를 확인하지 못했습니다.");
+  }
+
+  const deleted = mapStudyMaterial(row);
+  const storagePath = input.storagePath || deleted.storagePath;
+
+  if (storagePath) {
+    await supabase.storage
+      .from(STUDY_MATERIAL_BUCKET)
+      .remove([storagePath])
+      .catch(() => undefined);
+  }
+
+  return deleted;
 }
 
 function extensionForImage(file: File) {

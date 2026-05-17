@@ -360,7 +360,7 @@ function CalendarPanel({
               marginBottom: 2,
             }}
           >
-            Calendar {selected ? "· week" : ""}
+            캘린더 {selected ? "· 주간" : ""}
           </div>
           <h2
             className="kb-display"
@@ -654,7 +654,7 @@ function DashboardNoticePanel({
 }) {
   return (
     <Card style={{ overflow: "hidden" }}>
-      <CardHeader eyebrow="Notices" action={<MoreLink to="/member/announcements" />} />
+      <CardHeader eyebrow="공지" action={<MoreLink to="/member/announcements" />} />
       {loading && !data ? (
         <LoadingBlock />
       ) : !data || data.notices.length === 0 ? (
@@ -915,14 +915,16 @@ export default function Dashboard() {
 
         {error && <ErrorBanner message={error} onRetry={() => void load()} />}
 
-        <DashboardNoticePanel loading={loading} data={data} />
-
         <style>{`
           @media (min-width: 1100px) {
-            .kb-dash-grid { grid-template-columns: minmax(0, 1fr) !important; }
+            .kb-dash-grid {
+              grid-template-columns: minmax(0, 0.95fr) minmax(420px, 1.05fr) !important;
+              align-items: start;
+            }
           }
         `}</style>
         <div className="kb-dash-grid grid gap-4 items-stretch" style={{ gridTemplateColumns: "1fr" }}>
+          <DashboardNoticePanel loading={loading} data={data} />
           <CalendarPanel
             events={calendarEvents}
             myOnly={calendarMyOnly}
